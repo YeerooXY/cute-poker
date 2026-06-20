@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+.hypothesis/
+.pytest_cache/
+.vscode/
+.kiro/
+*.egg-info/
+dist/
+build/
+.env
+node_modules/
