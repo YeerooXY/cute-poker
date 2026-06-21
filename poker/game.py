@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
 import secrets
 import string
 from dataclasses import dataclass
@@ -11,6 +12,7 @@ from fastapi import WebSocket
 
 from poker.cards import display_cards, new_deck
 from poker.evaluator import evaluate_7
+from poker.logs import save_hand_log
 from poker.models import ChatMessage, Player, Room, Winner
 from poker.odds import calculate_player_odds
 from poker.terminology import classify_hand
@@ -39,6 +41,8 @@ class PokerServer:
         self.bots: dict[str, BotConfig] = {}  # player_id -> BotConfig
         self._bot_task_running: set[str] = set()  # room_ids with active bot loops
         self._odds_cache: dict[str, dict] = {}  # room_id -> {(token, board_tuple): odds_result}
+        self._bot_loop_active: dict[str, asyncio.Event] = {}  # room_id → Event (set when idle)
+        self._pending_start_hand: dict[str, bool] = {}  # room_id → queued start_hand flag
 
     async def handle(self, ws: WebSocket, event: str, payload: dict[str, Any]) -> HandleResult:
         if event == "create":
@@ -340,7 +344,8 @@ class PokerServer:
                 print(f"[BOT] No free seat in room {room.room_id}")
                 return  # Room full
 
-        config = create_bot_config(style)
+        difficulty = random.choice(["medium", "hard", "expert"])
+        config = create_bot_config(style, use_advanced_ai=True, difficulty=difficulty)
         seat = self.find_free_seat(room)
         if seat is None:
             print(f"[BOT] No free seat after eviction")
@@ -397,6 +402,11 @@ class PokerServer:
         from poker.odds import calculate_equity_hybrid
         from poker.terminology import classify_hand as _classify_hand
 
+        # Initialize the bot loop event for this room (set = idle/not processing)
+        if room_id not in self._bot_loop_active:
+            self._bot_loop_active[room_id] = asyncio.Event()
+        self._bot_loop_active[room_id].set()  # Start as idle
+
         try:
             while True:
                 await asyncio.sleep(1)
@@ -407,15 +417,25 @@ class PokerServer:
 
                 # Check if any bot has action
                 if room.action_seat is None:
+                    # No bot acting — ensure event is set (idle)
+                    self._bot_loop_active[room_id].set()
                     continue
                 if room.phase not in ["preflop", "flop", "turn", "river"]:
+                    # Not in a betting phase — ensure event is set (idle)
+                    self._bot_loop_active[room_id].set()
                     continue
 
                 action_player = self.player_by_seat(room, room.action_seat)
                 if not action_player:
+                    self._bot_loop_active[room_id].set()
                     continue
                 if action_player.player_id not in self.bots:
+                    # It's a human's turn — bot loop is idle
+                    self._bot_loop_active[room_id].set()
                     continue
+
+                # Bot is about to act — clear event (mark as active/processing)
+                self._bot_loop_active[room_id].clear()
 
                 # It's a bot's turn — calculate context-aware think time
                 config = self.bots[action_player.player_id]
@@ -449,6 +469,9 @@ class PokerServer:
                 # Re-check state (might have changed during think time)
                 room = self.rooms.get(room_id)
                 if not room or room.action_seat != action_player.seat:
+                    # State changed — set event back to idle
+                    if room_id in self._bot_loop_active:
+                        self._bot_loop_active[room_id].set()
                     continue
 
                 # Snapshot state before action for trash talk detection
@@ -464,6 +487,16 @@ class PokerServer:
                 except Exception:
                     # Fallback: just check/call
                     await self.player_action(room, action_player, "check_call", {})
+
+                # Bot action complete — set event (idle) after acting
+                self._bot_loop_active[room_id].set()
+
+                # Check if there's a pending start_hand request to process
+                if self._pending_start_hand.get(room_id, False):
+                    room = self.rooms.get(room_id)
+                    if room and room.phase in ["showdown", "lobby"]:
+                        self._pending_start_hand[room_id] = False
+                        await self.start_hand(room)
 
                 # ─── Trash talk detection (after action) ───
                 # Re-fetch room state after action
@@ -536,7 +569,19 @@ class PokerServer:
                             await self.broadcast(room)
 
         finally:
+            # On exit, check for pending start_hand before cleaning up
+            if self._pending_start_hand.get(room_id, False):
+                room = self.rooms.get(room_id)
+                if room:
+                    self._pending_start_hand[room_id] = False
+                    try:
+                        await self.start_hand(room)
+                    except Exception:
+                        pass  # Room may have been destroyed
+            # Clean up state
             self._bot_task_running.discard(room_id)
+            self._bot_loop_active.pop(room_id, None)
+            self._pending_start_hand.pop(room_id, None)
 
     async def player_action(self, room: Room, player: Player, action: str, payload: dict[str, Any]):
         print(f"[ACTION] {player.name} (seat {player.seat}) -> {action} | phase={room.phase} action_seat={room.action_seat} current_bet={room.current_bet} committed={player.committed} stack={player.stack}")
@@ -545,7 +590,36 @@ class PokerServer:
             if room.paused:
                 await self.send(player.ws, "error", {"message": "Game is paused."})
                 return
-            await self.start_hand(room)
+
+            room_id = room.room_id
+
+            # Check if bot loop is currently active (processing actions)
+            bot_event = self._bot_loop_active.get(room_id)
+            if bot_event and not bot_event.is_set():
+                # Bots still processing — queue the start_hand and return silently
+                self._pending_start_hand[room_id] = True
+                return
+
+            # Bot loop is idle (or no bots) — proceed with start_hand
+            try:
+                await self.start_hand(room)
+                self._pending_start_hand.pop(room_id, None)
+            except Exception:
+                # Race condition: stale state — wait for bot loop to finish, then retry once
+                bot_event = self._bot_loop_active.get(room_id)
+                if bot_event:
+                    try:
+                        await asyncio.wait_for(bot_event.wait(), timeout=1.0)
+                    except asyncio.TimeoutError:
+                        pass
+                    # Retry once after bot loop signals completion
+                    room = self.rooms.get(room_id)
+                    if room:
+                        try:
+                            await self.start_hand(room)
+                        except Exception:
+                            pass  # Give up after one retry
+                self._pending_start_hand.pop(room_id, None)
             return
 
         if action == "reset_stacks":
@@ -698,6 +772,7 @@ class PokerServer:
         amount = max(0, min(amount, player.stack))
         player.stack -= amount
         player.committed += amount
+        player.total_invested += amount
         room.pot += amount
         if player.stack == 0:
             player.all_in = True
@@ -723,6 +798,7 @@ class PokerServer:
             p.folded = False
             p.all_in = False
             p.committed = 0
+            p.total_invested = 0
             p.acted = False
             p.last_hand_name = ""
             p.last_best_cards = []
@@ -798,6 +874,13 @@ class PokerServer:
         if not can_act:
             return True
 
+        # Sole-actor detection: if only one player can act and all others
+        # are all-in, auto-complete since no one can respond to any action
+        if len(can_act) == 1:
+            others = [p for p in contenders if p != can_act[0]]
+            if all(p.all_in for p in others):
+                return True
+
         for p in can_act:
             if not p.acted:
                 return False
@@ -817,6 +900,7 @@ class PokerServer:
         room.winners = [Winner(winner.player_id, winner.name, amount, "Everyone else folded")]
         room.phase = "showdown"
         room.action_seat = None
+        save_hand_log(room)
 
     def _is_all_in_runout(self, room: Room) -> bool:
         """Check if all active players are all-in (no one can act)."""
@@ -891,27 +975,73 @@ class PokerServer:
             room.action_seat = None
             return
 
-        best_score = None
-        winners: list[Player] = []
-
+        # Evaluate all hands
         for p in contenders:
             score, name, best_cards = evaluate_7(p.cards + room.community)
+            p._showdown_score = score
             p.last_hand_name = name
             p.last_best_cards = best_cards
 
-            if best_score is None or score > best_score:
-                best_score = score
-                winners = [p]
-            elif score == best_score:
-                winners.append(p)
-
-        split = room.pot // len(winners)
-        remainder = room.pot % len(winners)
+        # Calculate side pots based on total_invested
+        # Sort contenders by investment level
+        sorted_contenders = sorted(contenders, key=lambda p: p.total_invested)
 
         room.winners = []
-        for i, p in enumerate(winners):
-            amount = split + (1 if i < remainder else 0)
-            p.stack += amount
+        already_awarded = {}  # player_id -> total amount awarded
+        prev_level = 0
+        remaining_pot = room.pot
+
+        for i, current_player in enumerate(sorted_contenders):
+            current_level = current_player.total_invested
+            if current_level <= prev_level:
+                continue
+
+            # Eligible players for this pot level: those who invested at least current_level
+            eligible = [p for p in contenders if p.total_invested >= current_level]
+
+            # Pot for this tier: (current_level - prev_level) × number of players who contributed to this tier
+            contributors = [p for p in contenders if p.total_invested >= prev_level + 1]
+            tier_pot = (current_level - prev_level) * len(contributors)
+
+            if tier_pot <= 0:
+                prev_level = current_level
+                continue
+
+            # Find best hand among eligible
+            best_score = max(p._showdown_score for p in eligible)
+            tier_winners = [p for p in eligible if p._showdown_score == best_score]
+
+            # Split tier_pot among winners
+            split = tier_pot // len(tier_winners)
+            remainder = tier_pot % len(tier_winners)
+
+            for j, w in enumerate(tier_winners):
+                amount = split + (1 if j < remainder else 0)
+                if w.player_id not in already_awarded:
+                    already_awarded[w.player_id] = 0
+                already_awarded[w.player_id] += amount
+                w.stack += amount
+
+            remaining_pot -= tier_pot
+            prev_level = current_level
+
+        # Any remaining pot (from folded player contributions beyond max all-in)
+        # goes to the best hand among all contenders
+        if remaining_pot > 0:
+            best_score = max(p._showdown_score for p in contenders)
+            pot_winners = [p for p in contenders if p._showdown_score == best_score]
+            split = remaining_pot // len(pot_winners)
+            remainder = remaining_pot % len(pot_winners)
+            for j, w in enumerate(pot_winners):
+                amount = split + (1 if j < remainder else 0)
+                if w.player_id not in already_awarded:
+                    already_awarded[w.player_id] = 0
+                already_awarded[w.player_id] += amount
+                w.stack += amount
+
+        # Build winner list
+        for pid, amount in already_awarded.items():
+            p = room.players[pid]
             room.winners.append(Winner(
                 player_id=p.player_id,
                 name=p.name,
@@ -920,6 +1050,14 @@ class PokerServer:
                 hand_name=p.last_hand_name,
                 best_cards=p.last_best_cards,
             ))
+
+        # Clean up temp attributes
+        for p in contenders:
+            if hasattr(p, '_showdown_score'):
+                del p._showdown_score
+
+        # Save hand log
+        save_hand_log(room)
 
         room.phase = "showdown"
         room.action_seat = None
@@ -981,6 +1119,26 @@ class PokerServer:
         # Detect all-in runout: all active players are all-in (show cards to everyone)
         all_in_runout = self._is_all_in_runout(room) and room.phase in ("flop", "turn", "river")
 
+        # Compute clockwise seat offsets from dealer for active players
+        seat_offsets: dict[int, int] = {}  # seat -> offset
+        if room.dealer_seat is not None:
+            active_seats = [
+                p.seat for p in room.seated_players()
+                if not p.sitting_out and not p.is_spectator
+            ]
+            if active_seats:
+                # Build clockwise order starting from dealer
+                # Seats are 1-indexed, wrap around using MAX_SEATS
+                ordered: list[int] = []
+                # Start from dealer seat, then proceed clockwise
+                for offset in range(MAX_SEATS):
+                    seat = ((room.dealer_seat - 1 + offset) % MAX_SEATS) + 1
+                    if seat in active_seats:
+                        ordered.append(seat)
+                # Assign offsets: dealer=0, next clockwise=1, etc.
+                for i, seat in enumerate(ordered):
+                    seat_offsets[seat] = i
+
         for p in room.seated_players():
             # Spectators see all cards; players see own cards + showdown + all-in runout
             show_cards = (p.token == viewer_token
@@ -1013,6 +1171,7 @@ class PokerServer:
                 "to_call": to_call,
                 "sitting_out": p.sitting_out,
                 "is_spectator": p.is_spectator,
+                "seat_offset_from_dealer": seat_offsets.get(p.seat) if not p.sitting_out and not p.is_spectator else None,
             }
 
             # Spectator-only hand strength and equity data (postflop only)
