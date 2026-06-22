@@ -6,7 +6,7 @@ in typed dataclasses for clarity and testability.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -78,6 +78,17 @@ class RangeEstimate:
 
 
 @dataclass
+class ComboRange:
+    """A range distribution mapping each of 169 hand classes to a weight [0.0, 1.0].
+
+    Used by the ComboRangeTracker for precise range narrowing at the hand-class level.
+    All weights start at 1.0 (full range) and are narrowed based on observed actions.
+    """
+
+    weights: dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
 class BoardTexture:
     """Classification of community card texture."""
 
@@ -113,6 +124,17 @@ class BluffScore:
 @dataclass
 class ActionScores:
     """Numeric scores for each possible action."""
+
+    fold: float = 0.0
+    check: float = 0.0
+    call: float = 0.0
+    bet: float = 0.0
+    raise_: float = 0.0
+
+
+@dataclass
+class ActionModifiers:
+    """Additive modifiers for each action, computed from personality/exploit/board texture."""
 
     fold: float = 0.0
     check: float = 0.0
@@ -167,3 +189,14 @@ class ScoringContext:
     personality: Any  # PokerPersonality (defined in personality_engine)
     stack_to_pot: float
     is_preflop_aggressor: bool
+
+    # EV calculation inputs (populated by fold equity calculator and bet sizer)
+    fold_probability: float = 0.35  # Estimated probability opponents fold to a bet/raise
+    bet_amount: int = 0  # Computed bet size for EV calculations
+    raise_amount: int = 0  # Computed raise size for raise EV formula
+    num_opponents: int = 1  # Number of active opponents for multiway EV
+    call_amount: int = 0  # Amount the bot needs to call
+    pot: int = 0  # Current pot size (for modifier bounding)
+
+    # Difficulty level for gating EV behavior (None means full system / HARD+EXPERT)
+    difficulty_level: str | None = None  # "EASY", "MEDIUM", "HARD", "EXPERT", or None

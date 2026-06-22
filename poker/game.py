@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import random
 import secrets
 import string
 from dataclasses import dataclass
@@ -11,6 +13,7 @@ from fastapi import WebSocket
 
 from poker.cards import display_cards, new_deck
 from poker.evaluator import evaluate_7
+from poker.logs import save_hand_log
 from poker.models import ChatMessage, Player, Room, Winner
 from poker.odds import calculate_player_odds
 from poker.terminology import classify_hand
@@ -20,6 +23,7 @@ from poker.trash_talk import get_trash_talk, TrashTalkEvent, DELAY_RANGE
 
 MAX_SEATS = 8
 STARTING_STACK = 1000
+_SIMULATION_MODE = os.getenv("POKER_SIMULATION") == "1"
 
 
 @dataclass
@@ -39,6 +43,8 @@ class PokerServer:
         self.bots: dict[str, BotConfig] = {}  # player_id -> BotConfig
         self._bot_task_running: set[str] = set()  # room_ids with active bot loops
         self._odds_cache: dict[str, dict] = {}  # room_id -> {(token, board_tuple): odds_result}
+        self._bot_loop_active: dict[str, asyncio.Event] = {}  # room_id → Event (set when idle)
+        self._pending_start_hand: dict[str, bool] = {}  # room_id → queued start_hand flag
 
     async def handle(self, ws: WebSocket, event: str, payload: dict[str, Any]) -> HandleResult:
         if event == "create":
@@ -107,10 +113,28 @@ class PokerServer:
 
         room = Room(room_id=room_id)
         self.rooms[room_id] = room
+
+        # Apply room settings from payload (optional)
+        blind_increase = int(payload.get("blind_increase_hands", 0))
+        if blind_increase > 0:
+            room.blind_increase_hands = blind_increase
+
+        ante = int(payload.get("ante", 0))
+        if ante >= 0:
+            room.ante = ante
+
+        ante_mode = str(payload.get("ante_mode", "classic")).lower()
+        if ante_mode in ("classic", "bba"):
+            room.ante_mode = ante_mode
+
+        auto_ante = payload.get("auto_ante", False)
+        room.auto_ante = bool(auto_ante)
+
         player = self.add_new_player(room, ws, payload.get("name", "Player"), payload.get("avatar", "🎭"))
         room.creator_token = player.token
 
-        print(f"[CREATE] Room {room_id} created by {player.name}")
+        print(f"[CREATE] Room {room_id} created by {player.name} "
+              f"(blind_increase={room.blind_increase_hands}, ante={room.ante})")
 
         await self.send(ws, "joined", {
             "room_id": room.room_id,
@@ -195,19 +219,42 @@ class PokerServer:
 
         # Auto-evict stale disconnected players (gone for 60+ seconds, not in a hand)
         self._evict_stale(room)
-        await self.broadcast(room)
+
+        # If no humans are connected anymore, destroy the room
+        room = self.rooms.get(room_id)
+        if room:
+            humans_connected = [p for p in room.players.values()
+                               if p.connected and p.player_id not in self.bots]
+            if not humans_connected:
+                # Grace period: don't destroy immediately (player might reconnect)
+                # But if NO humans at all (all left), clean up
+                humans_present = [p for p in room.players.values()
+                                 if p.player_id not in self.bots]
+                if not humans_present:
+                    for pid in list(room.players.keys()):
+                        self.bots.pop(pid, None)
+                    self._bot_task_running.discard(room_id)
+                    self._bot_loop_active.pop(room_id, None)
+                    self._pending_start_hand.pop(room_id, None)
+                    self.rooms.pop(room_id, None)
+                    return
+
+        if room_id in self.rooms:
+            await self.broadcast(self.rooms[room_id])
 
     async def list_rooms(self, ws: WebSocket):
         """Send a list of active rooms with player counts."""
         rooms_list = []
         for room in self.rooms.values():
-            connected = len([p for p in room.players.values() if p.connected])
+            # Count human players (connected, non-bot)
+            humans = len([p for p in room.players.values()
+                         if p.connected and p.player_id not in self.bots])
             total = len(room.players)
-            if connected > 0:  # Only show rooms with at least one connected player
+            if humans > 0:  # Only show rooms with at least one connected human
                 rooms_list.append({
                     "room_id": room.room_id,
                     "players": total,
-                    "connected": connected,
+                    "connected": humans,
                     "max": MAX_SEATS,
                     "phase": room.phase,
                 })
@@ -236,10 +283,21 @@ class PokerServer:
         if not room.players:
             self.rooms.pop(room.room_id, None)
         else:
-            # If only one player left in a hand, award them the pot
-            if room.phase in ["preflop", "flop", "turn", "river"] and self.only_one_remaining(room):
-                self.award_to_last_player(room)
-            await self.broadcast(room)
+            # If only bots remain (no human players), destroy the room
+            humans = [p for p in room.players.values() if p.player_id not in self.bots]
+            if not humans:
+                # Clean up bot references
+                for pid in list(room.players.keys()):
+                    self.bots.pop(pid, None)
+                self._bot_task_running.discard(room.room_id)
+                self._bot_loop_active.pop(room.room_id, None)
+                self._pending_start_hand.pop(room.room_id, None)
+                self.rooms.pop(room.room_id, None)
+            else:
+                # If only one player left in a hand, award them the pot
+                if room.phase in ["preflop", "flop", "turn", "river"] and self.only_one_remaining(room):
+                    self.award_to_last_player(room)
+                await self.broadcast(room)
 
     def add_new_player(self, room: Room, ws: WebSocket, name: str, avatar: str = "🎭") -> Player:
         seat = self.find_free_seat(room)
@@ -328,11 +386,11 @@ class PokerServer:
 
     # ─── Bot Management ───
 
-    async def add_bot(self, room: Room, style: Optional[str] = None):
+    async def add_bot(self, room: Room, style: Optional[str] = None, difficulty: Optional[str] = None):
         """Add an AI bot player to the room."""
         import asyncio
 
-        print(f"[BOT] Adding bot to room {room.room_id}, style={style}")
+        print(f"[BOT] Adding bot to room {room.room_id}, style={style}, difficulty={difficulty}")
 
         if self.find_free_seat(room) is None:
             self.evict_disconnected(room)
@@ -340,7 +398,10 @@ class PokerServer:
                 print(f"[BOT] No free seat in room {room.room_id}")
                 return  # Room full
 
-        config = create_bot_config(style)
+        valid_difficulties = ["easy", "medium", "hard", "expert"]
+        if difficulty not in valid_difficulties:
+            difficulty = random.choice(["medium", "hard", "expert"])
+        config = create_bot_config(style, use_advanced_ai=True, difficulty=difficulty)
         seat = self.find_free_seat(room)
         if seat is None:
             print(f"[BOT] No free seat after eviction")
@@ -397,6 +458,11 @@ class PokerServer:
         from poker.odds import calculate_equity_hybrid
         from poker.terminology import classify_hand as _classify_hand
 
+        # Initialize the bot loop event for this room (set = idle/not processing)
+        if room_id not in self._bot_loop_active:
+            self._bot_loop_active[room_id] = asyncio.Event()
+        self._bot_loop_active[room_id].set()  # Start as idle
+
         try:
             while True:
                 await asyncio.sleep(1)
@@ -407,15 +473,25 @@ class PokerServer:
 
                 # Check if any bot has action
                 if room.action_seat is None:
+                    # No bot acting — ensure event is set (idle)
+                    self._bot_loop_active[room_id].set()
                     continue
                 if room.phase not in ["preflop", "flop", "turn", "river"]:
+                    # Not in a betting phase — ensure event is set (idle)
+                    self._bot_loop_active[room_id].set()
                     continue
 
                 action_player = self.player_by_seat(room, room.action_seat)
                 if not action_player:
+                    self._bot_loop_active[room_id].set()
                     continue
                 if action_player.player_id not in self.bots:
+                    # It's a human's turn — bot loop is idle
+                    self._bot_loop_active[room_id].set()
                     continue
+
+                # Bot is about to act — clear event (mark as active/processing)
+                self._bot_loop_active[room_id].clear()
 
                 # It's a bot's turn — calculate context-aware think time
                 config = self.bots[action_player.player_id]
@@ -449,6 +525,9 @@ class PokerServer:
                 # Re-check state (might have changed during think time)
                 room = self.rooms.get(room_id)
                 if not room or room.action_seat != action_player.seat:
+                    # State changed — set event back to idle
+                    if room_id in self._bot_loop_active:
+                        self._bot_loop_active[room_id].set()
                     continue
 
                 # Snapshot state before action for trash talk detection
@@ -464,6 +543,16 @@ class PokerServer:
                 except Exception:
                     # Fallback: just check/call
                     await self.player_action(room, action_player, "check_call", {})
+
+                # Bot action complete — set event (idle) after acting
+                self._bot_loop_active[room_id].set()
+
+                # Check if there's a pending start_hand request to process
+                if self._pending_start_hand.get(room_id, False):
+                    room = self.rooms.get(room_id)
+                    if room and room.phase in ["showdown", "lobby"]:
+                        self._pending_start_hand[room_id] = False
+                        await self.start_hand(room)
 
                 # ─── Trash talk detection (after action) ───
                 # Re-fetch room state after action
@@ -536,7 +625,19 @@ class PokerServer:
                             await self.broadcast(room)
 
         finally:
+            # On exit, check for pending start_hand before cleaning up
+            if self._pending_start_hand.get(room_id, False):
+                room = self.rooms.get(room_id)
+                if room:
+                    self._pending_start_hand[room_id] = False
+                    try:
+                        await self.start_hand(room)
+                    except Exception:
+                        pass  # Room may have been destroyed
+            # Clean up state
             self._bot_task_running.discard(room_id)
+            self._bot_loop_active.pop(room_id, None)
+            self._pending_start_hand.pop(room_id, None)
 
     async def player_action(self, room: Room, player: Player, action: str, payload: dict[str, Any]):
         print(f"[ACTION] {player.name} (seat {player.seat}) -> {action} | phase={room.phase} action_seat={room.action_seat} current_bet={room.current_bet} committed={player.committed} stack={player.stack}")
@@ -545,7 +646,36 @@ class PokerServer:
             if room.paused:
                 await self.send(player.ws, "error", {"message": "Game is paused."})
                 return
-            await self.start_hand(room)
+
+            room_id = room.room_id
+
+            # Check if bot loop is currently active (processing actions)
+            bot_event = self._bot_loop_active.get(room_id)
+            if bot_event and not bot_event.is_set():
+                # Bots still processing — queue the start_hand and return silently
+                self._pending_start_hand[room_id] = True
+                return
+
+            # Bot loop is idle (or no bots) — proceed with start_hand
+            try:
+                await self.start_hand(room)
+                self._pending_start_hand.pop(room_id, None)
+            except Exception:
+                # Race condition: stale state — wait for bot loop to finish, then retry once
+                bot_event = self._bot_loop_active.get(room_id)
+                if bot_event:
+                    try:
+                        await asyncio.wait_for(bot_event.wait(), timeout=1.0)
+                    except asyncio.TimeoutError:
+                        pass
+                    # Retry once after bot loop signals completion
+                    room = self.rooms.get(room_id)
+                    if room:
+                        try:
+                            await self.start_hand(room)
+                        except Exception:
+                            pass  # Give up after one retry
+                self._pending_start_hand.pop(room_id, None)
             return
 
         if action == "reset_stacks":
@@ -602,7 +732,8 @@ class PokerServer:
                 await self.send(player.ws, "error", {"message": "Only the room creator can manage bots."})
                 return
             style = payload.get("style", None)
-            await self.add_bot(room, style)
+            difficulty = payload.get("difficulty", None)
+            await self.add_bot(room, style, difficulty)
             return
 
         if action == "remove_bot":
@@ -698,6 +829,7 @@ class PokerServer:
         amount = max(0, min(amount, player.stack))
         player.stack -= amount
         player.committed += amount
+        player.total_invested += amount
         room.pot += amount
         if player.stack == 0:
             player.all_in = True
@@ -723,6 +855,7 @@ class PokerServer:
             p.folded = False
             p.all_in = False
             p.committed = 0
+            p.total_invested = 0
             p.acted = False
             p.last_hand_name = ""
             p.last_best_cards = []
@@ -747,6 +880,21 @@ class PokerServer:
             for p in active:
                 p.cards.append(room.deck.pop())
 
+        # Collect antes (if enabled)
+        if room.ante > 0:
+            if room.ante_mode == "bba":
+                # Big Blind Ante: only the dealer posts 1 BB
+                dealer_player = self.player_by_seat(room, room.dealer_seat)
+                if dealer_player and dealer_player.stack > 0:
+                    bba_amount = min(room.big_blind, dealer_player.stack)
+                    self.commit_chips(room, dealer_player, bba_amount)
+            else:
+                # Classic ante: every player posts
+                for p in active:
+                    ante_amount = min(room.ante, p.stack)
+                    if ante_amount > 0:
+                        self.commit_chips(room, p, ante_amount)
+
         if sb:
             self.commit_chips(room, sb, room.small_blind)
             room.sb_seat = sb.seat
@@ -763,6 +911,18 @@ class PokerServer:
                 sb_val, bb_val = room.blind_levels[room.current_blind_level]
                 room.small_blind = sb_val
                 room.big_blind = bb_val
+                room.min_raise = bb_val
+
+                # Auto-scale ante to ~10% of new BB (if auto_ante enabled)
+                if room.auto_ante and room.ante > 0:
+                    room.ante = max(1, bb_val // 10)
+
+                # Store notification for clients
+                room.messages.append(ChatMessage(
+                    name="⚡ Blinds Up",
+                    text=f"Level {room.current_blind_level}: blinds now {sb_val}/{bb_val}"
+                         + (f" (ante {room.ante})" if room.ante > 0 else ""),
+                ))
 
         # Preflop action starts left of big blind.
         room.action_seat = self.next_action_seat_after(room, bb.seat if bb else room.dealer_seat)
@@ -798,6 +958,18 @@ class PokerServer:
         if not can_act:
             return True
 
+        # Sole-actor detection: if only one player can act and all others
+        # are all-in, auto-complete ONLY if that player has already acted
+        # and matched the current bet (they can't raise further anyway).
+        # If they haven't acted yet, they still need to call/fold.
+        if len(can_act) == 1:
+            sole = can_act[0]
+            others = [p for p in contenders if p != sole]
+            if all(p.all_in for p in others):
+                # Only auto-complete if sole actor has acted AND matches the bet
+                if sole.acted and sole.committed >= room.current_bet:
+                    return True
+
         for p in can_act:
             if not p.acted:
                 return False
@@ -817,6 +989,7 @@ class PokerServer:
         room.winners = [Winner(winner.player_id, winner.name, amount, "Everyone else folded")]
         room.phase = "showdown"
         room.action_seat = None
+        save_hand_log(room)
 
     def _is_all_in_runout(self, room: Room) -> bool:
         """Check if all active players are all-in (no one can act)."""
@@ -847,12 +1020,12 @@ class PokerServer:
             room.phase = "river"
         elif room.phase == "river":
             is_runout = self._is_all_in_runout(room)
-            if is_runout:
+            if is_runout and not _SIMULATION_MODE:
                 # All-in runout: wait 2.5s after river card before showdown
                 await asyncio.sleep(2.5)
             self.showdown(room)
             await self.broadcast(room)
-            if is_runout:
+            if is_runout and not _SIMULATION_MODE:
                 # Show hands face-up for at least 2 seconds before Winner_Overlay
                 await asyncio.sleep(2.0)
                 await self.broadcast(room)
@@ -865,16 +1038,17 @@ class PokerServer:
             all_in_runout = self._is_all_in_runout(room)
             await self.broadcast(room)
 
-            if all_in_runout:
-                # Dramatic pacing: 1.2s per card dealt + 0.5s buffer between streets
-                if room.phase == "flop":
-                    # 3 cards × 1.2s + 0.5s buffer = 4.1s
-                    await asyncio.sleep(4.1)
+            if not _SIMULATION_MODE:
+                if all_in_runout:
+                    # Dramatic pacing: 1.2s per card dealt + 0.5s buffer between streets
+                    if room.phase == "flop":
+                        # 3 cards × 1.2s + 0.5s buffer = 4.1s
+                        await asyncio.sleep(4.1)
+                    else:
+                        # turn or river: 1 card × 1.2s + 0.5s buffer = 1.7s
+                        await asyncio.sleep(1.7)
                 else:
-                    # turn or river: 1 card × 1.2s + 0.5s buffer = 1.7s
-                    await asyncio.sleep(1.7)
-            else:
-                await asyncio.sleep(1.5)
+                    await asyncio.sleep(1.5)
 
             await self.advance_phase(room)
         else:
@@ -891,27 +1065,81 @@ class PokerServer:
             room.action_seat = None
             return
 
-        best_score = None
-        winners: list[Player] = []
-
+        # Evaluate all hands
         for p in contenders:
             score, name, best_cards = evaluate_7(p.cards + room.community)
+            p._showdown_score = score
             p.last_hand_name = name
             p.last_best_cards = best_cards
 
-            if best_score is None or score > best_score:
-                best_score = score
-                winners = [p]
-            elif score == best_score:
-                winners.append(p)
+        # Calculate side pots based on total_invested
+        # Sort contenders by investment level
+        sorted_contenders = sorted(contenders, key=lambda p: p.total_invested)
 
-        split = room.pot // len(winners)
-        remainder = room.pot % len(winners)
+        # ALL players who invested (including folded) — needed for accurate pot calculation
+        all_investors = [p for p in room.seated_players() if p.total_invested > 0]
 
         room.winners = []
-        for i, p in enumerate(winners):
-            amount = split + (1 if i < remainder else 0)
-            p.stack += amount
+        already_awarded = {}  # player_id -> total amount awarded
+        prev_level = 0
+        remaining_pot = room.pot
+
+        for i, current_player in enumerate(sorted_contenders):
+            current_level = current_player.total_invested
+            if current_level <= prev_level:
+                continue
+
+            # Eligible players for this pot level: non-folded who invested at least current_level
+            eligible = [p for p in contenders if p.total_invested >= current_level]
+
+            # Calculate tier pot: sum each investor's actual contribution to this tier
+            # Each investor contributes min(their_invested, current_level) - prev_level
+            # (capped at how much they actually put in this tier range)
+            tier_pot = sum(
+                min(p.total_invested, current_level) - prev_level
+                for p in all_investors
+                if p.total_invested > prev_level
+            )
+
+            if tier_pot <= 0:
+                prev_level = current_level
+                continue
+
+            # Find best hand among eligible
+            best_score = max(p._showdown_score for p in eligible)
+            tier_winners = [p for p in eligible if p._showdown_score == best_score]
+
+            # Split tier_pot among winners
+            split = tier_pot // len(tier_winners)
+            remainder = tier_pot % len(tier_winners)
+
+            for j, w in enumerate(tier_winners):
+                amount = split + (1 if j < remainder else 0)
+                if w.player_id not in already_awarded:
+                    already_awarded[w.player_id] = 0
+                already_awarded[w.player_id] += amount
+                w.stack += amount
+
+            remaining_pot -= tier_pot
+            prev_level = current_level
+
+        # Any remaining pot (from folded player contributions beyond max all-in)
+        # goes to the best hand among all contenders
+        if remaining_pot > 0:
+            best_score = max(p._showdown_score for p in contenders)
+            pot_winners = [p for p in contenders if p._showdown_score == best_score]
+            split = remaining_pot // len(pot_winners)
+            remainder = remaining_pot % len(pot_winners)
+            for j, w in enumerate(pot_winners):
+                amount = split + (1 if j < remainder else 0)
+                if w.player_id not in already_awarded:
+                    already_awarded[w.player_id] = 0
+                already_awarded[w.player_id] += amount
+                w.stack += amount
+
+        # Build winner list
+        for pid, amount in already_awarded.items():
+            p = room.players[pid]
             room.winners.append(Winner(
                 player_id=p.player_id,
                 name=p.name,
@@ -920,6 +1148,14 @@ class PokerServer:
                 hand_name=p.last_hand_name,
                 best_cards=p.last_best_cards,
             ))
+
+        # Clean up temp attributes
+        for p in contenders:
+            if hasattr(p, '_showdown_score'):
+                del p._showdown_score
+
+        # Save hand log
+        save_hand_log(room)
 
         room.phase = "showdown"
         room.action_seat = None
@@ -981,6 +1217,26 @@ class PokerServer:
         # Detect all-in runout: all active players are all-in (show cards to everyone)
         all_in_runout = self._is_all_in_runout(room) and room.phase in ("flop", "turn", "river")
 
+        # Compute clockwise seat offsets from dealer for active players
+        seat_offsets: dict[int, int] = {}  # seat -> offset
+        if room.dealer_seat is not None:
+            active_seats = [
+                p.seat for p in room.seated_players()
+                if not p.sitting_out and not p.is_spectator
+            ]
+            if active_seats:
+                # Build clockwise order starting from dealer
+                # Seats are 1-indexed, wrap around using MAX_SEATS
+                ordered: list[int] = []
+                # Start from dealer seat, then proceed clockwise
+                for offset in range(MAX_SEATS):
+                    seat = ((room.dealer_seat - 1 + offset) % MAX_SEATS) + 1
+                    if seat in active_seats:
+                        ordered.append(seat)
+                # Assign offsets: dealer=0, next clockwise=1, etc.
+                for i, seat in enumerate(ordered):
+                    seat_offsets[seat] = i
+
         for p in room.seated_players():
             # Spectators see all cards; players see own cards + showdown + all-in runout
             show_cards = (p.token == viewer_token
@@ -1013,6 +1269,7 @@ class PokerServer:
                 "to_call": to_call,
                 "sitting_out": p.sitting_out,
                 "is_spectator": p.is_spectator,
+                "seat_offset_from_dealer": seat_offsets.get(p.seat) if not p.sitting_out and not p.is_spectator else None,
             }
 
             # Spectator-only hand strength and equity data (postflop only)
@@ -1119,6 +1376,11 @@ class PokerServer:
             "min_raise": room.min_raise,
             "small_blind": room.small_blind,
             "big_blind": room.big_blind,
+            "ante": room.ante,
+            "ante_mode": room.ante_mode,
+            "hands_played": room.hands_played,
+            "blind_level": room.current_blind_level,
+            "blind_increase_hands": room.blind_increase_hands,
             "community": display_cards(room.community),
             "players": players,
             "messages": [

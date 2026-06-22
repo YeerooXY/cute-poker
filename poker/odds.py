@@ -11,7 +11,7 @@ Also provides current_strength and the combined calculate_player_odds for UI.
 
 from __future__ import annotations
 
-import secrets
+import random
 from functools import lru_cache
 from itertools import combinations
 from typing import List, Optional
@@ -25,6 +25,80 @@ FULL_DECK = [r + s for s in SUITS for r in RANKS]
 
 # Rank ordering for canonical hand notation (higher rank first)
 _RANK_ORDER = {r: i for i, r in enumerate(RANKS)}  # A=0, K=1, ..., 2=12
+
+
+# ─── 169 Hand Classes & Category Mapping ──────────────────────────────────────
+
+
+def _generate_hand_classes_169() -> list:
+    """Generate all 169 canonical hand classes.
+
+    13 pocket pairs + 78 suited combos + 78 offsuit combos = 169 total.
+    """
+    classes = []
+    # Pocket pairs
+    for r in RANKS:
+        classes.append(r + r)
+    # Suited and offsuit combos (higher rank first)
+    for i, r1 in enumerate(RANKS):
+        for r2 in RANKS[i + 1:]:
+            classes.append(r1 + r2 + "s")
+            classes.append(r1 + r2 + "o")
+    return classes
+
+
+HAND_CLASSES_169: list = _generate_hand_classes_169()
+
+# Category-to-Hand_Classes mapping (Requirement 8.3)
+# Maps the 6 range categories to sets of specific hand classes.
+_PREMIUM_HANDS: set = {"AA", "KK", "QQ", "JJ", "AKs", "AKo"}
+
+_STRONG_HANDS: set = {"TT", "99", "AQs", "AQo", "AJs", "KQs"}
+
+_PLAYABLE_HANDS: set = {"88", "77", "ATs", "KJs", "QJs", "JTs", "KQo", "AJo"}
+
+_MARGINAL_HANDS: set = {
+    "66", "55",
+    "A9s", "A8s", "A7s", "A6s", "A5s", "A4s", "A3s", "A2s",
+    "KTs", "QTs", "J9s", "T9s",
+}
+
+_SPECULATIVE_HANDS: set = {
+    "44", "33", "22",
+    "98s", "87s", "76s", "65s", "54s",
+    "97s", "86s", "75s", "64s",
+}
+
+# Trash = all remaining 169 hand classes not in any other category
+_TRASH_HANDS: set = (
+    set(HAND_CLASSES_169)
+    - _PREMIUM_HANDS
+    - _STRONG_HANDS
+    - _PLAYABLE_HANDS
+    - _MARGINAL_HANDS
+    - _SPECULATIVE_HANDS
+)
+
+CATEGORY_TO_HAND_CLASSES: dict = {
+    "premium": _PREMIUM_HANDS,
+    "strong": _STRONG_HANDS,
+    "playable": _PLAYABLE_HANDS,
+    "marginal": _MARGINAL_HANDS,
+    "speculative": _SPECULATIVE_HANDS,
+    "trash": _TRASH_HANDS,
+}
+
+# Assertions to verify correctness at import time
+assert len(HAND_CLASSES_169) == 169, f"Expected 169 hand classes, got {len(HAND_CLASSES_169)}"
+_all_categorized = (
+    _PREMIUM_HANDS | _STRONG_HANDS | _PLAYABLE_HANDS
+    | _MARGINAL_HANDS | _SPECULATIVE_HANDS | _TRASH_HANDS
+)
+assert _all_categorized == set(HAND_CLASSES_169), "Categories don't cover all 169 hand classes"
+assert (
+    len(_PREMIUM_HANDS) + len(_STRONG_HANDS) + len(_PLAYABLE_HANDS)
+    + len(_MARGINAL_HANDS) + len(_SPECULATIVE_HANDS) + len(_TRASH_HANDS)
+) == 169, "Categories overlap — some hand class appears in multiple categories"
 
 
 # ─── Preflop Lookup Table ──────────────────────────────────────────────────────
@@ -253,13 +327,6 @@ def _make_deck_without(exclude: List[str]) -> List[str]:
     return [c for c in FULL_DECK if c not in exclude_set]
 
 
-def _shuffle(deck: List[str]) -> None:
-    """Fisher-Yates shuffle with cryptographic randomness."""
-    for i in range(len(deck) - 1, 0, -1):
-        j = secrets.randbelow(i + 1)
-        deck[i], deck[j] = deck[j], deck[i]
-
-
 def estimate_equity(
     hero_cards: List[str],
     board_cards: List[str],
@@ -292,7 +359,7 @@ def estimate_equity(
 
     for _ in range(simulations):
         deck = remaining_deck[:]
-        _shuffle(deck)
+        random.shuffle(deck)
 
         idx = 0
         # Deal opponent hands
@@ -336,13 +403,13 @@ def estimate_equity(
 # ─── Hybrid Entry Point ───────────────────────────────────────────────────────
 
 
-def calculate_equity_hybrid(hero_cards: List[str], board: List[str], num_opponents: int) -> dict:
+def calculate_equity_hybrid(hero_cards: List[str], board: List[str], num_opponents: int, simulations: int = 300) -> dict:
     """
     Smart equity calculation using the best method for the current street.
 
     - Preflop (0 board cards): instant lookup table
-    - Flop (3 board cards): Monte Carlo with 300 sims
-    - Turn (4 board cards): exact enumeration
+    - Flop (3 board cards): Monte Carlo (configurable sims)
+    - Turn (4 board cards): exact for heads-up, Monte Carlo for multiway
     - River (5 board cards): exact enumeration
     """
     if num_opponents < 1:
@@ -354,9 +421,12 @@ def calculate_equity_hybrid(hero_cards: List[str], board: List[str], num_opponen
     elif board_len == 5:
         return river_equity_exact(hero_cards, board, num_opponents)
     elif board_len == 4:
-        return turn_equity_exact(hero_cards, board, num_opponents)
+        # Turn: exact for heads-up, Monte Carlo for multiway
+        if num_opponents == 1:
+            return turn_equity_exact(hero_cards, board, num_opponents)
+        return estimate_equity(hero_cards, board, num_opponents, simulations=simulations)
     else:  # flop, 3 cards
-        return estimate_equity(hero_cards, board, num_opponents, simulations=300)
+        return estimate_equity(hero_cards, board, num_opponents, simulations=simulations)
 
 
 # ─── Current Strength (unchanged logic) ───────────────────────────────────────
@@ -395,22 +465,48 @@ def estimate_current_strength(
     tied = 0
     behind = 0
 
-    # For river/turn with exact enumeration available, enumerate all opponent combos
+    # For turn/river: enumerate or sample opponent hands
     if len(board_cards) >= 4:
-        for opp_combo in combinations(remaining_deck, 2):
-            opp_score = _eval_score(list(opp_combo) + board_cards)
-            if hero_score > opp_score:
-                ahead += 1
-            elif hero_score == opp_score:
-                tied += 1
-            else:
-                behind += 1
-        n = ahead + tied + behind
+        if num_opponents == 1:
+            # Heads-up: exact enumeration of all opponent combos
+            for opp_combo in combinations(remaining_deck, 2):
+                opp_score = _eval_score(list(opp_combo) + board_cards)
+                if hero_score > opp_score:
+                    ahead += 1
+                elif hero_score == opp_score:
+                    tied += 1
+                else:
+                    behind += 1
+            n = ahead + tied + behind
+        else:
+            # Multiway: Monte Carlo sampling of all opponents
+            for _ in range(simulations):
+                deck = remaining_deck[:]
+                random.shuffle(deck)
+                idx = 0
+                best_opp_score = None
+                for _ in range(num_opponents):
+                    if idx + 1 >= len(deck):
+                        break
+                    opp_cards = [deck[idx], deck[idx + 1]]
+                    idx += 2
+                    opp_score = _eval_score(opp_cards + board_cards)
+                    if best_opp_score is None or opp_score > best_opp_score:
+                        best_opp_score = opp_score
+                if best_opp_score is None:
+                    continue
+                if hero_score > best_opp_score:
+                    ahead += 1
+                elif hero_score == best_opp_score:
+                    tied += 1
+                else:
+                    behind += 1
+            n = ahead + tied + behind
     else:
         # Flop: Monte Carlo sampling for current strength
         for _ in range(simulations):
             deck = remaining_deck[:]
-            _shuffle(deck)
+            random.shuffle(deck)
 
             idx = 0
             best_opp_score = None
@@ -436,6 +532,235 @@ def estimate_current_strength(
         "ahead_pct": round(ahead / n, 4),
         "tied_pct": round(tied / n, 4),
         "behind_pct": round(behind / n, 4),
+    }
+
+
+# ─── Range-Aware Equity Calculator ────────────────────────────────────────────
+
+
+def _normalize_weights(combo_range: dict) -> dict:
+    """Normalize combo_range weights so they sum to 1.0.
+
+    Args:
+        combo_range: dict mapping hand_class -> weight (any non-negative floats)
+
+    Returns:
+        dict with same keys, weights scaled to sum to 1.0.
+        If all weights are 0, returns uniform distribution over all entries.
+    """
+    total = sum(combo_range.values())
+    if total <= 0:
+        # Uniform distribution
+        n = len(combo_range)
+        return {k: 1.0 / n for k in combo_range} if n > 0 else {}
+    return {k: v / total for k, v in combo_range.items()}
+
+
+def _range_estimate_to_combo_range(range_estimate) -> dict:
+    """Convert a 6-category RangeEstimate into a 169 hand-class combo_range.
+
+    Each hand class receives its category's weight divided by the number of
+    hand classes in that category. This ensures equal total probability mass
+    per category regardless of how many hand classes it contains.
+
+    Args:
+        range_estimate: A RangeEstimate dataclass with premium, strong, playable,
+                        marginal, speculative, and trash float fields (0.0-1.0).
+
+    Returns:
+        dict[str, float] with 169 entries mapping each hand class to a weight.
+    """
+    combo_range = {}
+    category_weights = {
+        "premium": range_estimate.premium,
+        "strong": range_estimate.strong,
+        "playable": range_estimate.playable,
+        "marginal": range_estimate.marginal,
+        "speculative": range_estimate.speculative,
+        "trash": range_estimate.trash,
+    }
+    for category, hand_classes in CATEGORY_TO_HAND_CLASSES.items():
+        category_weight = category_weights[category]
+        # Distribute category weight evenly across all hand classes in it
+        per_hand_weight = category_weight / max(1, len(hand_classes))
+        for hc in hand_classes:
+            combo_range[hc] = per_hand_weight
+    return combo_range
+
+
+def _hand_class_to_combos(hand_class: str) -> List[tuple]:
+    """Expand a canonical hand class (e.g., 'AKs', 'AA', '72o') into all specific card combos.
+
+    Returns a list of tuples, each containing two card strings (e.g., ('AH', 'KH')).
+
+    - Pocket pairs (e.g., "AA") → 6 combos (4 choose 2 suits)
+    - Suited hands (e.g., "AKs") → 4 combos (one per suit)
+    - Offsuit hands (e.g., "AKo") → 12 combos (4×3 suit pairs where suits differ)
+    """
+    # Parse the hand class
+    if len(hand_class) == 2:
+        # Pocket pair: e.g., "AA"
+        rank = hand_class[0]
+        combos = []
+        for i, s1 in enumerate(SUITS):
+            for s2 in SUITS[i + 1:]:
+                combos.append((rank + s1, rank + s2))
+        return combos
+    elif len(hand_class) == 3:
+        r1 = hand_class[0]
+        r2 = hand_class[1]
+        suited = hand_class[2] == "s"
+
+        combos = []
+        if suited:
+            # Same suit combos
+            for s in SUITS:
+                combos.append((r1 + s, r2 + s))
+        else:
+            # Different suit combos
+            for s1 in SUITS:
+                for s2 in SUITS:
+                    if s1 != s2:
+                        combos.append((r1 + s1, r2 + s2))
+        return combos
+    else:
+        return []
+
+
+def _sample_hand_from_range(
+    combo_range: dict,
+    known_cards: set,
+    max_retries: int = 10,
+) -> List[str]:
+    """Sample a hand from a weighted combo_range distribution, applying blocker filtering.
+
+    Pre-builds all valid (unblocked) combos with their weights, then samples
+    directly from the valid set. No random fallback pollution.
+
+    Args:
+        combo_range: dict mapping hand_class -> weight (0.0 to 1.0)
+        known_cards: set of cards that cannot appear in sampled hands (hero + board + other opps)
+        max_retries: unused (kept for API compatibility)
+
+    Returns:
+        A list of 2 card strings representing the sampled hand.
+        Falls back to a random unseen hand only if NO valid combos exist at all.
+    """
+    # Pre-build all valid combos with their weights
+    valid_combos = []
+    valid_weights = []
+    for hc, w in combo_range.items():
+        if w <= 0.0:
+            continue
+        for combo in _hand_class_to_combos(hc):
+            if combo[0] not in known_cards and combo[1] not in known_cards:
+                valid_combos.append(combo)
+                valid_weights.append(w)
+
+    if valid_combos and sum(valid_weights) > 0:
+        [chosen] = random.choices(valid_combos, weights=valid_weights, k=1)
+        return list(chosen)
+
+    # Absolute fallback: no valid combos from range (all blocked)
+    remaining = [c for c in FULL_DECK if c not in known_cards]
+    if len(remaining) < 2:
+        return remaining[:2] if remaining else []
+    random.shuffle(remaining)
+    return remaining[:2]
+
+
+def estimate_equity_vs_range(
+    hero_cards: List[str],
+    board_cards: List[str],
+    combo_range: dict,
+    num_opponents: int = 1,
+    simulations: int = 300,
+) -> dict:
+    """
+    Range-aware Monte Carlo equity calculation.
+
+    Samples opponent hands from the combo_range distribution (weighted by hand class)
+    instead of uniformly from all unseen hands. Applies blocker filtering to exclude
+    hands containing known cards.
+
+    Args:
+        hero_cards: Hero's 2 hole cards (e.g., ['AH', 'KS'])
+        board_cards: Community cards (0-5 cards)
+        combo_range: dict mapping hand_class (str) -> weight (float, 0.0-1.0)
+                     169 entries for canonical hand classes (e.g., "AA", "AKs", "72o")
+        num_opponents: Number of opponents (default 1)
+        simulations: Number of Monte Carlo simulations (default 300)
+
+    Returns:
+        dict with keys: win_pct, tie_pct, loss_pct, equity
+        Same format as estimate_equity for backward compatibility.
+    """
+    if num_opponents < 1:
+        return {"win_pct": 1.0, "tie_pct": 0.0, "loss_pct": 0.0, "equity": 1.0}
+
+    # Normalize weights to sum to 1.0 before sampling (Requirement 8.4)
+    combo_range = _normalize_weights(combo_range)
+
+    known_base = set(hero_cards + board_cards)
+    remaining_deck_base = [c for c in FULL_DECK if c not in known_base]
+    cards_to_deal = 5 - len(board_cards)  # Community cards still needed
+
+    wins = 0
+    ties = 0
+    losses = 0
+    equity = 0.0
+
+    for _ in range(simulations):
+        known = set(known_base)  # Copy for this simulation
+        opponents = []
+
+        # Deal opponent hands from the range distribution
+        for _ in range(num_opponents):
+            opp_hand = _sample_hand_from_range(combo_range, known)
+            if len(opp_hand) == 2:
+                opponents.append(opp_hand)
+                known.add(opp_hand[0])
+                known.add(opp_hand[1])
+            else:
+                # Shouldn't happen, but safeguard with random hand
+                remaining = [c for c in FULL_DECK if c not in known]
+                random.shuffle(remaining)
+                opp_hand = remaining[:2]
+                opponents.append(opp_hand)
+                known.add(opp_hand[0])
+                known.add(opp_hand[1])
+
+        # Deal remaining community cards from the remaining deck
+        remaining = [c for c in FULL_DECK if c not in known]
+        random.shuffle(remaining)
+
+        future_board = list(board_cards)
+        for i in range(cards_to_deal):
+            future_board.append(remaining[i])
+
+        # Evaluate hero vs all opponents
+        hero_score = _eval_score(hero_cards + future_board)
+        opp_scores = [_eval_score(opp + future_board) for opp in opponents]
+
+        best_opp = max(opp_scores)
+
+        if hero_score > best_opp:
+            wins += 1
+            equity += 1.0
+        elif hero_score == best_opp:
+            # Count how many tied at hero's level (hero + tied opponents)
+            tied_count = 1 + sum(1 for s in opp_scores if s == hero_score)
+            ties += 1
+            equity += 1.0 / tied_count
+        else:
+            losses += 1
+
+    n = simulations
+    return {
+        "win_pct": round(wins / n, 4),
+        "tie_pct": round(ties / n, 4),
+        "loss_pct": round(losses / n, 4),
+        "equity": round(equity / n, 4),
     }
 
 
@@ -465,7 +790,7 @@ def calculate_player_odds(
 
     if board_len == 0:
         # Preflop: instant lookup
-        eq = calculate_equity_hybrid(hero_cards, board_cards, num_opponents)
+        eq = calculate_equity_hybrid(hero_cards, board_cards, num_opponents, simulations=simulations)
         return {
             "equity": round(eq["equity"] * 100),
             "current_ahead": None,
@@ -473,18 +798,18 @@ def calculate_player_odds(
         }
     else:
         # Postflop: use hybrid for equity
-        eq = calculate_equity_hybrid(hero_cards, board_cards, num_opponents)
+        eq = calculate_equity_hybrid(hero_cards, board_cards, num_opponents, simulations=simulations)
 
         if board_len == 5:
             # River: equity IS current strength (no future cards)
-            cs = estimate_current_strength(hero_cards, board_cards, num_opponents)
+            cs = estimate_current_strength(hero_cards, board_cards, num_opponents, simulations=simulations)
             return {
                 "equity": round(cs["ahead_pct"] * 100 + cs["tied_pct"] * 50),
                 "current_ahead": round(cs["ahead_pct"] * 100),
                 "phase_note": "river",
             }
         else:
-            cs = estimate_current_strength(hero_cards, board_cards, num_opponents)
+            cs = estimate_current_strength(hero_cards, board_cards, num_opponents, simulations=simulations)
             return {
                 "equity": round(eq["equity"] * 100),
                 "current_ahead": round(cs["ahead_pct"] * 100),

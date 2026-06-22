@@ -9,7 +9,8 @@ Position ordering (early to late): UTG, UTG1, MP, HJ, CO, BTN, SB, BB
 
 from __future__ import annotations
 
-from poker.bot_ai.models import RangeEstimate
+from poker.bot_ai.models import ComboRange, RangeEstimate
+from poker.odds import HAND_CLASSES_169, CATEGORY_TO_HAND_CLASSES
 
 # Position classification helpers
 EARLY_POSITIONS = {"UTG", "UTG1"}
@@ -250,3 +251,198 @@ class RangeTracker:
             return 0.0
 
         return total_strength / total_weight
+
+
+# ─── 169 Hand-Class Range Tracker ─────────────────────────────────────────────
+
+# Position-based opening range tables (Task 4.4)
+# When a player raises from a given position, only these hand classes are expected.
+POSITION_OPENING_RANGES: dict[str, set[str]] = {
+    "early": {
+        "AA", "KK", "QQ", "JJ", "TT", "99",
+        "AKs", "AKo", "AQs", "AQo", "AJs", "KQs",
+    },
+    "middle": {
+        "AA", "KK", "QQ", "JJ", "TT", "99", "88",
+        "AKs", "AKo", "AQs", "AQo", "AJs", "ATs",
+        "KQs", "KQo", "KJs", "QJs",
+    },
+    "late": {
+        "AA", "KK", "QQ", "JJ", "TT", "99", "88", "77", "66", "55",
+        "AKs", "AKo", "AQs", "AQo", "AJs", "ATs", "A9s", "A8s", "A5s", "A4s",
+        "KQs", "KQo", "KJs", "KTs", "QJs", "QTs", "JTs", "T9s", "98s", "87s", "76s",
+    },
+    "blind": {
+        "AA", "KK", "QQ", "JJ", "TT", "99", "88", "77",
+        "AKs", "AKo", "AQs", "AQo", "AJs", "ATs",
+        "KQs", "KQo", "KJs", "QJs", "JTs",
+    },
+}
+
+
+def _get_hand_category(hand_class: str) -> str:
+    """Return the category name for a given hand class.
+
+    Looks up which of the 6 categories (premium, strong, playable, marginal,
+    speculative, trash) a hand class belongs to.
+    """
+    for category, hand_classes in CATEGORY_TO_HAND_CLASSES.items():
+        if hand_class in hand_classes:
+            return category
+    return "trash"
+
+
+class ComboRangeTracker:
+    """Tracks opponent hand ranges at the 169 hand-class level.
+
+    Per-player ComboRange starts with all weights at 1.0 (full range).
+    Weights are narrowed based on observed preflop and postflop actions.
+    Provides backward compatibility via get_range_estimate() that aggregates
+    into the existing 6-category RangeEstimate format.
+    """
+
+    def __init__(self) -> None:
+        self._ranges: dict[str, ComboRange] = {}
+
+    def _init_range(self) -> ComboRange:
+        """Create a new ComboRange with all 169 weights at 1.0."""
+        return ComboRange(weights={hc: 1.0 for hc in HAND_CLASSES_169})
+
+    def reset(self, player_token: str) -> None:
+        """Reset a player's range to full (all 1.0)."""
+        self._ranges[player_token] = self._init_range()
+
+    def reset_all(self) -> None:
+        """Reset all players' ranges."""
+        for token in self._ranges:
+            self._ranges[token] = self._init_range()
+
+    def get_combo_range(self, player_token: str) -> ComboRange:
+        """Get the current ComboRange for a player (creates if not tracked)."""
+        if player_token not in self._ranges:
+            self._ranges[player_token] = self._init_range()
+        return self._ranges[player_token]
+
+    def update_preflop_combo(
+        self, player_token: str, action: str, position: str
+    ) -> None:
+        """Narrow weights based on preflop action + position.
+
+        Args:
+            player_token: Unique identifier for the player.
+            action: The preflop action taken ("raise", "call", "3bet", "4bet").
+            position: The player's position ("UTG", "UTG1", "MP", "HJ", "CO", "BTN", "SB", "BB").
+        """
+        combo_range = self.get_combo_range(player_token)
+        pos_group = _position_group(position)
+
+        action_lower = action.lower()
+
+        if action_lower == "raise":
+            opening_range = POSITION_OPENING_RANGES.get(pos_group, set())
+            for hc in HAND_CLASSES_169:
+                if hc not in opening_range:
+                    combo_range.weights[hc] = 0.0  # Zero out non-opening hands
+        elif action_lower == "call":
+            # Callers typically don't have premium hands (they'd raise)
+            for hc in ["AA", "KK", "QQ", "AKs"]:
+                combo_range.weights[hc] *= 0.3  # Reduce but don't zero
+        elif action_lower in ("3bet", "3-bet"):
+            # Very tight range for 3-bets
+            three_bet_range = {"AA", "KK", "QQ", "JJ", "AKs", "AKo", "AQs"}
+            for hc in HAND_CLASSES_169:
+                if hc not in three_bet_range:
+                    combo_range.weights[hc] *= 0.1  # Heavily reduce
+        elif action_lower in ("4bet", "4-bet"):
+            four_bet_range = {"AA", "KK", "QQ", "AKs"}
+            for hc in HAND_CLASSES_169:
+                if hc not in four_bet_range:
+                    combo_range.weights[hc] *= 0.05
+
+    def update_postflop_combo(
+        self,
+        player_token: str,
+        action: str,
+        street: str,
+        board: list[str],
+        pot_relative_size: float,
+    ) -> None:
+        """Narrow weights based on postflop action.
+
+        Args:
+            player_token: Unique identifier for the player.
+            action: The postflop action taken ("bet", "raise", "check", "call").
+            street: The current street ("flop", "turn", "river").
+            board: Community cards on the board.
+            pot_relative_size: Size of the action relative to pot (0.0+).
+        """
+        combo_range = self.get_combo_range(player_token)
+
+        # Street tightening factor
+        street_factor = {"flop": 1.0, "turn": 0.9, "river": 0.8}.get(street, 1.0)
+
+        action_lower = action.lower()
+
+        if action_lower in ("bet", "raise"):
+            # Aggressive actions retain strong hands, reduce weak
+            for hc in HAND_CLASSES_169:
+                category = _get_hand_category(hc)
+                if category in ("premium", "strong"):
+                    combo_range.weights[hc] *= 0.95 * street_factor
+                elif category == "playable":
+                    combo_range.weights[hc] *= 0.80 * street_factor
+                elif category == "marginal":
+                    combo_range.weights[hc] *= 0.50 * street_factor
+                else:
+                    combo_range.weights[hc] *= 0.25 * street_factor
+            # Large bet additional narrowing
+            if pot_relative_size > 0.75:
+                for hc in HAND_CLASSES_169:
+                    category = _get_hand_category(hc)
+                    if category in ("marginal", "speculative", "trash"):
+                        combo_range.weights[hc] *= 0.5
+        elif action_lower == "check":
+            # Checking reduces strong hands (they'd usually bet)
+            for hc in HAND_CLASSES_169:
+                category = _get_hand_category(hc)
+                if category in ("premium", "strong"):
+                    combo_range.weights[hc] *= 0.70 * street_factor
+        elif action_lower == "call":
+            # Calling reduces both extremes
+            for hc in HAND_CLASSES_169:
+                category = _get_hand_category(hc)
+                if category == "premium":
+                    combo_range.weights[hc] *= 0.75 * street_factor  # Would raise
+                elif category == "trash":
+                    combo_range.weights[hc] *= 0.30 * street_factor  # Would fold
+
+        # Ensure monotonic narrowing: clamp to [0.0, current]
+        for hc in HAND_CLASSES_169:
+            combo_range.weights[hc] = max(0.0, combo_range.weights[hc])
+
+    def get_range_estimate(self, player_token: str) -> RangeEstimate:
+        """Aggregate 169-class weights into 6-category RangeEstimate for backward compatibility.
+
+        Computes the average weight within each category to produce a single
+        representative value per category.
+        """
+        combo_range = self.get_combo_range(player_token)
+
+        category_averages: dict[str, float] = {}
+        for category, hand_classes in CATEGORY_TO_HAND_CLASSES.items():
+            if hand_classes:
+                avg = sum(
+                    combo_range.weights.get(hc, 0.0) for hc in hand_classes
+                ) / len(hand_classes)
+            else:
+                avg = 0.0
+            category_averages[category] = avg
+
+        return RangeEstimate(
+            premium=category_averages["premium"],
+            strong=category_averages["strong"],
+            playable=category_averages["playable"],
+            marginal=category_averages["marginal"],
+            speculative=category_averages["speculative"],
+            trash=category_averages["trash"],
+        )

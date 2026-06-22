@@ -49,7 +49,7 @@ _EXPLOITABILITY_RANGES: dict[DifficultyLevel, tuple[float, float]] = {
     DifficultyLevel.EASY: (0.40, 0.45),
     DifficultyLevel.MEDIUM: (0.20, 0.35),
     DifficultyLevel.HARD: (0.10, 0.20),
-    DifficultyLevel.EXPERT: (0.08, 0.12),
+    DifficultyLevel.EXPERT: (0.03, 0.05),
 }
 
 
@@ -129,34 +129,32 @@ def get_personality_for_difficulty(
 ) -> PokerPersonality:
     """Return a personality profile appropriate for the given difficulty level.
 
-    Uses `get_personality(style)` as the base, then adjusts exploitability and
-    profile selection based on the difficulty level's personality pool.
+    Uses `get_personality(style)` as the base, then adjusts exploitability
+    based on the difficulty level.
 
-    - Easy: high exploitability (0.40-0.45), only Calling_Station/Maniac profiles
-    - Medium: moderate exploitability (0.20-0.35), TAG/LAG/Calling_Station/Maniac
-    - Hard: lower exploitability (0.10-0.20), TAG/LAG/Nit/Trapper
-    - Expert: lowest exploitability (0.08-0.12), GTO_ish/Exploitative_Shark
+    Key design principle: the personality (playing style) is determined by the
+    user-requested style parameter. Difficulty only affects:
+    1. Exploitability (noise/randomness in decisions)
+    2. Which AI subsystems are active (handled by get_active_subsystems)
 
-    If the requested style maps to a profile not in the level's pool, the closest
-    available profile is selected.
+    This ensures that "expert tight_aggressive" plays a disciplined TAG style
+    with all subsystems active, rather than switching to a different profile.
+
+    Exploitability ranges:
+    - Easy: 0.40-0.45 (very exploitable/random)
+    - Medium: 0.20-0.35 (moderately exploitable)
+    - Hard: 0.10-0.20 (low exploitability)
+    - Expert: 0.05-0.10 (near-GTO precision)
     """
-    pool = _DIFFICULTY_PERSONALITY_POOLS[level]
     exploit_min, exploit_max = _EXPLOITABILITY_RANGES[level]
 
     # Get the base personality for the requested style
     base = get_personality(style)
 
-    # Check if the base personality's name is in this difficulty's pool
-    if base.name in pool:
-        selected = base
-    else:
-        # Pick the closest available profile from the pool
-        selected = _find_closest_profile(base, pool)
-
     # Override exploitability to fit the difficulty range
-    clamped_exploitability = _clamp(selected.exploitability, exploit_min, exploit_max)
+    clamped_exploitability = _clamp(base.exploitability, exploit_min, exploit_max)
 
-    return replace(selected, exploitability=clamped_exploitability)
+    return replace(base, exploitability=clamped_exploitability)
 
 
 # ─── Private helpers ───────────────────────────────────────────────────────────

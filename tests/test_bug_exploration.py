@@ -108,6 +108,9 @@ async def test_chat_message_in_state(message_text):
     Server-side confirmed working — validates data flow from chat action
     to visible_state messages array.
     """
+    # The server strips whitespace and rejects blank messages — skip those
+    assume(message_text.strip() != "")
+
     server = PokerServer()
     room, players, ws_list = await create_room_with_players(server, 2)
     creator = players[0]
@@ -124,7 +127,7 @@ async def test_chat_message_in_state(message_text):
         assert len(messages) > 0, "Messages array should not be empty after sending a chat"
         last_msg = messages[-1]
         assert last_msg["name"] == creator.name, f"Message sender should be '{creator.name}'"
-        assert last_msg["text"] == message_text[:240], "Message text should match what was sent"
+        assert last_msg["text"] == message_text.strip()[:240], "Message text should match what was sent (stripped)"
 
 
 # ─── Test 2: Player Visibility ───
