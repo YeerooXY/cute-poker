@@ -339,10 +339,8 @@ function leaveToLobby() {
   showdownRevealTime = 0;
   prevCommunityCards = [];
   if (winnerOverlayDelayTimer) { clearTimeout(winnerOverlayDelayTimer); winnerOverlayDelayTimer = null; }
-  // Clean up showdown presenter on disconnect
-  if (ShowdownPresenter.isActive()) {
-    ShowdownPresenter.dismiss();
-  }
+  // Clean up all overlays on disconnect
+  clearAllOverlays();
   connect(); // ensure WS is alive
   setTimeout(fetchRooms, 300);
   // Re-render game history panel with updated records
@@ -472,11 +470,7 @@ const AutoDealSystem = (() => {
         countdownTimer = null;
         hideCountdownDisplay();
         // Dismiss any active showdown/winner overlays before dealing
-        if (ShowdownPresenter.isActive()) {
-          ShowdownPresenter.dismiss();
-        }
-        els.winnerOverlay.classList.add("hidden");
-        winnerDismissedForPhase = "showdown";
+        clearAllOverlays();
         // Fire the deal if still allowed
         if (enabled && lastState && canDeal(lastState.viewer.is_admin, lastState.phase)) {
           send("action", { action: "start_hand" });
@@ -1516,23 +1510,10 @@ const ShowdownPresenter = (() => {
 
   /**
    * Jump to final result immediately, skipping remaining delays.
+   * Now identical to dismiss — always removes the DOM.
    */
   function skip() {
-    if (!_active && !_containerEl) return;
-
-    // Abort any in-progress sequence
-    if (_abortController) {
-      _abortController.aborted = true;
-    }
-    _clearTimers();
-
-    // Remove event listeners
-    if (_dismissHandler && _containerEl) {
-      _containerEl.removeEventListener('click', _dismissHandler);
-    }
-    document.removeEventListener('keydown', _onKeyDismiss);
-    _dismissHandler = null;
-    _active = false;
+    dismiss();
   }
 
   /**
@@ -1563,6 +1544,27 @@ const ShowdownPresenter = (() => {
 
   return { present, skip, isActive, dismiss };
 })();
+
+// ─── Global Overlay Cleanup ───
+function clearAllOverlays() {
+  ShowdownPresenter.dismiss();
+  document.querySelectorAll(".showdown-presenter").forEach(el => el.remove());
+  document.querySelectorAll(".deal-card-anim").forEach(el => el.remove());
+
+  if (els.winnerOverlay) {
+    els.winnerOverlay.classList.add("hidden");
+  }
+  winnerDismissedForPhase = "showdown";
+
+  if (winnerTimeout) {
+    clearTimeout(winnerTimeout);
+    winnerTimeout = null;
+  }
+  if (winnerOverlayDelayTimer) {
+    clearTimeout(winnerOverlayDelayTimer);
+    winnerOverlayDelayTimer = null;
+  }
+}
 
 // ─── Room list ───
 function renderRoomsList(rooms) {
@@ -1659,12 +1661,8 @@ function renderState(state) {
     if (SpectatorResultsPanel.isVisible()) {
       SpectatorResultsPanel.hide();
     }
-    // ─── ShowdownPresenter interruption: dismiss on next hand (req 7.6, 7.7) ───
-    if (ShowdownPresenter.isActive()) {
-      ShowdownPresenter.dismiss();
-    }
-    // Clean up any stale showdown presenter containers
-    document.querySelectorAll('.showdown-presenter').forEach(el => el.remove());
+    // ─── Clear all overlays on new hand ───
+    clearAllOverlays();
   }
 
   // ─── ShowdownPresenter Integration (req 7.1, 7.6, 7.7) ───
@@ -2313,13 +2311,7 @@ if (els.bbToggleBtn) {
 
 // FIX #7: Track dismiss so re-broadcasts don't re-show
 els.winnerOverlay.onclick = () => {
-  els.winnerOverlay.classList.add("hidden");
-  winnerDismissedForPhase = "showdown";
-  if (winnerTimeout) { clearTimeout(winnerTimeout); winnerTimeout = null; }
-  // Also dismiss showdown presenter if active
-  if (ShowdownPresenter.isActive()) {
-    ShowdownPresenter.dismiss();
-  }
+  clearAllOverlays();
 };
 
 els.chatToggle.onclick = () => els.chatPanel.classList.toggle("hidden");
@@ -2353,10 +2345,7 @@ loadSavedPlayerName();
 // Global Escape key: clear ALL overlays
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    ShowdownPresenter.dismiss();
-    els.winnerOverlay.classList.add("hidden");
-    winnerDismissedForPhase = "showdown";
-    if (winnerTimeout) { clearTimeout(winnerTimeout); winnerTimeout = null; }
+    clearAllOverlays();
   }
 });
 
