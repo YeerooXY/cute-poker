@@ -1080,9 +1080,11 @@ class PokerServer:
         all_investors = [p for p in room.seated_players() if p.total_invested > 0]
 
         room.winners = []
+        room.pot_breakdown = []
         already_awarded = {}  # player_id -> total amount awarded
         prev_level = 0
         remaining_pot = room.pot
+        pot_index = 0
 
         for i, current_player in enumerate(sorted_contenders):
             current_level = current_player.total_invested
@@ -1093,8 +1095,6 @@ class PokerServer:
             eligible = [p for p in contenders if p.total_invested >= current_level]
 
             # Calculate tier pot: sum each investor's actual contribution to this tier
-            # Each investor contributes min(their_invested, current_level) - prev_level
-            # (capped at how much they actually put in this tier range)
             tier_pot = sum(
                 min(p.total_invested, current_level) - prev_level
                 for p in all_investors
@@ -1113,29 +1113,59 @@ class PokerServer:
             split = tier_pot // len(tier_winners)
             remainder = tier_pot % len(tier_winners)
 
+            pot_tier_winners = []
             for j, w in enumerate(tier_winners):
                 amount = split + (1 if j < remainder else 0)
                 if w.player_id not in already_awarded:
                     already_awarded[w.player_id] = 0
                 already_awarded[w.player_id] += amount
                 w.stack += amount
+                pot_tier_winners.append({
+                    "player_id": w.player_id,
+                    "name": w.name,
+                    "amount": amount,
+                    "hand_name": w.last_hand_name,
+                })
+
+            # Record pot breakdown for this tier
+            room.pot_breakdown.append({
+                "type": "main" if pot_index == 0 else "side",
+                "pot": tier_pot,
+                "eligible": [p.player_id for p in eligible],
+                "winners": pot_tier_winners,
+            })
+            pot_index += 1
 
             remaining_pot -= tier_pot
             prev_level = current_level
 
         # Any remaining pot (from folded player contributions beyond max all-in)
-        # goes to the best hand among all contenders
         if remaining_pot > 0:
             best_score = max(p._showdown_score for p in contenders)
             pot_winners = [p for p in contenders if p._showdown_score == best_score]
             split = remaining_pot // len(pot_winners)
             remainder = remaining_pot % len(pot_winners)
+
+            pot_tier_winners = []
             for j, w in enumerate(pot_winners):
                 amount = split + (1 if j < remainder else 0)
                 if w.player_id not in already_awarded:
                     already_awarded[w.player_id] = 0
                 already_awarded[w.player_id] += amount
                 w.stack += amount
+                pot_tier_winners.append({
+                    "player_id": w.player_id,
+                    "name": w.name,
+                    "amount": amount,
+                    "hand_name": w.last_hand_name,
+                })
+
+            room.pot_breakdown.append({
+                "type": "side" if pot_index > 0 else "main",
+                "pot": remaining_pot,
+                "eligible": [p.player_id for p in contenders],
+                "winners": pot_tier_winners,
+            })
 
         # Build winner list
         for pid, amount in already_awarded.items():
@@ -1393,6 +1423,7 @@ class PokerServer:
             ],
             "winners": [
                 {
+                    "player_id": w.player_id,
                     "name": w.name,
                     "amount": w.amount,
                     "reason": w.reason,
@@ -1401,6 +1432,7 @@ class PokerServer:
                 }
                 for w in room.winners
             ],
+            "pot_breakdown": room.pot_breakdown,
             "viewer": {
                 "is_turn": is_viewer_turn,
                 "to_call": viewer_to_call,

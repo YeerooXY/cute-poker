@@ -2218,26 +2218,59 @@ function showWinnerOverlay(winners, viewer) {
   }
 
   els.winnerOverlay.classList.remove("hidden");
-  const w = winners[0];
-  const viewerWon = viewer && winners.some(x => x.name === viewer.name);
-  const best = w.best_cards && w.best_cards.length ? `<div class="winner-best-cards">${w.best_cards.map(makeCardHtml).join("")}</div>` : "";
-  const others = winners.length > 1 ? `<div style="font-size:12px;color:var(--text-dim);margin-top:6px">Split: ${winners.slice(1).map(x=>esc(x.name)).join(", ")}</div>` : "";
+  const viewerName = viewer ? viewer.name : "";
+  const viewerWon = winners.some(x => x.name === viewerName);
+  const bb = lastState ? lastState.big_blind : 10;
 
-  // FIX #6: Different message if you won vs lost
+  // Use pot_breakdown if available for accurate pot-level display
+  const potBreakdown = lastState && lastState.pot_breakdown && lastState.pot_breakdown.length > 0
+    ? lastState.pot_breakdown : null;
+
+  let resultHtml = "";
+  if (potBreakdown) {
+    // Render each pot tier clearly
+    for (const pot of potBreakdown) {
+      const potLabel = pot.type === "main" ? "Main pot" : "Side pot";
+      const potAmount = BBDisplayToggle.formatAmount(pot.pot, bb);
+      const winnerEntries = pot.winners || [];
+
+      if (winnerEntries.length === 1) {
+        const w = winnerEntries[0];
+        resultHtml += `<div class="pot-result"><span class="pot-label-text">${potLabel}:</span> <strong>${esc(w.name)}</strong> wins ${BBDisplayToggle.formatTokenAmount("+" + w.amount, bb)} <span class="pot-hand">${esc(w.hand_name || "")}</span></div>`;
+      } else if (winnerEntries.length > 1) {
+        const names = winnerEntries.map(w => `${esc(w.name)} ${BBDisplayToggle.formatTokenAmount("+" + w.amount, bb)}`).join(", ");
+        resultHtml += `<div class="pot-result"><span class="pot-label-text">${potLabel} split:</span> ${names}</div>`;
+      }
+    }
+  } else {
+    // Fallback: old aggregated display
+    const w = winners[0];
+    if (winners.length === 1) {
+      resultHtml = `<div class="pot-result"><strong>${esc(w.name)}</strong> wins ${BBDisplayToggle.formatTokenAmount("+" + w.amount, bb)} · ${esc(w.hand_name || w.reason)}</div>`;
+    } else {
+      resultHtml = winners.map(w =>
+        `<div class="pot-result"><strong>${esc(w.name)}</strong> ${BBDisplayToggle.formatTokenAmount("+" + w.amount, bb)} · ${esc(w.hand_name || w.reason)}</div>`
+      ).join("");
+    }
+  }
+
+  // Best cards from first winner
+  const w = winners[0];
+  const best = w.best_cards && w.best_cards.length
+    ? `<div class="winner-best-cards">${w.best_cards.map(makeCardHtml).join("")}</div>` : "";
+
   const trophy = viewerWon ? "🎉" : "💀";
   const headline = viewerWon ? "You Won!" : "You Lost";
-  const subline = viewerWon ? "" : `<div style="font-size:14px;color:var(--text-dim);margin-bottom:4px">${esc(w.name)} wins with ${esc(w.hand_name||w.reason)}</div>`;
 
   els.winnerContent.innerHTML = `
     <div class="winner-trophy">${trophy}</div>
     <div class="winner-name">${headline}</div>
-    ${viewerWon ? `<div class="winner-amount">${BBDisplayToggle.formatTokenAmount("+" + w.amount, lastState ? lastState.big_blind : 0)}</div>` : subline}
-    ${viewerWon ? `<div class="winner-hand">${esc(w.hand_name||w.reason)}</div>` : ""}
-    ${best}${others}
+    ${best}
+    <div class="winner-results">${resultHtml}</div>
     <div class="winner-dismiss">Tap to dismiss</div>
   `;
 
-  // Auto-dismiss: longer to give time to read results
+  // Auto-dismiss
   const dismissTime = viewerWon ? 15000 : 8000;
   winnerTimeout = setTimeout(() => els.winnerOverlay.classList.add("hidden"), dismissTime);
 }
