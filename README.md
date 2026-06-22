@@ -6,29 +6,46 @@ A free, browser-based Texas Hold'em poker game designed for private games with f
 
 ## Features
 
-- **Advanced AI Bots** — Add bots with varied difficulty levels (medium, hard, expert) that use advanced decision-making strategies
-- **Real-time Multiplayer** — Play with friends over WebSocket connections with instant state updates
-- **Auto-Deal** — Toggle automatic dealing after showdown so the action never stops
-- **Equity Calculator** — Monte Carlo hand strength estimation for AI decision-making
-- **Secure Card Dealing** — Cryptographic shuffling with `secrets.randbelow` ensures fair play
-- **Private Rooms** — Create and join rooms with simple share codes
-- **Reconnection Support** — Automatic reconnection with exponential backoff if your connection drops
-- **No Setup Required for Players** — Just open a URL in any modern browser
-- **Room Chat** — In-game chat with bot speech bubbles
-- **Full Betting Rounds** — Fold, check, call, bet, and raise across preflop, flop, turn, and river
-- **Casino-Style Chip Visuals** — Denomination-based chip stacks (1, 5, 25, 100, 500, 1000) with distinct colors matching real casino chips
-- **BB Display Mode** — Toggle between raw chip values and Big Blind relative units across all displays
-- **Card Animations** — Smooth fold animations (cards fly to muck) and staggered deal animations from a central deck
-- **Full Position Labels** — See proper poker positions (UTG, MP, CO, BTN, SB, BB) color-coded by position group
-- **Spectator Mode** — Watch games with a non-intrusive results sidebar instead of full-screen overlays
-- **Dramatic Showdown** — All-in runouts reveal community cards one-at-a-time with suspenseful timing and winner glow effects
-- **Accessibility** — All animations respect `prefers-reduced-motion` for users who need reduced motion
+### Game Engine
+- **Full Texas Hold'em** — Preflop, flop, turn, river, showdown with side pots
+- **Tournament Blinds** — 13-level blind progression (~1.5× per level), configurable increase interval
+- **Antes** — Classic (everyone posts) or Big Blind Ante (dealer posts 1 BB)
+- **Auto-scaling Ante** — Ante automatically adjusts to ~10% of BB when blinds increase
+- **Zero-sum Chip Accounting** — Verified side-pot logic, no chip leaks
+
+### AI Bots
+- **4 Difficulty Levels** — Easy, Medium, Hard, Expert with distinct playstyles
+- **EV-Based Decision Engine** — Expected value scoring with fold equity, pot odds, and semi-bluff EV
+- **Personality System** — TAG, LAG, Calling Station, Maniac styles with tunable parameters
+- **Range-Aware Equity** — Bots estimate opponent ranges and compute equity vs weighted hand distributions
+- **Modifier Pipeline** — Personality, exploit, and board texture modifiers on top of pure EV
+- **Difficulty Scaling** — Exploitability noise: Easy=0.40, Medium=0.20, Hard=0.15, Expert=0.03
+
+### UI/UX
+- **Casino Chip Visuals** — Round denomination-based chips (white/red/green/black/purple/gold) in multi-stack layout
+- **Peek-to-Reveal Cards** — Cards dealt face-down, click to peek (toggle on/off)
+- **Speech Bubbles** — Chat messages appear as floating bubbles above player seats
+- **BB Display Mode** — Toggle between chip values and Big Blind units
+- **Position Labels** — BTN, CO, MP, UTG, SB, BB with color coding
+- **Blind Level HUD** — Shows current blinds, ante, and countdown to next level
+- **Dramatic Showdown** — All-in runouts with card-by-card reveal and winner glow
+- **Auto-Deal** — 5-second countdown after showdown, dismisses overlays cleanly
+- **Card Animations** — Deal from center, fold to muck, community card reveals
+- **Spectator Mode** — Watch with equity overlays and compact results sidebar
+- **Bot Trash Talk** — Personality-driven chat messages on bluffs, wins, and losses
+
+### Multiplayer
+- **Real-time WebSocket** — Instant state sync across all connected clients
+- **Private Rooms** — Create/join with simple share codes
+- **Reconnection** — Automatic with exponential backoff
+- **Room Cleanup** — Abandoned rooms (only bots left) auto-destroy
+- **Up to 8 Players** — Full ring support
 
 ## Setup & Installation
 
 ### Prerequisites
 
-- Python 3.11 or higher
+- Python 3.11+
 
 ### Install Dependencies
 
@@ -42,81 +59,95 @@ pip install -r requirements.txt
 python server.py
 ```
 
-The server starts on `http://127.0.0.1:8000` by default.
+The server starts on `http://127.0.0.1:8000`.
 
 ### Play over LAN
 
 Friends on the same network can connect using your local IP:
-
 ```
 http://YOUR_LOCAL_IP:8000
 ```
 
 ### Play over the Internet
 
-For remote play, use any tunneling solution:
+Use any tunneling solution: Cloudflare Tunnel, ngrok, playit.gg, or port forwarding.
 
-- Cloudflare Tunnel
-- ngrok
-- playit.gg
-- Router port forwarding
-- A VPS deployment
+## Room Settings
 
-## How to Play
+When creating a room, you can configure:
 
-### Creating a Room
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Blind increase every | 0 (disabled) | Hands between blind level increases |
+| Ante | 0 (disabled) | Per-player ante amount |
+| Ante mode | Classic | Classic (all post) or BBA (dealer posts 1 BB) |
+| Auto-scale ante | Off | Ante auto-adjusts to ~10% BB on blind increase |
 
-1. Open the game in your browser
-2. Enter your display name
-3. Click **Create Room** to start a new table
-4. Share the room code with your friends
+## Bot Simulation Benchmark
 
-### Joining a Room
+Run headless bot-vs-bot simulations to validate bot strength:
 
-1. Open the game in your browser
-2. Enter your display name
-3. Enter the room code shared by the host
-4. Click **Join Room**
+```bash
+$env:POKER_SIMULATION="1"  # Windows PowerShell
+python simulate_bots.py
+```
 
-### Gameplay Flow
+Features:
+- Parallel execution via ProcessPoolExecutor
+- Zero-sum chip accounting with assertions
+- BB/100 as primary performance metric
+- Multiple scenarios: HU, mixed tables, difficulty ladders
+- 3 random baselines: Random50, RandomSafe, RandomHumanish
 
-1. **Pre-flop** — Each player receives two private cards (dealt with a staggered animation from the dealer position). A round of betting begins with the player left of the big blind.
-2. **Flop** — Three community cards are dealt face-up. Another betting round follows.
-3. **Turn** — A fourth community card is dealt. Betting round.
-4. **River** — A fifth and final community card is dealt. Final betting round.
-5. **Showdown** — Remaining players reveal their hands. If it's an all-in runout, community cards are revealed dramatically one-at-a-time. The best five-card hand wins the pot with a winner glow effect.
+Typical results (Expert TAG):
+- vs RandomHumanish: +130 BB/100
+- vs Easy: +30–100 BB/100
+- vs Mixed 4P field: +50–200 BB/100
+- vs Hard (same style): ~0 BB/100 (same personality, noise difference only)
 
-Players can **fold**, **check**, **call**, **bet**, or **raise** during each betting round. When a player folds, their cards animate toward the center of the table. The room admin can add AI bots to fill empty seats and deal new hands.
+## Architecture
 
-### Table Display
-
-- **Position labels** are shown on each seat during a hand: BTN (green), CO (green), MP (yellow), UTG (red), SB (blue), BB (blue). These update automatically based on player count (2–8 players supported).
-- **Chip stacks** next to each player's bet show casino-style denominations — white (1), red (5), green (25), black (100), purple (500), orange (1000).
-- **BB mode** can be toggled to show all monetary values relative to the big blind (e.g., "2.5 BB" instead of "50 chips"). This applies to stacks, pots, bets, action buttons, and results.
-
-### Spectating
-
-If you join as a spectator (or switch to spectate mode), you'll see:
-- All players' hole cards and hand strength data during postflop play
-- A compact results sidebar on showdown instead of the full-screen winner overlay
-- Net chip changes for each player (green for winners, red for losers)
+```
+poker/
+  game.py              # PokerServer: rooms, hands, betting, showdown
+  models.py            # Player, Room, Winner dataclasses
+  bot.py               # Bot decision dispatch, preflop ranges
+  odds.py              # Equity calculator (hybrid: lookup/exact/MC)
+  evaluator.py         # 7-card hand evaluator
+  cards.py             # Deck, display formatting
+  ranges.py            # Preflop action ranges
+  terminology.py       # Hand classification (made hand, draws, nuts)
+  bot_ai/
+    __init__.py        # Advanced AI pipeline orchestrator
+    action_scorer.py   # EV-based scoring + modifiers
+    bet_sizer.py       # Street-aware bet sizing
+    bluff_calculator.py
+    board_analyzer.py
+    difficulty_controller.py
+    dynamic_adjuster.py
+    models.py          # AI dataclasses
+    opponent_model.py
+    personality_engine.py
+    preflop_charts.py
+    range_tracker.py
+static/
+  index.html           # Single-page game UI
+  app.js               # Client logic, animations, state rendering
+  styles.css           # Dark theme, chip visuals, responsive layout
+simulate_bots.py       # Headless benchmark runner
+tests/                 # 297 tests (property-based + integration)
+```
 
 ## Tech Stack
 
-- **Python** — Server-side game logic, state management, and property-based testing with Hypothesis
-- **FastAPI** — Async web framework and WebSocket handling
-- **WebSockets** — Real-time bidirectional communication between server and clients
-- **Vanilla JavaScript** — Client-side UI with CSS animations, no framework dependencies
-- **CSS Custom Properties & Keyframes** — Card animations (fold, deal, showdown flip, winner glow)
+- **Python** — Server-side game logic and AI
+- **FastAPI** — Async web framework + WebSocket handling
+- **Hypothesis** — Property-based testing
+- **Vanilla JS** — Client UI, no framework dependencies
+- **CSS** — Custom properties, keyframes, responsive design
 
 ## Credits
 
-### Authors
-
 - Cute Poker contributors
-
-### Third-Party Resources
-
-- [FastAPI](https://fastapi.tiangolo.com/) — Modern Python web framework
-- [Uvicorn](https://www.uvicorn.org/) — ASGI server implementation
-- Card evaluation logic inspired by common poker hand ranking algorithms
+- [FastAPI](https://fastapi.tiangolo.com/) — Python web framework
+- [Uvicorn](https://www.uvicorn.org/) — ASGI server
