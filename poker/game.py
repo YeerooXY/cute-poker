@@ -938,16 +938,31 @@ class PokerServer:
 
         if just_started:
             if room.action_seat is None or self.betting_complete(room):
+                self._assert_betting_valid(room, "just_started advance")
                 await self.advance_phase(room)
             else:
                 await self.broadcast(room)
             return
 
         if self.betting_complete(room):
+            self._assert_betting_valid(room, "after_action advance")
             await self.advance_phase(room)
         else:
             room.action_seat = self.next_action_seat_after(room, room.action_seat)
             await self.broadcast(room)
+
+    def _assert_betting_valid(self, room: Room, where: str = ""):
+        """Debug invariant: betting must not complete while a live player owes chips."""
+        contenders = [p for p in room.seated_players() if p.cards and not p.folded]
+        live = [p for p in contenders if not p.all_in and p.stack > 0]
+        bad = [p for p in live if p.committed < room.current_bet]
+        if bad:
+            print(f"[BETTING BUG] {where}")
+            print(f"  phase={room.phase} current_bet={room.current_bet} pot={room.pot}")
+            for p in contenders:
+                print(f"  {p.name}: stack={p.stack} committed={p.committed} "
+                      f"total_invested={p.total_invested} all_in={p.all_in} "
+                      f"folded={p.folded} acted={p.acted}")
 
     def betting_complete(self, room: Room) -> bool:
         contenders = [p for p in room.seated_players() if p.cards and not p.folded]
@@ -1286,6 +1301,7 @@ class PokerServer:
                 "is_bot": p.player_id in self.bots,
                 "stack": p.stack,
                 "committed": p.committed,
+                "total_invested": p.total_invested,
                 "folded": p.folded,
                 "all_in": p.all_in,
                 "is_you": p.token == viewer_token,

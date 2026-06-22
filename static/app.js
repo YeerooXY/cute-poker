@@ -201,6 +201,11 @@ let winnerDismissedForPhase = null; // FIX #7: track dismissed winner
 let selectedAvatar = localStorage.getItem("poker_avatar") || "🎭";
 let handsPlayedInSession = 0;
 
+// ─── Debug mode ───
+const DEBUG_WS = localStorage.getItem("poker_debug_ws") === "true";
+const DEBUG_MODE = localStorage.getItem("poker_debug_mode") === "true";
+function wsLog(...args) { if (DEBUG_WS) console.log(...args); }
+
 // ─── Reconnection state ───
 let reconnectAttempts = 0;
 let reconnectTimer = null;
@@ -250,7 +255,7 @@ function connect() {
   };
   ws.onmessage = ev => {
     const { event, payload } = JSON.parse(ev.data);
-    console.log("[WS recv]", event, payload);
+    wsLog("[WS recv]", event, payload);
     if (event === "joined") {
       roomId = payload.room_id; token = payload.token;
       localStorage.setItem("poker_room_id", roomId);
@@ -290,7 +295,7 @@ function send(event, payload = {}) {
   const s = connect();
   // Merge: payload values override globals (so join can pass token:"")
   const finalPayload = { room_id: roomId, token, ...payload };
-  console.log("[WS send]", event, finalPayload);
+  wsLog("[WS send]", event, finalPayload);
   const msg = JSON.stringify({ event, payload: finalPayload });
   if (s.readyState === WebSocket.OPEN) s.send(msg);
   else s.addEventListener("open", () => s.send(msg), { once: true });
@@ -338,6 +343,7 @@ function leaveToLobby() {
   lastCommunityCardTime = 0;
   showdownRevealTime = 0;
   prevCommunityCards = [];
+  prevCommunityKey = "";
   if (winnerOverlayDelayTimer) { clearTimeout(winnerOverlayDelayTimer); winnerOverlayDelayTimer = null; }
   // Clean up all overlays on disconnect
   clearAllOverlays();
@@ -376,7 +382,7 @@ function attemptReconnect() {
 
     ws.onmessage = ev => {
       const { event, payload } = JSON.parse(ev.data);
-      console.log("[WS recv]", event, payload);
+      wsLog("[WS recv]", event, payload);
       if (event === "joined") {
         roomId = payload.room_id; token = payload.token;
         localStorage.setItem("poker_room_id", roomId);
@@ -1652,6 +1658,7 @@ function renderState(state) {
     lastCommunityCardTime = 0;
     showdownRevealTime = 0;
     prevCommunityCards = [];
+    prevCommunityKey = "";
     _peekRevealed = false; // Reset peek state for new hand
     if (winnerOverlayDelayTimer) { clearTimeout(winnerOverlayDelayTimer); winnerOverlayDelayTimer = null; }
     if (winnerTimeout) { clearTimeout(winnerTimeout); winnerTimeout = null; }
@@ -1749,6 +1756,12 @@ function renderState(state) {
   els.roomId.textContent = state.room_id;
   els.phaseBadge.textContent = state.paused ? "PAUSED" : state.phase.toUpperCase();
   els.potValue.textContent = BBDisplayToggle.formatAmount(state.pot, state.big_blind);
+
+  // Update pot label based on phase
+  const potLabelEl = document.querySelector(".pot-label");
+  if (potLabelEl) {
+    potLabelEl.textContent = state.phase === "showdown" ? "FINAL POT" : "POT";
+  }
 
   // Blind info display
   const blindInfoEl = document.getElementById("blindInfo");
@@ -1923,18 +1936,26 @@ function renderState(state) {
 
 // FIX #4: Longer stagger delays for card dealing
 let prevCommunityCards = [];
+let prevCommunityKey = "";
 function renderCommunity(cards) {
+  const key = (cards || []).join("|");
+
+  // Do not rebuild DOM if community cards are unchanged
+  if (key === prevCommunityKey && els.community.children.length > 0) {
+    return;
+  }
+
   els.community.innerHTML = "";
   if (!cards || cards.length === 0) {
     els.community.innerHTML = '<span class="hint-text">Waiting for deal...</span>';
     prevCommunityCards = [];
+    prevCommunityKey = "";
     return;
   }
   const prevCount = prevCommunityCards.length;
   cards.forEach((c, i) => {
     const el = makeCard(c);
     if (isAllInRunout && i >= prevCount) {
-      // Only slow-reveal NEW cards, not already-visible ones
       el.classList.add("slow-reveal");
       el.style.animationDelay = `${(i - prevCount) * 0.5}s`;
     } else if (i >= prevCount) {
@@ -1943,6 +1964,7 @@ function renderCommunity(cards) {
     els.community.appendChild(el);
   });
   prevCommunityCards = [...cards];
+  prevCommunityKey = key;
 }
 
 function renderYourHand(viewer) {
