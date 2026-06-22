@@ -45,7 +45,7 @@ const els = {};
 "foldBtn","checkCallBtn","betHalfPotBtn","betPotBtn","betAllInBtn","customBetInput",
 "customBetBtn","resetBtn","adminActions","copyRoomBtn","leaveBtn","chatToggle","chatClose",
 "chatPanel","chatMessages","chatInput","chatBtn","actionBar","outsBox","turnInfo",
-"pauseBtn","sitOutBtn","spectateBtn","addBotBtn","removeBotBtn",
+"pauseBtn","sitOutBtn","spectateBtn","addBotBtn","removeBotBtn","botDifficultySelect",
 "autoDealToggle","autoDealCountdown","bbToggleBtn","potChips"
 ].forEach(id => { els[id] = $(id); });
 
@@ -157,6 +157,22 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  // Room settings toggle
+  const settingsHeader = document.querySelector(".room-settings-header");
+  const settingsBody = document.querySelector(".room-settings-body");
+  if (settingsHeader && settingsBody) {
+    settingsHeader.addEventListener("click", () => {
+      const expanded = settingsHeader.getAttribute("aria-expanded") === "true";
+      settingsHeader.setAttribute("aria-expanded", !expanded);
+      if (expanded) {
+        settingsBody.classList.add("collapsed");
+      } else {
+        settingsBody.classList.remove("collapsed");
+      }
+    });
+  }
+
   // Render on load
   renderGameHistoryPanel(loadGameHistory());
 });
@@ -446,7 +462,7 @@ const AutoDealSystem = (() => {
 
   function startCountdown() {
     cancelCountdown(); // clear any existing countdown first
-    countdownRemaining = 3;
+    countdownRemaining = 5; // Give 5 seconds to view winner/results before auto-deal
     updateCountdownDisplay();
 
     countdownTimer = setInterval(() => {
@@ -455,6 +471,12 @@ const AutoDealSystem = (() => {
         clearInterval(countdownTimer);
         countdownTimer = null;
         hideCountdownDisplay();
+        // Dismiss any active showdown/winner overlays before dealing
+        if (ShowdownPresenter.isActive()) {
+          ShowdownPresenter.dismiss();
+        }
+        els.winnerOverlay.classList.add("hidden");
+        winnerDismissedForPhase = "showdown";
         // Fire the deal if still allowed
         if (enabled && lastState && canDeal(lastState.viewer.is_admin, lastState.phase)) {
           send("action", { action: "start_hand" });
@@ -588,38 +610,31 @@ function decomposeChips(amount) {
 
 // ─── Denomination Chip Renderer ───
 function renderDenomChips(amount, options = {}) {
-  const maxVisible = options.maxVisible || 12;
+  const maxChipsPerStack = options.maxPerStack || 5;
   const animate = options.animate || false;
 
   const breakdown = decomposeChips(amount);
   if (breakdown.length === 0) return "";
 
-  // Flatten breakdown into individual chip items (higher denoms first)
-  // breakdown is already in descending denomination order from decomposeChips
-  let chips = [];
-  for (const { denom, count } of breakdown) {
-    for (let i = 0; i < count; i++) {
-      chips.push(denom);
-    }
-  }
-
-  // Cap visible chips at maxVisible (keep higher denoms, trim lower ones)
-  if (chips.length > maxVisible) {
-    chips = chips.slice(0, maxVisible);
-  }
-
-  // Render: higher denominations at the bottom of the visual stack (rendered first)
-  // Chips are already sorted descending, so first rendered = bottom of stack
+  // Render each denomination as its own short stack (column), placed side by side
   const animateClass = animate ? " chip-stack-animate" : "";
-  let html = `<div class="chip-stack denom-stack${animateClass}">`;
-  chips.forEach((denom, i) => {
-    // Apply negative margin for stacking overlap (~60%) on all chips after the first
-    const style = i > 0 ? ' style="margin-top: -60%"' : "";
-    html += `<div class="chip-item chip-denom-${denom}"${style}>`;
-    html += `<span class="chip-label">${denom}</span>`;
-    html += `</div>`;
-  });
-  html += "</div>";
+  let html = "";
+
+  for (const { denom, count } of breakdown) {
+    const visible = Math.min(count, maxChipsPerStack);
+    html += `<div class="denom-stack${animateClass}">`;
+    for (let i = 0; i < visible; i++) {
+      const style = i > 0 ? ' style="margin-top: -55%"' : "";
+      html += `<div class="chip-item chip-denom-${denom}"${style}>`;
+      // Only show label on the top chip of each stack
+      if (i === visible - 1) {
+        html += `<span class="chip-label">${denom}</span>`;
+      }
+      html += `</div>`;
+    }
+    html += "</div>";
+  }
+
   return html;
 }
 
@@ -1372,6 +1387,8 @@ const ShowdownPresenter = (() => {
    */
   async function present(state) {
     if (_active) skip();
+    // Always remove old container to prevent stacking
+    _removeContainer();
 
     _active = true;
     _abortController = { aborted: false };
@@ -1468,15 +1485,33 @@ const ShowdownPresenter = (() => {
 
   /**
    * Clean up event listeners and state (but leave DOM visible for final result).
+   * Adds a persistent dismiss handler so user can click to close.
    */
   function _cleanup() {
     if (_dismissHandler && _containerEl) {
       _containerEl.removeEventListener('click', _dismissHandler);
     }
     document.removeEventListener('keydown', _onKeyDismiss);
-    _dismissHandler = null;
     _clearTimers();
     _active = false;
+
+    // Add a persistent dismiss handler — click anywhere to close
+    if (_containerEl) {
+      // Add visible dismiss hint
+      const hint = document.createElement('div');
+      hint.className = 'showdown-dismiss-hint';
+      hint.textContent = 'Click anywhere to continue';
+      _containerEl.appendChild(hint);
+
+      _dismissHandler = () => { dismiss(); };
+      _containerEl.addEventListener('click', _dismissHandler);
+      _containerEl.style.cursor = 'pointer';
+      // Auto-dismiss after 10 seconds
+      const autoTimer = setTimeout(() => { dismiss(); }, 10000);
+      _timers.push(autoTimer);
+    } else {
+      _dismissHandler = null;
+    }
   }
 
   /**
@@ -1491,25 +1526,13 @@ const ShowdownPresenter = (() => {
     }
     _clearTimers();
 
-    // If we have a container, show the final state
-    // Try to reconstruct from the last state passed to present()
-    if (_containerEl) {
-      // Show final result by ensuring all cards are revealed and winners highlighted
-      const unrevealed = _containerEl.querySelectorAll('.showdown-community-card.unrevealed');
-      unrevealed.forEach(slot => {
-        // Mark as revealed without animation
-        slot.classList.remove('unrevealed');
-        slot.classList.add('revealed');
-      });
-
-      // Ensure winner glow is applied
-      const hasGlow = _containerEl.querySelector('.showdown-winner-glow');
-      if (!hasGlow) {
-        // Winners info might not be applied yet; at minimum mark presentation as done
-      }
+    // Remove event listeners
+    if (_dismissHandler && _containerEl) {
+      _containerEl.removeEventListener('click', _dismissHandler);
     }
-
-    _cleanup();
+    document.removeEventListener('keydown', _onKeyDismiss);
+    _dismissHandler = null;
+    _active = false;
   }
 
   /**
@@ -1524,8 +1547,18 @@ const ShowdownPresenter = (() => {
    * Called when moving to next hand or cleaning up.
    */
   function dismiss() {
-    skip();
-    _removeContainer();
+    // Hard kill: reset all internal state unconditionally
+    _active = false;
+    if (_abortController) _abortController.aborted = true;
+    _clearTimers();
+    if (_dismissHandler && _containerEl) {
+      _containerEl.removeEventListener('click', _dismissHandler);
+    }
+    document.removeEventListener('keydown', _onKeyDismiss);
+    _dismissHandler = null;
+    _containerEl = null;
+    // Force remove ALL showdown presenter elements from DOM
+    document.querySelectorAll('.showdown-presenter').forEach(el => el.remove());
   }
 
   return { present, skip, isActive, dismiss };
@@ -1547,7 +1580,18 @@ function renderRoomsList(rooms) {
 // ─── Actions ───
 function createRoom() {
   savePlayerName(els.nameInput.value);
-  send("create", { name: els.nameInput.value || "Player", avatar: selectedAvatar });
+  const blindIncrease = parseInt(document.getElementById("blindIncreaseInput")?.value || "0", 10);
+  const ante = parseInt(document.getElementById("anteInput")?.value || "0", 10);
+  const anteMode = document.getElementById("anteModeSelect")?.value || "classic";
+  const autoAnte = document.getElementById("autoAnteCheck")?.checked || false;
+  send("create", {
+    name: els.nameInput.value || "Player",
+    avatar: selectedAvatar,
+    blind_increase_hands: blindIncrease || 0,
+    ante: ante || 0,
+    ante_mode: anteMode,
+    auto_ante: autoAnte,
+  });
 }
 
 // FIX #2: Clear globals BEFORE sending join so payload is clean
@@ -1606,7 +1650,10 @@ function renderState(state) {
     lastCommunityCardTime = 0;
     showdownRevealTime = 0;
     prevCommunityCards = [];
+    _peekRevealed = false; // Reset peek state for new hand
     if (winnerOverlayDelayTimer) { clearTimeout(winnerOverlayDelayTimer); winnerOverlayDelayTimer = null; }
+    if (winnerTimeout) { clearTimeout(winnerTimeout); winnerTimeout = null; }
+    els.winnerOverlay.classList.add("hidden");
     handsPlayedInSession++;
     // Hide spectator results panel when next hand begins
     if (SpectatorResultsPanel.isVisible()) {
@@ -1616,6 +1663,8 @@ function renderState(state) {
     if (ShowdownPresenter.isActive()) {
       ShowdownPresenter.dismiss();
     }
+    // Clean up any stale showdown presenter containers
+    document.querySelectorAll('.showdown-presenter').forEach(el => el.remove());
   }
 
   // ─── ShowdownPresenter Integration (req 7.1, 7.6, 7.7) ───
@@ -1703,6 +1752,20 @@ function renderState(state) {
   els.phaseBadge.textContent = state.paused ? "PAUSED" : state.phase.toUpperCase();
   els.potValue.textContent = BBDisplayToggle.formatAmount(state.pot, state.big_blind);
 
+  // Blind info display
+  const blindInfoEl = document.getElementById("blindInfo");
+  if (blindInfoEl) {
+    let blindText = `${state.small_blind}/${state.big_blind}`;
+    if (state.ante > 0) {
+      blindText += state.ante_mode === "bba" ? ` +BBA` : ` +${state.ante}a`;
+    }
+    if (state.blind_increase_hands > 0) {
+      const handsUntilNext = state.blind_increase_hands - (state.hands_played % state.blind_increase_hands);
+      blindText += ` · ↑${handsUntilNext}h`;
+    }
+    blindInfoEl.textContent = blindText;
+  }
+
   // Render pot chip visual proportional to total pot size
   if (els.potChips) {
     els.potChips.innerHTML = state.pot > 0 ? renderDenomChips(state.pot, { animate: true }) : "";
@@ -1732,6 +1795,7 @@ function renderState(state) {
     els.resetBtn.style.display = "";
     els.pauseBtn.style.display = "";
     els.addBotBtn.style.display = "";
+    if (els.botDifficultySelect) els.botDifficultySelect.style.display = "";
     els.removeBotBtn.style.display = "";
     if (els.pauseBtn) els.pauseBtn.textContent = state.paused ? "▶ Resume" : "⏸ Pause";
   } else {
@@ -1754,13 +1818,14 @@ function renderState(state) {
   renderCommunity(state.community);
   renderYourHand(viewerData);
 
-  // Detect new bot messages for speech bubbles
+  // Detect new messages for speech bubbles (all players, not just bots)
   if (state.messages && state.messages.length > 0) {
     if (state.messages.length > prevMsgCount) {
       const newMsgs = state.messages.slice(prevMsgCount);
-      const botNames = state.players.filter(p => p.is_bot).map(p => p.name);
+      const playerNames = new Set(state.players.map(p => p.name));
       newMsgs.forEach(m => {
-        if (botNames.includes(m.name)) {
+        // Only show bubbles for actual players (skip system messages)
+        if (playerNames.has(m.name)) {
           botSpeechBubbles[m.name] = { text: m.text, shownAt: Date.now() };
         }
       });
@@ -1883,20 +1948,35 @@ function renderCommunity(cards) {
 }
 
 function renderYourHand(viewer) {
-  if (!viewer || !viewer.cards || viewer.cards.length === 0) {
+  if (!viewer || !viewer.cards || viewer.cards.length === 0 || viewer.folded) {
     els.yourHandBar.classList.remove("hand-bar-enter");
     els.yourHandBar.classList.add("hand-bar-hidden");
+    _peekRevealed = false;
     return;
   }
   const isBack = c => c === "🂠" || c.includes("🂠") || c === "BACK";
   if (viewer.cards.every(isBack)) {
     els.yourHandBar.classList.remove("hand-bar-enter");
     els.yourHandBar.classList.add("hand-bar-hidden");
+    _peekRevealed = false;
     return;
   }
 
+  // Always show the hand bar container (for the peek button)
   els.yourHandBar.classList.remove("hand-bar-hidden");
   els.yourHandBar.classList.add("hand-bar-enter");
+
+  // If not peeked yet, show card backs + peek button
+  if (!_peekRevealed) {
+    els.yourCards.innerHTML = viewer.cards.map(() =>
+      `<div class="playing-card card-back" style="cursor:pointer">🂠</div>`
+    ).join("") + `<button class="btn btn-tiny btn-dim peek-btn" onclick="window._peekCards()">👁 Peek</button>`;
+    els.handStrength.textContent = "";
+    els.handStrength.className = "hand-strength-badge";
+    return;
+  }
+
+  // Peeked — show actual cards
   els.yourCards.innerHTML = "";
   viewer.cards.forEach(c => els.yourCards.appendChild(makeCard(c)));
 
@@ -1926,6 +2006,16 @@ function renderYourHand(viewer) {
     els.handStrength.className = "hand-strength-badge";
   }
 }
+
+// Peek state management
+let _peekRevealed = false;
+window._peekCards = function() {
+  _peekRevealed = !_peekRevealed; // Toggle: peek on/off
+  if (lastState) {
+    const viewerData = lastState.players.find(p => p.is_you);
+    renderYourHand(viewerData);
+  }
+};
 
 // ─── Seat Indicator & Position Badge ───
 function renderSeatIndicator(player) {
@@ -2052,11 +2142,11 @@ function renderPlayers(players) {
       spectatorInfo = `<div class="spectator-info"><span class="spectator-hand-class">${esc(p.hand_classification)}</span>${equityBadge}</div>`;
     }
 
-    // Speech bubble: show most recent chat from this bot (within last 5 seconds)
+    // Speech bubble: show most recent chat from this player (within last 8 seconds)
     let speechBubble = "";
-    if (p.is_bot && botSpeechBubbles[p.name]) {
+    if (botSpeechBubbles[p.name]) {
       const bubble = botSpeechBubbles[p.name];
-      if (Date.now() - bubble.shownAt < 5000) {
+      if (Date.now() - bubble.shownAt < 8000) {
         speechBubble = `<div class="speech-bubble">${esc(bubble.text)}</div>`;
       }
     }
@@ -2149,8 +2239,8 @@ function showWinnerOverlay(winners, viewer) {
     <div class="winner-dismiss">Tap to dismiss</div>
   `;
 
-  // Auto-dismiss: shorter if you lost
-  const dismissTime = viewerWon ? 10000 : 5000;
+  // Auto-dismiss: longer to give time to read results
+  const dismissTime = viewerWon ? 15000 : 8000;
   winnerTimeout = setTimeout(() => els.winnerOverlay.classList.add("hidden"), dismissTime);
 }
 
@@ -2204,7 +2294,7 @@ els.customBetBtn.onclick = () => { const v=parseInt(els.customBetInput.value,10)
 els.customBetInput.onkeydown = ev => { if(ev.key==="Enter") els.customBetBtn.click(); };
 els.resetBtn.onclick = () => action("reset_stacks");
 els.pauseBtn.onclick = () => action("toggle_pause");
-els.addBotBtn.onclick = () => { console.log("[BTN] add_bot clicked, roomId=", roomId, "token=", token.slice(0,8), "ws=", ws && ws.readyState); action("add_bot"); };
+els.addBotBtn.onclick = () => { const diff = els.botDifficultySelect ? els.botDifficultySelect.value : "hard"; console.log("[BTN] add_bot clicked, difficulty=", diff); action("add_bot", {difficulty: diff}); };
 els.removeBotBtn.onclick = () => { console.log("[BTN] remove_bot clicked"); action("remove_bot"); };
 els.sitOutBtn.onclick = () => action("sit_out");
 els.spectateBtn.onclick = () => action("spectate");
@@ -2225,6 +2315,11 @@ if (els.bbToggleBtn) {
 els.winnerOverlay.onclick = () => {
   els.winnerOverlay.classList.add("hidden");
   winnerDismissedForPhase = "showdown";
+  if (winnerTimeout) { clearTimeout(winnerTimeout); winnerTimeout = null; }
+  // Also dismiss showdown presenter if active
+  if (ShowdownPresenter.isActive()) {
+    ShowdownPresenter.dismiss();
+  }
 };
 
 els.chatToggle.onclick = () => els.chatPanel.classList.toggle("hidden");
@@ -2237,11 +2332,33 @@ els.hintsToggle.onclick = () => {
 // Apply initial hints button state
 if (!hintsEnabled) els.hintsToggle.textContent = "🚫";
 els.chatClose.onclick = () => els.chatPanel.classList.add("hidden");
-els.chatBtn.onclick = () => { const t=els.chatInput.value.trim(); if(t){send("chat",{text:t});els.chatInput.value="";} };
+els.chatBtn.onclick = () => {
+  const t = els.chatInput.value.trim();
+  if (t) {
+    send("chat", { text: t });
+    // Show speech bubble immediately (don't wait for server round-trip)
+    const viewerData = lastState && lastState.players ? lastState.players.find(p => p.is_you) : null;
+    if (viewerData) {
+      botSpeechBubbles[viewerData.name] = { text: t, shownAt: Date.now() };
+      if (lastState) renderPlayers(lastState.players);
+    }
+    els.chatInput.value = "";
+  }
+};
 els.chatInput.onkeydown = ev => { if(ev.key==="Enter") els.chatBtn.click(); };
 
 // ─── Init ───
 loadSavedPlayerName();
+
+// Global Escape key: clear ALL overlays
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    ShowdownPresenter.dismiss();
+    els.winnerOverlay.classList.add("hidden");
+    winnerDismissedForPhase = "showdown";
+    if (winnerTimeout) { clearTimeout(winnerTimeout); winnerTimeout = null; }
+  }
+});
 
 if (roomId && token) {
   reconnectLast();

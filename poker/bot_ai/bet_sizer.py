@@ -81,6 +81,30 @@ def compute_bet_size(ctx: SizingContext, min_raise: int, max_raise: int) -> int:
     return amount
 
 
+def compute_bet_size_with_equity_cap(
+    ctx: SizingContext, min_raise: int, max_raise: int, equity: float
+) -> int:
+    """Compute bet size with equity-based pot cap.
+
+    Delegates to compute_bet_size for the base calculation.
+    When equity < 0.70, the result is capped at ctx.pot (the current pot size).
+    If ctx.pot < min_raise, the cap is clamped up to min_raise.
+
+    The final result is always within [min_raise, max_raise].
+
+    Req 2.2: Cap raise amount at pot size when equity < 70%.
+    """
+    base = compute_bet_size(ctx, min_raise, max_raise)
+
+    if equity < 0.70:
+        # Cap at pot size, but never below min_raise
+        cap = max(ctx.pot, min_raise)
+        base = min(base, cap)
+
+    # Ensure final clamp to [min_raise, max_raise]
+    return max(min_raise, min(base, max_raise))
+
+
 def add_sizing_noise(base_size: int, noise_pct: float = 0.10) -> int:
     """Add random noise within ±noise_pct of the base size.
 

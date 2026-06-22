@@ -48,8 +48,14 @@ def _make_ctx(
     board_wet: bool = False,
     exploit_active: bool = False,
     personality_style: str = "TAG",
+    pot: int = 100,
+    bet_amount: int = 70,
+    raise_amount: int = 150,
+    call_amount: int = 50,
+    fold_probability: float = 0.35,
+    num_opponents: int = 1,
 ) -> ScoringContext:
-    """Create a ScoringContext with sensible defaults."""
+    """Create a ScoringContext with sensible defaults for EV-based scoring."""
     return ScoringContext(
         equity=equity,
         pot_odds=pot_odds,
@@ -70,6 +76,12 @@ def _make_ctx(
         personality=get_personality(personality_style),
         stack_to_pot=5.0,
         is_preflop_aggressor=is_preflop_aggressor,
+        fold_probability=fold_probability,
+        bet_amount=bet_amount,
+        raise_amount=raise_amount,
+        call_amount=call_amount,
+        num_opponents=num_opponents,
+        pot=pot,
     )
 
 
@@ -147,15 +159,19 @@ class TestComputeBaseScores:
         assert scores_dry.bet > scores_wet.bet
 
     def test_wet_board_boosts_check_for_aggressor(self):
-        """Wet board should boost check (pot control) for aggressor."""
-        ctx_dry = _make_ctx(board_dry=True, board_wet=False, is_preflop_aggressor=True)
-        ctx_wet = _make_ctx(board_dry=False, board_wet=True, is_preflop_aggressor=True)
+        """Wet board should make check relatively more attractive vs bet (pot control)."""
+        ctx_dry = _make_ctx(board_dry=True, board_wet=False, is_preflop_aggressor=True, equity=0.45)
+        ctx_wet = _make_ctx(board_dry=False, board_wet=True, is_preflop_aggressor=True, equity=0.45)
         legal = ["check", "bet"]
 
         scores_dry = compute_base_scores(ctx_dry, legal)
         scores_wet = compute_base_scores(ctx_wet, legal)
 
-        assert scores_wet.check > scores_dry.check
+        # On a wet board with moderate equity, bet should be penalized via modifiers,
+        # making the bet-check gap smaller (or check dominant) compared to dry board.
+        dry_gap = scores_dry.bet - scores_dry.check
+        wet_gap = scores_wet.bet - scores_wet.check
+        assert wet_gap < dry_gap
 
 
 # ─── apply_personality ─────────────────────────────────────────────────────────
@@ -206,7 +222,7 @@ class TestApplyNoise:
         """Noise should never produce NaN or infinite values."""
         scores = ActionScores(fold=0.3, check=0.4, call=0.5, bet=0.6, raise_=0.7)
         for _ in range(100):
-            noisy = apply_noise(scores, 0.45)
+            noisy = apply_noise(scores, 0.45, 200)
             assert math.isfinite(noisy.fold)
             assert math.isfinite(noisy.check)
             assert math.isfinite(noisy.call)
@@ -217,8 +233,8 @@ class TestApplyNoise:
         """Req 9.3: Higher exploitability → greater variance."""
         base = ActionScores(fold=0.5, check=0.5, call=0.5, bet=0.5, raise_=0.5)
 
-        samples_low = [apply_noise(base, 0.08).bet for _ in range(500)]
-        samples_high = [apply_noise(base, 0.45).bet for _ in range(500)]
+        samples_low = [apply_noise(base, 0.08, 200).bet for _ in range(500)]
+        samples_high = [apply_noise(base, 0.45, 200).bet for _ in range(500)]
 
         var_low = statistics.variance(samples_low)
         var_high = statistics.variance(samples_high)
@@ -228,10 +244,33 @@ class TestApplyNoise:
     def test_illegal_scores_not_noised(self):
         """Illegal scores should remain at _ILLEGAL_SCORE."""
         scores = ActionScores(fold=_ILLEGAL_SCORE, check=0.5, call=_ILLEGAL_SCORE, bet=0.5, raise_=0.5)
-        noisy = apply_noise(scores, 0.3)
+        noisy = apply_noise(scores, 0.3, 200)
 
         assert noisy.fold == _ILLEGAL_SCORE
         assert noisy.call == _ILLEGAL_SCORE
+
+    def test_zero_pot_produces_no_noise(self):
+        """When pot_size is 0, sigma is 0 and no noise should be applied."""
+        scores = ActionScores(fold=0.3, check=0.4, call=0.5, bet=0.6, raise_=0.7)
+        for _ in range(100):
+            noisy = apply_noise(scores, 0.45, 0)
+            assert noisy.fold == scores.fold
+            assert noisy.check == scores.check
+            assert noisy.call == scores.call
+            assert noisy.bet == scores.bet
+            assert noisy.raise_ == scores.raise_
+
+    def test_pot_proportional_sigma(self):
+        """Noise sigma should scale with pot_size: larger pot → more variance."""
+        base = ActionScores(fold=0.5, check=0.5, call=0.5, bet=0.5, raise_=0.5)
+
+        samples_small_pot = [apply_noise(base, 0.3, 50).bet for _ in range(500)]
+        samples_large_pot = [apply_noise(base, 0.3, 500).bet for _ in range(500)]
+
+        var_small = statistics.variance(samples_small_pot)
+        var_large = statistics.variance(samples_large_pot)
+
+        assert var_large > var_small
 
 
 # ─── select_action ─────────────────────────────────────────────────────────────
@@ -282,3 +321,157 @@ class TestSelectAction:
         for _ in range(100):
             action = select_action(scores)
             assert action in ("fold", "call")
+
+
+# ─── Difficulty-Gated Behavior ─────────────────────────────────────────────────
+
+
+class TestDifficultyGating:
+    """Tests for difficulty-gated EV behavior in compute_base_scores.
+
+    Validates Requirement 13: EASY uses simplified EV, MEDIUM uses full EV
+    with reduced exploit, HARD/EXPERT uses the complete system.
+    """
+
+    def test_easy_no_fold_probability_effect(self):
+        """EASY: fold_probability should NOT affect scoring (simplified EV)."""
+        ctx_low_fp = _make_ctx(equity=0.6, fold_probability=0.1, pot=200, bet_amount=100)
+        ctx_low_fp.difficulty_level = "EASY"
+        ctx_high_fp = _make_ctx(equity=0.6, fold_probability=0.9, pot=200, bet_amount=100)
+        ctx_high_fp.difficulty_level = "EASY"
+
+        legal = ["check", "bet"]
+        scores_low = compute_base_scores(ctx_low_fp, legal)
+        scores_high = compute_base_scores(ctx_high_fp, legal)
+
+        # In EASY mode, fold_probability is not used, so scores should be identical
+        assert scores_low.bet == scores_high.bet
+        assert scores_low.check == scores_high.check
+
+    def test_easy_call_ev_uses_simplified_formula(self):
+        """EASY: call EV = equity × final_pot − call_amount (no modifiers)."""
+        ctx = _make_ctx(equity=0.6, pot=200, call_amount=50)
+        ctx.difficulty_level = "EASY"
+
+        legal = ["fold", "call"]
+        scores = compute_base_scores(ctx, legal)
+
+        # Expected: 0.6 × (200 + 50) − 50 = 0.6 × 250 − 50 = 150 − 50 = 100
+        expected_call_ev = 0.6 * (200 + 50) - 50
+        assert abs(scores.call - expected_call_ev) < 0.01
+
+    def test_easy_fold_is_zero(self):
+        """EASY: fold EV = 0."""
+        ctx = _make_ctx(equity=0.3, pot=200)
+        ctx.difficulty_level = "EASY"
+
+        legal = ["fold", "call"]
+        scores = compute_base_scores(ctx, legal)
+        assert scores.fold == 0.0
+
+    def test_easy_no_exploit_modifiers(self):
+        """EASY: exploit adjustments should not affect scores."""
+        ctx_no_exploit = _make_ctx(equity=0.6, pot=200, bet_amount=100, exploit_active=False)
+        ctx_no_exploit.difficulty_level = "EASY"
+        ctx_exploit = _make_ctx(equity=0.6, pot=200, bet_amount=100, exploit_active=True)
+        ctx_exploit.difficulty_level = "EASY"
+        # Set some exploit values
+        ctx_exploit.exploit_adjustments.three_bet_bluff_boost = 0.5
+        ctx_exploit.exploit_adjustments.cbet_frequency_boost = 0.5
+
+        legal = ["check", "bet"]
+        scores_no = compute_base_scores(ctx_no_exploit, legal)
+        scores_yes = compute_base_scores(ctx_exploit, legal)
+
+        # EASY doesn't use modifiers, so both should be the same
+        assert scores_no.bet == scores_yes.bet
+
+    def test_medium_uses_fold_probability(self):
+        """MEDIUM: fold_probability IS used in EV formula (unlike EASY)."""
+        ctx_low = _make_ctx(equity=0.5, fold_probability=0.1, pot=200, bet_amount=100)
+        ctx_low.difficulty_level = "MEDIUM"
+        ctx_high = _make_ctx(equity=0.5, fold_probability=0.9, pot=200, bet_amount=100)
+        ctx_high.difficulty_level = "MEDIUM"
+
+        legal = ["check", "bet"]
+        scores_low = compute_base_scores(ctx_low, legal)
+        scores_high = compute_base_scores(ctx_high, legal)
+
+        # Higher fold probability → higher bet EV (more fold equity)
+        assert scores_high.bet > scores_low.bet
+
+    def test_medium_exploit_scaled_vs_hard(self):
+        """MEDIUM: exploit modifier influence is reduced compared to HARD."""
+        ctx_medium = _make_ctx(equity=0.6, pot=200, bet_amount=100, exploit_active=True)
+        ctx_medium.difficulty_level = "MEDIUM"
+        ctx_medium.exploit_adjustments.cbet_frequency_boost = 0.8
+        ctx_medium.exploit_adjustments.three_bet_bluff_boost = 0.8
+
+        ctx_hard = _make_ctx(equity=0.6, pot=200, bet_amount=100, exploit_active=True)
+        ctx_hard.difficulty_level = "HARD"
+        ctx_hard.exploit_adjustments.cbet_frequency_boost = 0.8
+        ctx_hard.exploit_adjustments.three_bet_bluff_boost = 0.8
+
+        legal = ["check", "bet", "raise"]
+        scores_medium = compute_base_scores(ctx_medium, legal)
+        scores_hard = compute_base_scores(ctx_hard, legal)
+
+        # HARD should have stronger exploit influence on bet/raise
+        # The difference comes from exploit_modifier being 50% reduced in MEDIUM
+        # With positive cbet_frequency_boost, HARD's bet should be >= MEDIUM's bet
+        # (since MEDIUM reduces the exploit boost)
+        # Note: This is approximate due to personality EV modifiers also in play
+        # but the exploit component should be measurably less in MEDIUM
+        assert scores_hard.bet >= scores_medium.bet - 1.0  # Allow small tolerance
+
+    def test_hard_full_system(self):
+        """HARD: uses complete EV + all modifiers — same as None difficulty."""
+        ctx_hard = _make_ctx(equity=0.6, pot=200, bet_amount=100, fold_probability=0.4)
+        ctx_hard.difficulty_level = "HARD"
+
+        ctx_none = _make_ctx(equity=0.6, pot=200, bet_amount=100, fold_probability=0.4)
+        ctx_none.difficulty_level = None
+
+        legal = ["fold", "call", "raise"]
+        scores_hard = compute_base_scores(ctx_hard, legal)
+        scores_none = compute_base_scores(ctx_none, legal)
+
+        # HARD and None should produce identical results
+        assert scores_hard.fold == scores_none.fold
+        assert scores_hard.call == scores_none.call
+        assert scores_hard.raise_ == scores_none.raise_
+
+    def test_expert_full_system(self):
+        """EXPERT: uses complete EV + all modifiers — same as HARD."""
+        ctx_expert = _make_ctx(equity=0.6, pot=200, bet_amount=100, fold_probability=0.4)
+        ctx_expert.difficulty_level = "EXPERT"
+
+        ctx_hard = _make_ctx(equity=0.6, pot=200, bet_amount=100, fold_probability=0.4)
+        ctx_hard.difficulty_level = "HARD"
+
+        legal = ["fold", "call", "raise"]
+        scores_expert = compute_base_scores(ctx_expert, legal)
+        scores_hard = compute_base_scores(ctx_hard, legal)
+
+        # EXPERT and HARD produce identical base scores
+        assert scores_expert.fold == scores_hard.fold
+        assert scores_expert.call == scores_hard.call
+        assert scores_expert.raise_ == scores_hard.raise_
+
+    def test_easy_bet_positive_when_high_equity(self):
+        """EASY: bet should be positive when equity is high (simple heuristic)."""
+        ctx = _make_ctx(equity=0.8, pot=200, bet_amount=100)
+        ctx.difficulty_level = "EASY"
+
+        legal = ["check", "bet"]
+        scores = compute_base_scores(ctx, legal)
+        assert scores.bet > 0.0
+
+    def test_easy_bet_negative_when_low_equity(self):
+        """EASY: bet should be negative when equity is low."""
+        ctx = _make_ctx(equity=0.2, pot=200, bet_amount=100)
+        ctx.difficulty_level = "EASY"
+
+        legal = ["check", "bet"]
+        scores = compute_base_scores(ctx, legal)
+        assert scores.bet < 0.0

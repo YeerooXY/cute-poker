@@ -41,12 +41,12 @@ from poker.bot_ai.range_tracker import RangeTracker
 from poker.bot_ai.board_analyzer import analyze_board, compute_range_advantage
 from poker.bot_ai.opponent_model import OpponentModel, PlayerStats
 from poker.bot_ai.dynamic_adjuster import DynamicAdjuster
-from poker.bot_ai.bluff_calculator import compute_bluff_score
+from poker.bot_ai.bluff_calculator import compute_bluff_score, compute_fold_equity
 from poker.bot_ai.preflop_charts import get_preflop_decision
-from poker.bot_ai.bet_sizer import compute_bet_size, add_sizing_noise, SizingContext
+from poker.bot_ai.bet_sizer import compute_bet_size, compute_bet_size_with_equity_cap, add_sizing_noise, SizingContext
 from poker.bot_ai.action_scorer import (
     compute_base_scores,
-    apply_personality,
+    apply_allin_cap,
     apply_noise,
     select_action,
 )
@@ -158,8 +158,8 @@ def advanced_bot_decide(
         except Exception:
             pass  # Fall through to full scoring pipeline
 
-    # 4b. Compute equity
-    equity = _compute_equity(game_context)
+    # 4b. Compute equity (range-aware if available)
+    equity = _compute_equity_with_range(game_context, subsystems, opponent_range)
 
     # 4c. Compute pot odds
     pot_odds = _compute_pot_odds(game_context)
@@ -195,6 +195,65 @@ def advanced_bot_decide(
         else 20.0
     )
 
+    # 4f-i. Compute fold probability from opponent stats via fold equity calculator.
+    # Use a default bet_size_ratio of 0.7 (typical 70% pot bet) since the actual
+    # bet size hasn't been determined yet at this point in the pipeline.
+    fold_equity_bet_ratio = 0.7
+    try:
+        fold_probability = compute_fold_equity(
+            opponent_stats, fold_equity_bet_ratio, game_context.phase
+        )
+    except Exception:
+        fold_probability = 0.35  # Fallback to default
+
+    # 4f-ii. Compute bet_amount, raise_amount, call_amount, num_opponents for EV calculator.
+    # These populate the ScoringContext so compute_ev_scores has all inputs it needs.
+    call_amount = max(0, game_context.current_bet - game_context.committed)
+    num_opponents = max(1, game_context.num_opponents)
+
+    # Compute bet_amount via bet_sizer using game context
+    try:
+        is_value_bet = equity > 0.55
+        is_polarized = game_context.phase == "river"
+        sizing_ctx = SizingContext(
+            street=game_context.phase,
+            board_texture=board_texture,
+            range_advantage=range_advantage,
+            pot=game_context.pot,
+            is_value_bet=is_value_bet,
+            is_polarized=is_polarized,
+            personality=personality,
+        )
+        max_raise_amount = game_context.committed + game_context.stack
+        min_raise_amount = game_context.min_raise
+        bet_amount = compute_bet_size(sizing_ctx, min_raise_amount, max_raise_amount)
+    except Exception:
+        bet_amount = game_context.min_raise
+
+    # Compute raise_amount: use a larger sizing (2.5× current bet, or bet_sizer with adjusted pot)
+    try:
+        # Raise amount is typically larger than a standard bet — model the pot as if
+        # it already contains the opponent's bet (pot + call_amount) for sizing purposes.
+        raise_pot = game_context.pot + call_amount
+        raise_sizing_ctx = SizingContext(
+            street=game_context.phase,
+            board_texture=board_texture,
+            range_advantage=range_advantage,
+            pot=raise_pot,
+            is_value_bet=is_value_bet,
+            is_polarized=is_polarized,
+            personality=personality,
+        )
+        raise_amount = compute_bet_size(raise_sizing_ctx, min_raise_amount, max_raise_amount)
+        # Ensure raise_amount is at least as large as bet_amount
+        raise_amount = max(raise_amount, bet_amount)
+    except Exception:
+        # Fallback: raise_amount = 2.5× current bet, clamped to [min_raise, max_raise]
+        raise_amount = max(
+            game_context.min_raise,
+            min(int(game_context.current_bet * 2.5), game_context.committed + game_context.stack),
+        )
+
     scoring_ctx = ScoringContext(
         equity=equity,
         pot_odds=pot_odds,
@@ -209,12 +268,39 @@ def advanced_bot_decide(
         personality=personality,
         stack_to_pot=stack_to_pot,
         is_preflop_aggressor=game_context.is_preflop_aggressor,
+        fold_probability=fold_probability,
+        bet_amount=bet_amount,
+        raise_amount=raise_amount,
+        call_amount=call_amount,
+        num_opponents=num_opponents,
+        pot=game_context.pot,
+        difficulty_level=difficulty.name,  # Pass difficulty for gated EV behavior
     )
 
-    # 4g. Compute base scores → apply personality → apply noise → select action
+    # 4g. Compute base scores → apply all-in cap → apply noise → select action
+    # NOTE: Personality modifiers are now embedded inside compute_base_scores via
+    # compute_modifiers(). The separate apply_personality step has been removed to
+    # avoid double-counting personality influence.
     scores = compute_base_scores(scoring_ctx, legal_actions)
-    scores = apply_personality(scores, personality)
-    scores = apply_noise(scores, personality.exploitability)
+
+    # Detect if raise would be all-in: when min_raise >= stack, any raise
+    # commits the player's entire remaining stack.
+    max_raise = game_context.committed + game_context.stack
+    is_allin = game_context.min_raise >= game_context.stack or max_raise <= game_context.min_raise
+    if is_allin:
+        scores = apply_allin_cap(scores, equity)
+
+    # Difficulty-gated noise scaling:
+    # EASY: 2× exploitability → more random/exploitable play
+    # MEDIUM: 1.5× exploitability → moderately noisy
+    # HARD/EXPERT: 1× exploitability → normal noise
+    noise_exploitability = personality.exploitability
+    if difficulty == DifficultyLevel.EASY:
+        noise_exploitability *= 2.0
+    elif difficulty == DifficultyLevel.MEDIUM:
+        noise_exploitability *= 1.5
+
+    scores = apply_noise(scores, noise_exploitability, game_context.pot)
     chosen_action = select_action(scores)
 
     # 4h. If bet/raise selected, compute proper bet size
@@ -235,8 +321,8 @@ def advanced_bot_decide(
                 personality=personality,
             )
             max_raise = game_context.committed + game_context.stack
-            bet_amount = compute_bet_size(
-                sizing_ctx, game_context.min_raise, max_raise
+            bet_amount = compute_bet_size_with_equity_cap(
+                sizing_ctx, game_context.min_raise, max_raise, equity
             )
             bet_amount = add_sizing_noise(bet_amount)
             # Re-clamp after noise
@@ -268,6 +354,50 @@ def _compute_equity(game_context: AIGameContext) -> float:
         return result["equity"]
     except Exception:
         return 0.5
+
+
+def _compute_equity_with_range(
+    game_context: AIGameContext,
+    subsystems: ActiveSubsystems,
+    opponent_range: RangeEstimate,
+) -> float:
+    """Compute equity, using range-aware calculation when range data is available.
+
+    When range_tracking is active and the opponent's range has been narrowed
+    (at least one category weight < 0.9), uses estimate_equity_vs_range to
+    sample opponent hands from the narrowed range distribution.
+
+    Otherwise, falls back to the standard hybrid equity calculator.
+
+    Args:
+        game_context: Current game state.
+        subsystems: Active AI subsystems (checked for range_tracking).
+        opponent_range: The opponent's current RangeEstimate from the range tracker.
+
+    Returns:
+        Equity value between 0.0 and 1.0.
+    """
+    if subsystems.range_tracking and opponent_range is not None:
+        try:
+            from poker.odds import estimate_equity_vs_range, _range_estimate_to_combo_range
+
+            # Convert 6-category range estimate to 169 hand-class combo_range
+            combo_range = _range_estimate_to_combo_range(opponent_range)
+
+            # Check if range has been meaningfully narrowed (not all weights near 1.0)
+            if any(w < 0.9 for w in combo_range.values()):
+                equity_result = estimate_equity_vs_range(
+                    hero_cards=game_context.hole_cards,
+                    board_cards=game_context.community,
+                    combo_range=combo_range,
+                    num_opponents=game_context.num_opponents,
+                )
+                return equity_result["equity"]
+        except Exception:
+            pass  # Fall through to standard equity calculation
+
+    # Fallback: standard equity calculation
+    return _compute_equity(game_context)
 
 
 def _compute_pot_odds(game_context: AIGameContext) -> float:
@@ -354,15 +484,27 @@ def _map_action_to_game(
 
     Internal actions: "fold", "check", "call", "bet", "raise"
     Game actions: "fold", "check_call", "bet_raise"
+
+    The game server uses "raise to" semantics for bet_raise amounts:
+      amount = total chips committed after the action
+    So the minimum legal raise is: current_bet + min_raise
     """
     if action == "fold":
         return ("fold", {})
     elif action in ("check", "call"):
         return ("check_call", {})
     elif action in ("bet", "raise"):
-        # Ensure bet_amount is at least min_raise and at most all-in
-        max_raise = game_context.committed + game_context.stack
-        amount = max(game_context.min_raise, min(bet_amount, max_raise))
+        # Server uses "raise to" semantics: amount = total committed after action
+        # Minimum legal raise-to = current_bet + min_raise
+        min_raise_to = game_context.current_bet + game_context.min_raise
+        max_raise_to = game_context.committed + game_context.stack
+
+        # If player can't afford the minimum raise, go all-in
+        if min_raise_to > max_raise_to:
+            amount = max_raise_to
+        else:
+            # Clamp bet_amount to legal range [min_raise_to, max_raise_to]
+            amount = max(min_raise_to, min(bet_amount, max_raise_to))
         return ("bet_raise", {"amount": amount})
     else:
         # Unknown action, default to check/call

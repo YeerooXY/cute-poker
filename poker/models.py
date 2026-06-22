@@ -26,6 +26,7 @@ class Player:
     folded: bool = False
     all_in: bool = False
     committed: int = 0
+    total_invested: int = 0
     acted: bool = False
 
     last_hand_name: str = ""
@@ -64,6 +65,9 @@ class Room:
     min_raise: int = 20
     small_blind: int = 5
     big_blind: int = 10
+    ante: int = 0  # Per-player ante (typically 10% of BB, 0 = disabled)
+    ante_mode: str = "classic"  # "classic" = all players post, "bba" = dealer posts 1 BB
+    auto_ante: bool = False  # If True, ante auto-scales to ~10% of BB on blind increase
 
     dealer_seat: Optional[int] = None
     action_seat: Optional[int] = None
@@ -75,7 +79,20 @@ class Room:
     hands_played: int = 0
     blind_increase_hands: int = 0  # 0 = no auto-increase
     blind_levels: list = field(default_factory=lambda: [
-        (5, 10), (10, 20), (15, 30), (25, 50), (50, 100), (75, 150), (100, 200)
+        # ~1.5x progression: realistic tournament structure
+        (5, 10),       # Level 0: 5/10
+        (8, 15),       # Level 1: 8/15
+        (10, 25),      # Level 2: 10/25
+        (15, 30),      # Level 3: 15/30
+        (25, 50),      # Level 4: 25/50
+        (30, 75),      # Level 5: 30/75
+        (50, 100),     # Level 6: 50/100
+        (75, 150),     # Level 7: 75/150
+        (100, 200),    # Level 8: 100/200
+        (150, 300),    # Level 9: 150/300
+        (200, 400),    # Level 10: 200/400
+        (300, 600),    # Level 11: 300/600
+        (500, 1000),   # Level 12: 500/1000
     ])
     current_blind_level: int = 0
 

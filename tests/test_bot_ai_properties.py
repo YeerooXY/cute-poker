@@ -1923,13 +1923,13 @@ class TestNoiseScalingWithExploitability:
         # Collect bet scores with low exploitability
         low_bet_scores = []
         for _ in range(iterations):
-            noisy = apply_noise(base_scores, low_exploitability)
+            noisy = apply_noise(base_scores, low_exploitability, 200)
             low_bet_scores.append(noisy.bet)
 
         # Collect bet scores with high exploitability
         high_bet_scores = []
         for _ in range(iterations):
-            noisy = apply_noise(base_scores, high_exploitability)
+            noisy = apply_noise(base_scores, high_exploitability, 200)
             high_bet_scores.append(noisy.bet)
 
         low_variance = statistics.variance(low_bet_scores)
