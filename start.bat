@@ -6,9 +6,9 @@ echo   Cute Poker Modular - Auto Launcher
 echo ==========================================
 echo.
 
-:: Start the Python server in the background
+:: Start the Python server in the background (logs visible in server_log.txt)
 echo [1/2] Starting poker server on port 8000...
-start /B python server.py > nul 2>&1
+start /B python server.py > server_log.txt 2>&1
 
 :: Wait a moment for server to boot
 timeout /t 2 /nobreak > nul

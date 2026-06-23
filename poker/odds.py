@@ -559,9 +559,11 @@ def _normalize_weights(combo_range: dict) -> dict:
 def _range_estimate_to_combo_range(range_estimate) -> dict:
     """Convert a 6-category RangeEstimate into a 169 hand-class combo_range.
 
-    Each hand class receives its category's weight divided by the number of
-    hand classes in that category. This ensures equal total probability mass
-    per category regardless of how many hand classes it contains.
+    Each hand class receives its category's weight directly. This means a
+    premium weight of 0.85 assigns 0.85 to every hand class in the premium
+    category. Sampling is later weighted by the number of combos each hand
+    class expands to (pairs=6, suited=4, offsuit=12), which naturally handles
+    the probability distribution.
 
     Args:
         range_estimate: A RangeEstimate dataclass with premium, strong, playable,
@@ -580,11 +582,9 @@ def _range_estimate_to_combo_range(range_estimate) -> dict:
         "trash": range_estimate.trash,
     }
     for category, hand_classes in CATEGORY_TO_HAND_CLASSES.items():
-        category_weight = category_weights[category]
-        # Distribute category weight evenly across all hand classes in it
-        per_hand_weight = category_weight / max(1, len(hand_classes))
+        weight = category_weights[category]
         for hc in hand_classes:
-            combo_range[hc] = per_hand_weight
+            combo_range[hc] = weight
     return combo_range
 
 

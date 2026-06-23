@@ -59,6 +59,7 @@ class Room:
     messages: list[ChatMessage] = field(default_factory=list)
     winners: list[Winner] = field(default_factory=list)
     pot_breakdown: list = field(default_factory=list)  # Per-pot tier results for UI
+    action_log: list = field(default_factory=list)  # Actions taken this hand (for analysis)
 
     phase: str = "lobby"  # lobby, preflop, flop, turn, river, showdown
     pot: int = 0

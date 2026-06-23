@@ -59,6 +59,7 @@ def save_hand_log(room: Any) -> None:
             "community_cards": community_data,
             "pot": room.pot,
             "winners": winners_data,
+            "actions": getattr(room, 'action_log', []),
         }
 
         filename = f"{room.room_id}_hand_{room.hands_played}.json"

@@ -496,27 +496,22 @@ class PokerServer:
                 # It's a bot's turn — calculate context-aware think time
                 config = self.bots[action_player.player_id]
 
-                # Calculate equity and is_nuts for think time (fewer sims for speed)
-                num_opp = len([p for p in room.players.values()
-                               if p.cards and not p.folded and p.token != action_player.token])
-                if num_opp < 1:
-                    num_opp = 1
-
-                try:
-                    eq_result = calculate_equity_hybrid(
-                        action_player.cards, room.community, num_opp
-                    )
-                    equity = eq_result["equity"]
-                except Exception:
-                    equity = 0.5
-
-                try:
-                    hand_info = _classify_hand(action_player.cards, room.community)
-                    is_nuts = hand_info.get("is_nuts", False)
-                except Exception:
-                    is_nuts = False
-
+                # Lightweight think time: avoid expensive equity calc just for timing.
+                # Use a simple heuristic based on to_call and phase instead.
                 to_call = max(0, room.current_bet - action_player.committed)
+                is_nuts = False  # Not worth computing just for think_time
+
+                # Quick equity estimate only for preflop (instant lookup) or skip
+                if room.phase == "preflop":
+                    try:
+                        eq_result = calculate_equity_hybrid(
+                            action_player.cards, room.community, 1
+                        )
+                        equity = eq_result["equity"]
+                    except Exception:
+                        equity = 0.5
+                else:
+                    equity = 0.5  # Placeholder — real equity computed in bot_decide
 
                 # Context-aware think time
                 think_time = calculate_think_time(config, equity, is_nuts, to_call)
@@ -537,11 +532,37 @@ class PokerServer:
                 # Make decision
                 try:
                     action_name, extras = await bot_decide(action_player, room, config)
+                    
+                    # Log bot decision with AI debug info
+                    debug = getattr(config, '_last_debug', {})
+                    room.action_log.append({
+                        "player": config.name,
+                        "is_bot": True,
+                        "phase": room.phase,
+                        "hole_cards": list(action_player.cards),
+                        "community": list(room.community),
+                        "pot": room.pot,
+                        "current_bet": room.current_bet,
+                        "committed": action_player.committed,
+                        "stack": action_player.stack,
+                        "to_call": max(0, room.current_bet - action_player.committed),
+                        "action": action_name,
+                        "amount": extras.get("amount", 0),
+                        "ai_debug": debug,
+                    })
+                    
                     payload = {"action": action_name, "room_id": room_id,
                                "token": action_player.token, **extras}
                     await self.player_action(room, action_player, action_name, payload)
                 except Exception:
                     # Fallback: just check/call
+                    room.action_log.append({
+                        "player": config.name,
+                        "is_bot": True,
+                        "phase": room.phase,
+                        "action": "check_call",
+                        "note": "exception fallback",
+                    })
                     await self.player_action(room, action_player, "check_call", {})
 
                 # Bot action complete — set event (idle) after acting
@@ -823,6 +844,20 @@ class PokerServer:
             await self.send(player.ws, "error", {"message": f"Unknown action: {action}"})
             return
 
+        # Log human actions (bot actions are logged in bot_loop)
+        if player.player_id not in self.bots:
+            room.action_log.append({
+                "player": player.name,
+                "is_bot": False,
+                "phase": room.phase,
+                "pot": room.pot,
+                "current_bet": room.current_bet,
+                "committed": player.committed,
+                "stack": player.stack,
+                "action": action,
+                "amount": int(payload.get("amount", 0)) if action == "bet_raise" else 0,
+            })
+
         await self.after_action(room)
 
     def commit_chips(self, room: Room, player: Player, amount: int):
@@ -849,6 +884,7 @@ class PokerServer:
         room.min_raise = room.big_blind
         room.phase = "preflop"
         room.winners = []
+        room.action_log = []
 
         for p in room.players.values():
             p.cards = []
@@ -939,14 +975,22 @@ class PokerServer:
         if just_started:
             if room.action_seat is None or self.betting_complete(room):
                 self._assert_betting_valid(room, "just_started advance")
-                await self.advance_phase(room)
+                self.return_uncalled_excess(room)
+                if self.should_force_runout(room):
+                    await self.runout_to_showdown(room)
+                else:
+                    await self.advance_phase(room)
             else:
                 await self.broadcast(room)
             return
 
         if self.betting_complete(room):
             self._assert_betting_valid(room, "after_action advance")
-            await self.advance_phase(room)
+            self.return_uncalled_excess(room)
+            if self.should_force_runout(room):
+                await self.runout_to_showdown(room)
+            else:
+                await self.advance_phase(room)
         else:
             room.action_seat = self.next_action_seat_after(room, room.action_seat)
             await self.broadcast(room)
@@ -974,15 +1018,14 @@ class PokerServer:
             return True
 
         # Sole-actor detection: if only one player can act and all others
-        # are all-in, auto-complete ONLY if that player has already acted
-        # and matched the current bet (they can't raise further anyway).
-        # If they haven't acted yet, they still need to call/fold.
+        # are all-in, auto-complete if that player already matches the current bet.
+        # Nobody can re-raise, so giving them action is pointless.
         if len(can_act) == 1:
             sole = can_act[0]
             others = [p for p in contenders if p != sole]
             if all(p.all_in for p in others):
-                # Only auto-complete if sole actor has acted AND matches the bet
-                if sole.acted and sole.committed >= room.current_bet:
+                # Auto-complete if sole actor matches or exceeds the bet
+                if sole.committed >= room.current_bet:
                     return True
 
         for p in can_act:
@@ -997,6 +1040,62 @@ class PokerServer:
         contenders = [p for p in room.seated_players() if p.cards and not p.folded]
         return len(contenders) == 1
 
+    def players_who_can_bet(self, room: Room) -> list[Player]:
+        """Return players who can still act (have cards, not folded, not all-in, have chips)."""
+        return [
+            p for p in room.seated_players()
+            if p.cards and not p.folded and not p.all_in and p.stack > 0
+        ]
+
+    def should_force_runout(self, room: Room) -> bool:
+        """Return True when fewer than 2 players can still bet (force runout)."""
+        contenders = [p for p in room.seated_players() if p.cards and not p.folded]
+        if len(contenders) < 2:
+            return False
+        return len(self.players_who_can_bet(room)) < 2
+
+    def return_uncalled_excess(self, room: Room) -> None:
+        """Return unmatched chips to covering player when no one can match their bet.
+
+        Logic:
+        - Build contenders from seated players with cards who are not folded.
+        - Find the non-folded contender with the highest total_invested.
+        - Find the second-highest total_invested among non-folded contenders.
+        - If highest.total_invested > second_highest.total_invested, the difference is uncalled excess.
+        - Return that excess to the highest investor.
+        - Folded players' chips stay in the pot and are never returned.
+        """
+        contenders = [p for p in room.seated_players() if p.cards and not p.folded]
+        if len(contenders) < 2:
+            return
+
+        # Find highest and second-highest total_invested among non-folded contenders
+        sorted_by_invested = sorted(contenders, key=lambda p: p.total_invested)
+        highest_player = sorted_by_invested[-1]
+        second_highest_invested = sorted_by_invested[-2].total_invested
+
+        excess = highest_player.total_invested - second_highest_invested
+        if excess <= 0:
+            return
+
+        # Safety: uncalled excess should come from the current street
+        if excess > highest_player.committed:
+            raise RuntimeError(
+                f"return_uncalled_excess: excess ({excess}) > highest.committed "
+                f"({highest_player.committed}). This should not happen — uncalled "
+                f"excess must come from the current street."
+            )
+
+        # Return excess to the highest investor
+        highest_player.stack += excess
+        highest_player.committed -= excess
+        highest_player.total_invested -= excess
+        room.pot -= excess
+        highest_player.all_in = highest_player.stack == 0
+
+        # Recalculate room.current_bet from remaining non-folded contenders' committed values
+        room.current_bet = max(p.committed for p in contenders)
+
     def award_to_last_player(self, room: Room):
         winner = [p for p in room.seated_players() if p.cards and not p.folded][0]
         amount = room.pot
@@ -1010,6 +1109,49 @@ class PokerServer:
         """Check if all active players are all-in (no one can act)."""
         active = [p for p in room.players.values() if p.cards and not p.folded]
         return all(p.all_in or p.stack == 0 for p in active)
+
+    async def runout_to_showdown(self, room: Room) -> None:
+        """Deal remaining streets without action, then showdown."""
+        import asyncio
+
+        room.action_seat = None
+
+        # Reset per-street state
+        for p in room.players.values():
+            p.committed = 0
+            p.acted = False
+        room.current_bet = 0
+
+        # Deal remaining streets
+        phases_to_deal = []
+        if room.phase == "preflop":
+            phases_to_deal = ["flop", "turn", "river"]
+        elif room.phase == "flop":
+            phases_to_deal = ["turn", "river"]
+        elif room.phase == "turn":
+            phases_to_deal = ["river"]
+        # If already on river, just go to showdown
+
+        for phase_name in phases_to_deal:
+            if not _SIMULATION_MODE:
+                if phase_name == "flop":
+                    await asyncio.sleep(1.5)
+                else:
+                    await asyncio.sleep(1.0)
+
+            self.burn(room)
+            if phase_name == "flop":
+                room.community.extend([room.deck.pop(), room.deck.pop(), room.deck.pop()])
+            else:
+                room.community.append(room.deck.pop())
+            room.phase = phase_name
+            await self.broadcast(room)
+
+        # Final showdown
+        if not _SIMULATION_MODE:
+            await asyncio.sleep(1.5)
+        self.showdown(room)
+        await self.broadcast(room)
 
     async def advance_phase(self, room: Room):
         import asyncio
