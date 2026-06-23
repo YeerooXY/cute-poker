@@ -140,6 +140,23 @@ PREDEFINED_PROFILES: dict[str, PokerPersonality] = {
 }
 
 
+# ─── Balanced profile for normal gameplay (Patch 1) ────────────────────────────
+
+BALANCED_PROFILE = PokerPersonality(
+    name="Balanced",
+    vpip=0.27,
+    pfr=0.22,
+    three_bet=0.09,
+    aggression=0.65,
+    bluff_frequency=0.25,
+    call_down_looseness=0.35,
+    trap_frequency=0.15,
+    tilt_factor=0.05,
+    position_awareness=0.90,
+    exploitability=0.08,
+)
+
+
 # ─── Backward compatibility mapping ───────────────────────────────────────────
 
 STYLE_MAPPING: dict[str, str] = {

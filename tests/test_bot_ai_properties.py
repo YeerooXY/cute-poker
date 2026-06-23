@@ -2019,7 +2019,6 @@ from poker.bot_ai.action_scorer import select_action, _ILLEGAL_SCORE
 from poker.bot_ai.difficulty_controller import (
     DifficultyLevel,
     get_active_subsystems,
-    get_personality_for_difficulty,
 )
 from poker.bot_ai import advanced_bot_decide, AIGameContext
 from poker.bot_ai.models import ActiveSubsystems
@@ -2177,49 +2176,24 @@ class TestDifficultySubsystemMonotonicInclusion:
 
 
 # ─── Property 33: Difficulty personality exploitability ordering ──────────────
-# **Validates: Requirements 10.6**
+# **Validates: Requirements 10.6** (REMOVED in Patch 1 — personality system replaced by BALANCED_PROFILE)
 
 
 class TestDifficultyPersonalityExploitabilityOrdering:
-    """Property 33: For any two difficulty levels where one is higher, the
-    personality profiles assigned to the higher difficulty level SHALL have
-    lower (or equal) exploitability values."""
+    """Property 33: OBSOLETE — personality-based exploitability ordering removed in Patch 1.
+    
+    The old system used get_personality_for_difficulty() to assign personality profiles
+    with varying exploitability per difficulty level. Patch 1 replaces this with a single
+    BALANCED_PROFILE for all bots. Exploitability is now controlled solely via equity error
+    magnitude (equity_error_max) per difficulty level.
+    """
 
-    @settings(max_examples=30)
-    @given(
-        style=st.sampled_from([
-            "TAG", "LAG", "Nit", "Calling_Station", "Maniac",
-            "Trapper", "GTO_ish", "Exploitative_Shark",
-            "tight_aggressive", "loose_aggressive", "calling_station", "maniac",
-        ]),
-        lower_idx=st.integers(min_value=0, max_value=2),
-    )
-    def test_higher_difficulty_has_lower_exploitability(
-        self, style: str, lower_idx: int
-    ):
-        """**Validates: Requirements 10.6**
+    def test_placeholder_patch1_balanced_profile(self):
+        """Patch 1: All difficulty levels now use BALANCED_PROFILE with fixed exploitability."""
+        from poker.bot_ai.personality_engine import BALANCED_PROFILE
 
-        For each pair of consecutive levels, calling get_personality_for_difficulty
-        with the same style should yield lower exploitability for higher levels.
-        """
-        levels = [
-            DifficultyLevel.EASY,
-            DifficultyLevel.MEDIUM,
-            DifficultyLevel.HARD,
-            DifficultyLevel.EXPERT,
-        ]
-
-        lower_level = levels[lower_idx]
-        higher_level = levels[lower_idx + 1]
-
-        lower_personality = get_personality_for_difficulty(lower_level, style)
-        higher_personality = get_personality_for_difficulty(higher_level, style)
-
-        assert higher_personality.exploitability <= lower_personality.exploitability, (
-            f"For style='{style}': {higher_level.name} exploitability "
-            f"({higher_personality.exploitability}) should be <= "
-            f"{lower_level.name} exploitability ({lower_personality.exploitability})"
-        )
+        # All difficulties now use the same balanced profile
+        assert BALANCED_PROFILE.exploitability == 0.08
 
 
 # ─── Unit tests: Full pipeline integration ───────────────────────────────────

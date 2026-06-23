@@ -26,12 +26,12 @@ if TYPE_CHECKING:
 from poker.odds import estimate_equity
 from poker.ranges import get_preflop_action
 from poker.terminology import classify_hand
-from poker.bot_ai import advanced_bot_decide
+from poker.bot_ai import advanced_bot_decide, _last_decision_debug
 from poker.bot_ai.models import AIGameContext
 from poker.bot_ai.difficulty_controller import (
     DifficultyLevel,
-    get_personality_for_difficulty,
 )
+from poker.bot_ai.personality_engine import BALANCED_PROFILE
 
 
 BOT_NAMES = {
@@ -297,6 +297,37 @@ def _get_position_advanced(player: "Player", room: "Room") -> str:
     return "BTN"
 
 
+def _count_raises_faced_this_street(room: "Room", player: "Player") -> int:
+    """Count opponent raises/re-raises on the current street from action history.
+
+    Only counts bet_raise actions by OTHER players on the current street (phase).
+    The count naturally resets to 0 on each street transition because we only look
+    at entries matching room.phase.
+
+    Returns 0 if action_log is unavailable or corrupt (conservative default —
+    the raise-ladder gate simply won't fire).
+    """
+    try:
+        action_log = getattr(room, "action_log", None)
+        if not action_log or not isinstance(action_log, list):
+            return 0
+
+        current_phase = room.phase
+        count = 0
+        for entry in action_log:
+            if not isinstance(entry, dict):
+                continue
+            # Only count actions on the current street
+            if entry.get("phase") != current_phase:
+                continue
+            # Only count opponent raises (not the bot's own raises)
+            if entry.get("action") == "bet_raise" and entry.get("player") != getattr(player, "name", None):
+                count += 1
+        return count
+    except Exception:
+        return 0
+
+
 def _determine_facing_action(room: "Room", player: "Player") -> str:
     """Determine what action the bot is facing based on room state.
     
@@ -342,8 +373,8 @@ def _advanced_ai_decide(
     # Resolve difficulty level
     difficulty = _DIFFICULTY_MAPPING.get(config.difficulty.lower(), DifficultyLevel.HARD)
     
-    # Get personality profile for this style and difficulty
-    personality = get_personality_for_difficulty(difficulty, config.style)
+    # Use the balanced profile for all normal gameplay decisions
+    personality = BALANCED_PROFILE
     
     # Count active opponents
     num_active_opponents = len([
@@ -353,6 +384,9 @@ def _advanced_ai_decide(
     if num_active_opponents < 1:
         num_active_opponents = 1
     
+    # Compute raises faced on the current street for raise-ladder tracking
+    raises_faced = _count_raises_faced_this_street(room, player)
+
     # Build the game context
     game_context = AIGameContext(
         hole_cards=player.cards,
@@ -368,10 +402,14 @@ def _advanced_ai_decide(
         num_opponents=num_active_opponents,
         is_preflop_aggressor=config.was_preflop_aggressor,
         facing_action=_determine_facing_action(room, player),
+        raises_faced_this_street=raises_faced,
     )
     
-    # Call the advanced AI pipeline (synchronous — fast enough with 1000 sims)
+    # Call the advanced AI pipeline (synchronous — runs in thread via to_thread)
     action, payload = advanced_bot_decide(game_context, personality, difficulty)
+    
+    # Capture debug info for game logging
+    config._last_debug = dict(_last_decision_debug)
     
     # Track preflop aggressor status for continuation bet logic
     if room.phase == "preflop":
@@ -395,7 +433,7 @@ async def bot_decide(
     """
     # ─── Advanced AI dispatch ───
     if config.use_advanced_ai:
-        return _advanced_ai_decide(player, room, config)
+        return await asyncio.to_thread(_advanced_ai_decide, player, room, config)
 
     style = config.style
     phase = room.phase

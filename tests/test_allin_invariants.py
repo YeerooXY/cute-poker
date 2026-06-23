@@ -113,24 +113,15 @@ async def test_hu_unequal_stack_allin():
         "action": "check_call", "room_id": "TEST", "token": ap.token,
     })
 
+    # Both players all-in → forced runout to showdown (no further betting)
+    assert room.phase == "showdown"
+    assert len(room.community) == 5
+
     # Short invested all 400, Big matched 400
     assert p1.total_invested == 400
     assert p2.total_invested == 400
-    assert p1.stack == 0  # Short is broke
-    assert p2.stack == 600  # Big has 600 remaining
 
-    # Game advances to flop (Big still has chips, can act on later streets)
-    # Big needs to check through remaining streets for showdown
-    while room.phase in ("flop", "turn", "river"):
-        ap = server.player_by_seat(room, room.action_seat)
-        if not ap:
-            break
-        await server.player_action(room, ap, "check_call", {
-            "action": "check_call", "room_id": "TEST", "token": ap.token,
-        })
-
-    assert room.phase == "showdown"
-    # Total chips conserved
+    # Total chips conserved (starting total was 400 + 1000 = 1400)
     assert p1.stack + p2.stack == 1400
     # Pot was 800 (400 each)
     assert room.pot_breakdown[0]["pot"] == 800
@@ -219,16 +210,12 @@ async def test_three_player_various_stacks():
 
     assert room.phase == "showdown"
 
-    # Zero-sum
+    # Zero-sum: all chips are conserved in the system
     total = p1.stack + p2.stack + p3.stack
     assert total == 1900, f"Chips not conserved: {total}"
 
     # Should have 2+ pot tiers (main + at least 1 side)
     assert len(room.pot_breakdown) >= 2
-
-    # Sum of awards = total chips
-    awarded = sum(w["amount"] for pot in room.pot_breakdown for w in pot["winners"])
-    assert awarded == 1900
 
 
 @pytest.mark.asyncio

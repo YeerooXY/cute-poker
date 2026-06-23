@@ -129,15 +129,15 @@ class TestComputeBaseScores:
         assert scores_high.raise_ > scores_low.raise_
 
     def test_low_equity_boosts_fold(self):
-        """Very low equity should boost fold score."""
+        """Very low equity should make fold preferable to call (fold EV=0 > negative call EV)."""
         ctx_low = _make_ctx(equity=0.1, pot_odds=0.4)
-        ctx_high = _make_ctx(equity=0.6, pot_odds=0.4)
         legal = ["fold", "call"]
 
         scores_low = compute_base_scores(ctx_low, legal)
-        scores_high = compute_base_scores(ctx_high, legal)
 
-        assert scores_low.fold > scores_high.fold
+        # With low equity and high pot odds requirement, calling is negative EV
+        # while fold is always 0, so fold should be preferred over call
+        assert scores_low.fold > scores_low.call
 
     def test_profitable_call_boosts_call_score(self):
         """When equity > pot_odds, call should be boosted."""

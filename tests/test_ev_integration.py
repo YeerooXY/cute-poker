@@ -551,11 +551,17 @@ class TestDifficultyDifferences:
 
 
 class TestPersonalityEffects:
-    """Different personalities should produce characteristic play patterns."""
+    """After Patch 1, personality archetypes no longer affect normal gameplay decisions.
+    
+    All bots use BALANCED_PROFILE regardless of the personality parameter passed.
+    Personality differences are only available in test/debug mode (use_personality=True).
+    
+    These tests verify the new behavior: personality parameter is ignored.
+    """
 
-    def test_maniac_more_aggressive_than_nit(self):
-        """Maniac should bet/raise more often than Nit in a marginal multiway spot."""
-        # Use a marginal hand multiway where personality differences emerge
+    def test_personality_parameter_ignored_in_normal_mode(self):
+        """Different personality names should produce identical action distributions."""
+        # Use a marginal hand multiway where personality differences WOULD have emerged
         ctx = _make_context(
             hole_cards=["9H", "8H"],
             community=["7C", "4S", "2D"],
@@ -570,19 +576,18 @@ class TestPersonalityEffects:
             is_preflop_aggressor=False,
         )
 
-        maniac_counts = _run_trials(ctx, DifficultyLevel.HARD, "Maniac", n_trials=60)
-        nit_counts = _run_trials(ctx, DifficultyLevel.HARD, "Nit", n_trials=60)
+        # Same seed → same results regardless of personality name
+        maniac_counts = _run_trials(ctx, DifficultyLevel.HARD, "Maniac", n_trials=60, seed=42)
+        nit_counts = _run_trials(ctx, DifficultyLevel.HARD, "Nit", n_trials=60, seed=42)
 
-        maniac_aggression = maniac_counts.get("bet_raise", 0)
-        nit_aggression = nit_counts.get("bet_raise", 0)
-
-        assert maniac_aggression > nit_aggression, (
-            f"Expected Maniac to be more aggressive than Nit in marginal multiway spot. "
-            f"Maniac bet_raise={maniac_aggression}, Nit bet_raise={nit_aggression}"
+        # In normal gameplay, personality is ignored → identical distributions
+        assert maniac_counts == nit_counts, (
+            f"Expected identical action distributions when personality is ignored. "
+            f"Maniac={dict(maniac_counts)}, Nit={dict(nit_counts)}"
         )
 
-    def test_calling_station_calls_more(self):
-        """Calling Station should call more often when facing a bet."""
+    def test_calling_station_same_as_tag_in_normal_mode(self):
+        """Calling Station and TAG produce identical results in normal gameplay."""
         ctx = _make_context(
             hole_cards=["8H", "7D"],
             community=["AS", "KD", "3C"],
@@ -595,15 +600,13 @@ class TestPersonalityEffects:
             is_preflop_aggressor=False,
         )
 
-        cs_counts = _run_trials(ctx, DifficultyLevel.HARD, "Calling_Station", n_trials=60)
-        tag_counts = _run_trials(ctx, DifficultyLevel.HARD, "TAG", n_trials=60)
+        cs_counts = _run_trials(ctx, DifficultyLevel.HARD, "Calling_Station", n_trials=60, seed=42)
+        tag_counts = _run_trials(ctx, DifficultyLevel.HARD, "TAG", n_trials=60, seed=42)
 
-        cs_calls = cs_counts.get("check_call", 0)
-        tag_calls = tag_counts.get("check_call", 0)
-
-        assert cs_calls >= tag_calls, (
-            f"Expected Calling Station to call at least as much as TAG. "
-            f"Calling_Station call={cs_calls}, TAG call={tag_calls}"
+        # In normal gameplay, personality is ignored → identical distributions
+        assert cs_counts == tag_counts, (
+            f"Expected identical distributions in normal mode. "
+            f"Calling_Station={dict(cs_counts)}, TAG={dict(tag_counts)}"
         )
 
 

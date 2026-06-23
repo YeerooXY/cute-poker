@@ -28,6 +28,7 @@ from poker.bot_ai.models import (
     ScoringContext,
 )
 from poker.bot_ai.personality_engine import (
+    BALANCED_PROFILE,
     PokerPersonality,
     get_action_multipliers,
     get_personality,
@@ -35,7 +36,6 @@ from poker.bot_ai.personality_engine import (
 from poker.bot_ai.difficulty_controller import (
     DifficultyLevel,
     get_active_subsystems,
-    get_personality_for_difficulty,
 )
 from poker.bot_ai.range_tracker import RangeTracker
 from poker.bot_ai.board_analyzer import analyze_board, compute_range_advantage
@@ -50,6 +50,32 @@ from poker.bot_ai.action_scorer import (
     apply_noise,
     select_action,
 )
+from poker.bot_ai.sanity_gates import (
+    GateContext,
+    PREMIUM_HANDS,
+    apply_sanity_gates,
+    validate_selection,
+    _get_hand_representation,
+)
+from poker.bot_ai.exploit_metrics import ExploitMetrics, record_decision
+
+# Thread-local-ish debug storage — populated by advanced_bot_decide, read by caller
+_last_decision_debug: dict = {}
+
+# ─── Exploit metrics singleton (Patch 1) ──────────────────────────────────────
+# Persists across decisions within a session/simulation.
+_exploit_metrics = ExploitMetrics()
+
+
+def get_exploit_metrics() -> ExploitMetrics:
+    """Return the current session-level exploit metrics instance."""
+    return _exploit_metrics
+
+
+def reset_exploit_metrics() -> None:
+    """Reset exploit metrics to zero (for testing and new simulations)."""
+    global _exploit_metrics
+    _exploit_metrics = ExploitMetrics()
 
 
 def advanced_bot_decide(
@@ -222,7 +248,7 @@ def advanced_bot_decide(
             pot=game_context.pot,
             is_value_bet=is_value_bet,
             is_polarized=is_polarized,
-            personality=personality,
+            personality=BALANCED_PROFILE,
         )
         max_raise_amount = game_context.committed + game_context.stack
         min_raise_amount = game_context.min_raise
@@ -242,7 +268,7 @@ def advanced_bot_decide(
             pot=raise_pot,
             is_value_bet=is_value_bet,
             is_polarized=is_polarized,
-            personality=personality,
+            personality=BALANCED_PROFILE,
         )
         raise_amount = compute_bet_size(raise_sizing_ctx, min_raise_amount, max_raise_amount)
         # Ensure raise_amount is at least as large as bet_amount
@@ -265,7 +291,7 @@ def advanced_bot_decide(
         bluff_score=bluff_score,
         exploit_adjustments=exploit_adjustments,
         dynamic_adjustments=dynamic_adjustments,
-        personality=personality,
+        personality=BALANCED_PROFILE,  # Always use balanced profile in normal gameplay
         stack_to_pot=stack_to_pot,
         is_preflop_aggressor=game_context.is_preflop_aggressor,
         fold_probability=fold_probability,
@@ -283,6 +309,13 @@ def advanced_bot_decide(
     # avoid double-counting personality influence.
     scores = compute_base_scores(scoring_ctx, legal_actions)
 
+    # Capture pre-noise scores for logging
+    from dataclasses import asdict
+    try:
+        base_scores_snapshot = asdict(scores)
+    except Exception:
+        base_scores_snapshot = {}
+
     # Detect if raise would be all-in: when min_raise >= stack, any raise
     # commits the player's entire remaining stack.
     max_raise = game_context.committed + game_context.stack
@@ -294,14 +327,118 @@ def advanced_bot_decide(
     # EASY: 2× exploitability → more random/exploitable play
     # MEDIUM: 1.5× exploitability → moderately noisy
     # HARD/EXPERT: 1× exploitability → normal noise
-    noise_exploitability = personality.exploitability
+    noise_exploitability = BALANCED_PROFILE.exploitability
     if difficulty == DifficultyLevel.EASY:
         noise_exploitability *= 2.0
     elif difficulty == DifficultyLevel.MEDIUM:
         noise_exploitability *= 1.5
 
     scores = apply_noise(scores, noise_exploitability, game_context.pot)
+
+    # ─── NEW (Patch 1): Apply sanity gates after noise, before selection ───
+    # Build GateContext from available pipeline data
+    _hand_repr = _get_hand_representation(game_context.hole_cards)
+    _is_premium = _hand_repr in PREMIUM_HANDS
+
+    # Compute hand_class from terminology classifier (postflop only)
+    _hand_class = "trash"  # Default for preflop or if classification fails
+    if game_context.phase != "preflop" and game_context.community:
+        try:
+            from poker.terminology import classify_hand as _classify
+            _classify_result = _classify(game_context.hole_cards, game_context.community)
+            _made_hand = _classify_result.get("made_hand", "")
+            # Map terminology labels to HAND_CLASS_ORDER keys
+            _terminology_to_hand_class = {
+                "Straight Flush!": "straight_flush",
+                "Quads": "quads",
+                "Full House": "full_house",
+                "Flush (both cards)": "flush",
+                "Flush (one card)": "flush",
+                "Board Flush": "flush",
+                "Straight": "straight",
+                "Set": "set",
+                "Trips": "set",
+                "Three of a Kind": "set",
+                "Two Pair": "two_pair",
+                "Overpair": "overpair",
+                "Top Pair": "top_pair",
+                "Middle Pair": "middle_pair",
+                "Bottom Pair": "bottom_pair",
+                "Board Pair": "trash",
+                "Two Overcards": "trash",
+                "One Overcard": "trash",
+                "High Card": "trash",
+            }
+            _hand_class = _terminology_to_hand_class.get(_made_hand, "trash")
+        except Exception:
+            _hand_class = "trash"
+
+    # Compute hand_percentile: use equity as a proxy (0.0 = best)
+    # Equity of 1.0 → percentile 0.0, equity of 0.0 → percentile 1.0
+    _hand_percentile = 1.0 - equity
+
+    # Compute effective_stack_bb
+    _effective_stack_bb = (
+        game_context.stack / game_context.big_blind
+        if game_context.big_blind > 0
+        else 100.0
+    )
+
+    # Compute SPR (stack-to-pot ratio)
+    _spr = (
+        game_context.stack / game_context.pot
+        if game_context.pot > 0
+        else 20.0
+    )
+
+    # Determine would_be_all_in: True if raising commits full remaining stack
+    _would_be_all_in = is_allin
+
+    # Derive has_strong_draw from terminology draws (flush draw + pair, or OESFD)
+    _has_strong_draw = False
+    if game_context.phase != "preflop" and game_context.community:
+        try:
+            from poker.terminology import classify_hand as _classify2
+            _draw_result = _classify2(game_context.hole_cards, game_context.community)
+            _draws = _draw_result.get("draws", [])
+            _has_flush_draw = any("flush draw" in d.lower() for d in _draws)
+            _has_oesd = any("open-ended" in d.lower() for d in _draws)
+            _has_pair = _hand_class in ("bottom_pair", "middle_pair", "top_pair", "overpair")
+            # Strong draw: flush draw + pair, or open-ended straight flush draw
+            _has_strong_draw = (_has_flush_draw and _has_pair) or (_has_flush_draw and _has_oesd)
+        except Exception:
+            _has_strong_draw = False
+
+    gate_context = GateContext(
+        hole_cards=game_context.hole_cards,
+        hand_percentile=_hand_percentile,
+        is_premium=_is_premium,
+        effective_stack_bb=_effective_stack_bb,
+        facing_action=game_context.facing_action,
+        phase=game_context.phase,
+        hand_class=_hand_class,
+        board_texture=board_texture,
+        equity=equity,
+        pot_odds=pot_odds,
+        pot=game_context.pot,
+        spr=_spr,
+        has_strong_draw=_has_strong_draw,
+        remaining_stack=game_context.stack,
+        would_be_all_in=_would_be_all_in,
+        raises_faced_this_street=game_context.raises_faced_this_street,
+        legal_actions=legal_actions,
+    )
+
+    scores = apply_sanity_gates(scores, gate_context)
+
+    # ─── Select action ─────────────────────────────────────────────────────
     chosen_action = select_action(scores)
+
+    # ─── NEW (Patch 1): Validate selection against forbidden gates ─────────
+    chosen_action = validate_selection(chosen_action, scores, legal_actions)
+
+    # ─── NEW (Patch 1): Record decision for exploit metrics ────────────────
+    record_decision(_exploit_metrics, chosen_action, gate_context)
 
     # 4h. If bet/raise selected, compute proper bet size
     bet_amount = 0
@@ -318,7 +455,7 @@ def advanced_bot_decide(
                 pot=game_context.pot,
                 is_value_bet=is_value,
                 is_polarized=is_polarized,
-                personality=personality,
+                personality=BALANCED_PROFILE,
             )
             max_raise = game_context.committed + game_context.stack
             bet_amount = compute_bet_size_with_equity_cap(
@@ -335,7 +472,32 @@ def advanced_bot_decide(
         bet_amount = game_context.min_raise
 
     # ─── Step 5: Map internal actions to game actions ──────────────────────
-    return _map_action_to_game(chosen_action, bet_amount, game_context)
+    final_action, final_payload = _map_action_to_game(chosen_action, bet_amount, game_context)
+
+    # Store debug info for logging (accessed by caller)
+    try:
+        final_scores_dict = asdict(scores)
+    except Exception:
+        final_scores_dict = {}
+    _last_decision_debug.update({
+        "equity": round(equity, 4),
+        "pot_odds": round(pot_odds, 4),
+        "base_scores": {k: round(v, 4) for k, v in base_scores_snapshot.items()} if isinstance(base_scores_snapshot, dict) else {},
+        "final_scores": {k: round(v, 4) for k, v in final_scores_dict.items()},
+        "chosen_internal_action": chosen_action,
+        "final_action": final_action,
+        "bet_amount": bet_amount,
+        "personality_style": personality.name if hasattr(personality, 'name') else str(personality),
+        "difficulty": difficulty.name,
+        "legal_actions": legal_actions,
+        "bluff_score_total": round(bluff_score.total, 4) if hasattr(bluff_score, 'total') else 0,
+        "position": game_context.position,
+        "facing_action": game_context.facing_action,
+        "is_preflop_aggressor": game_context.is_preflop_aggressor,
+        "noise_exploitability": round(noise_exploitability, 4),
+    })
+
+    return final_action, final_payload
 
 
 # ─── Private helpers ───────────────────────────────────────────────────────────

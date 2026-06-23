@@ -7,7 +7,17 @@ in typed dataclasses for clarity and testability.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any
+
+
+class DifficultyLevel(Enum):
+    """Four difficulty levels for bot AI."""
+
+    EASY = 1
+    MEDIUM = 2
+    HARD = 3
+    EXPERT = 4
 
 
 @dataclass
@@ -27,6 +37,7 @@ class AIGameContext:
     num_opponents: int
     is_preflop_aggressor: bool
     facing_action: str  # "unopened", "bet", "raise", "3bet", "4bet"
+    raises_faced_this_street: int = 0  # Count of opponent raises on current street
 
 
 @dataclass
@@ -173,6 +184,15 @@ class ActiveSubsystems:
 
 
 @dataclass
+class DifficultyConfig:
+    """Patch 1: simplified to only essential fields."""
+
+    level: DifficultyLevel
+    equity_error_max: float
+    active_subsystems: ActiveSubsystems
+
+
+@dataclass
 class ScoringContext:
     """All context needed by the action scorer to compute scores."""
 
@@ -200,3 +220,47 @@ class ScoringContext:
 
     # Difficulty level for gating EV behavior (None means full system / HARD+EXPERT)
     difficulty_level: str | None = None  # "EASY", "MEDIUM", "HARD", "EXPERT", or None
+
+
+@dataclass
+class PreflopGateContext:
+    """Context for preflop sanity gate evaluation."""
+
+    hole_cards: list[str]
+    hand_percentile: float  # 0.0 = best, 1.0 = worst
+    effective_stack_bb: float  # Effective stack in big blinds
+    facing_action: str  # "unopened", "raise", "3bet", "4bet"
+    proposed_action: str  # What the pipeline wants to do
+
+
+@dataclass
+class PostflopGateContext:
+    """Context for postflop sanity gate evaluation."""
+
+    hand_strength: str  # "bottom_pair", "top_pair", "overpair", "two_pair", etc.
+    board_texture: BoardTexture
+    equity: float
+    pot_odds: float
+    proposed_action: str
+
+
+@dataclass
+class AllinGateContext:
+    """Context for SPR-based all-in gate evaluation."""
+
+    spr: float  # Stack-to-Pot Ratio
+    hand_strength: str
+    equity: float
+    has_strong_draw: bool  # flush draw + pair, OESFD
+    has_combo_draw: bool  # flush draw + OESD
+    proposed_action: str
+
+
+@dataclass
+class MistakeType:
+    """Classification of a mistake for logging and testing."""
+
+    category: str  # "second_best", "sizing_error", "missed_value", "loose_call", "tight_fold"
+    original_action: str
+    substituted_action: str
+    sizing_delta_pct: float | None  # For sizing errors only

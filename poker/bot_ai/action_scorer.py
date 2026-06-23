@@ -311,17 +311,22 @@ def compute_personality_ev_modifiers(
 def compute_modifiers(
     ctx: ScoringContext,
     legal_actions: list[str],
+    use_personality: bool = False,
 ) -> ActionModifiers:
-    """Compute additive modifiers for each action from personality, exploit, and board texture.
+    """Compute additive modifiers for each action from exploit and board texture.
+
+    When use_personality=True (test/debug mode), also includes personality-based
+    modifiers (multiplier-based and EV-specific). In normal gameplay
+    (use_personality=False), personality modifiers are excluded entirely.
 
     Each modifier type is bounded by pot-proportional limits:
-      - personality_modifier ∈ [-0.3 × pot, +0.3 × pot]
+      - personality_modifier ∈ [-0.3 × pot, +0.3 × pot]  (only when use_personality=True)
       - exploit_modifier ∈ [-0.2 × pot, +0.2 × pot]
       - board_texture_modifier ∈ [-0.15 × pot, +0.15 × pot]
 
-    The returned ActionModifiers contains the sum of all three modifier types per action.
+    The returned ActionModifiers contains the sum of all active modifier types per action.
 
-    **Validates: Requirements 5.2, 5.3, 5.4**
+    **Validates: Requirements 1.4, 1.5, 5.2, 5.3, 5.4**
     """
     # Derive pot size from context for modifier bounding.
     # ScoringContext carries pot directly when available.
@@ -344,19 +349,21 @@ def compute_modifiers(
 
     # ─── 1. Personality Modifier ───────────────────────────────────────────
     # Convert personality multipliers to additive offsets: (multiplier - 1.0) × pot × scaling_factor
-    multipliers = get_action_multipliers(ctx.personality)
-    # Scaling factor to keep personality modifiers within reasonable range.
-    # Multipliers range roughly from 0.7 to 2.0, so (mult - 1.0) ranges from -0.3 to 1.0.
-    # We use a scaling factor of 0.3 to bring these into the desired bound range.
-    personality_scaling = 0.3
+    # Only included when use_personality=True (test/debug mode)
+    personality_mods = {"fold": 0.0, "check": 0.0, "call": 0.0, "bet": 0.0, "raise": 0.0}
+    if use_personality:
+        multipliers = get_action_multipliers(ctx.personality)
+        # Scaling factor to keep personality modifiers within reasonable range.
+        # Multipliers range roughly from 0.7 to 2.0, so (mult - 1.0) ranges from -0.3 to 1.0.
+        # We use a scaling factor of 0.3 to bring these into the desired bound range.
+        personality_scaling = 0.3
 
-    personality_mods = {}
-    action_to_key = {"fold": "fold", "check": "check", "call": "call", "bet": "bet", "raise": "raise"}
-    for action in ["fold", "check", "call", "bet", "raise"]:
-        mult_key = action_to_key[action]
-        mult = multipliers.get(mult_key, 1.0)
-        raw_mod = (mult - 1.0) * pot * personality_scaling
-        personality_mods[action] = max(-personality_bound, min(personality_bound, raw_mod))
+        action_to_key = {"fold": "fold", "check": "check", "call": "call", "bet": "bet", "raise": "raise"}
+        for action in ["fold", "check", "call", "bet", "raise"]:
+            mult_key = action_to_key[action]
+            mult = multipliers.get(mult_key, 1.0)
+            raw_mod = (mult - 1.0) * pot * personality_scaling
+            personality_mods[action] = max(-personality_bound, min(personality_bound, raw_mod))
 
     # ─── 2. Exploit Modifier ──────────────────────────────────────────────
     exploit = ctx.exploit_adjustments
@@ -412,29 +419,35 @@ def compute_modifiers(
         board_mods[action] = max(-board_texture_bound, min(board_texture_bound, board_mods[action]))
 
     # ─── 4. Personality-Specific EV Modifiers ────────────────────────────
-    # Compute EV scores for this context so personality-specific modifiers can
-    # reference them (TAG needs to know best EV, Nit checks for marginal EV, etc.)
-    ev_scores = compute_ev_scores(
-        equity=ctx.equity,
-        pot=pot,
-        call_amount=ctx.call_amount,
-        bet_amount=ctx.bet_amount,
-        raise_amount=ctx.raise_amount,
-        fold_probability=ctx.fold_probability,
-        legal_actions=legal_actions,
-        num_opponents=ctx.num_opponents,
-    )
-    personality_ev_mods = compute_personality_ev_modifiers(
-        personality_name=ctx.personality.name,
-        ev_scores=ev_scores,
-        fold_probability=ctx.fold_probability,
-        pot=pot,
-        equity=ctx.equity,
-        bet_amount=ctx.bet_amount,
-        raise_amount=ctx.raise_amount,
-        num_opponents=ctx.num_opponents,
-        legal_actions=legal_actions,
-    )
+    # Only included when use_personality=True (test/debug mode).
+    # In normal gameplay (use_personality=False), these modifiers are skipped
+    # to prevent personality-driven exploitable patterns.
+    if use_personality:
+        # Compute EV scores for this context so personality-specific modifiers can
+        # reference them (TAG needs to know best EV, Nit checks for marginal EV, etc.)
+        ev_scores = compute_ev_scores(
+            equity=ctx.equity,
+            pot=pot,
+            call_amount=ctx.call_amount,
+            bet_amount=ctx.bet_amount,
+            raise_amount=ctx.raise_amount,
+            fold_probability=ctx.fold_probability,
+            legal_actions=legal_actions,
+            num_opponents=ctx.num_opponents,
+        )
+        personality_ev_mods = compute_personality_ev_modifiers(
+            personality_name=ctx.personality.name,
+            ev_scores=ev_scores,
+            fold_probability=ctx.fold_probability,
+            pot=pot,
+            equity=ctx.equity,
+            bet_amount=ctx.bet_amount,
+            raise_amount=ctx.raise_amount,
+            num_opponents=ctx.num_opponents,
+            legal_actions=legal_actions,
+        )
+    else:
+        personality_ev_mods = ActionModifiers(fold=0.0, check=0.0, call=0.0, bet=0.0, raise_=0.0)
 
     # ─── 5. Sum all modifiers per action ──────────────────────────────────
     total_fold = personality_mods["fold"] + exploit_mods["fold"] + board_mods["fold"] + personality_ev_mods.fold
