@@ -33,20 +33,6 @@ _EXPLOITABILITY_RANGES: dict[DifficultyLevel, tuple[float, float]] = {
 # ─── Public API ────────────────────────────────────────────────────────────────
 
 
-
-def apply_equity_error(true_equity: float, equity_error_max: float) -> float:
-    """Apply uniform random error to equity, clamped to [0.0, 1.0].
-
-    If equity_error_max is negative or NaN, treat as 0.0 (no error applied).
-
-    Req 8.1-8.5: Equity error bounded by difficulty, clamped to valid range.
-    """
-    if math.isnan(equity_error_max) or equity_error_max <= 0.0:
-        return true_equity
-    error = random.uniform(-equity_error_max, equity_error_max)
-    return max(0.0, min(1.0, true_equity + error))
-
-
 def get_active_subsystems(level: DifficultyLevel) -> ActiveSubsystems:
     """Return which AI subsystems are active at a given difficulty level.
 
