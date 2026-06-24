@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import logging
+import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -10,6 +13,15 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from poker.game import PokerServer
+
+# ─── Timestamped logging setup ────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S",
+    stream=sys.stdout,
+)
+logger = logging.getLogger("poker")
 
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -60,7 +72,7 @@ async def websocket_endpoint(ws: WebSocket):
             event = msg.get("event")
             payload = msg.get("payload", {})
 
-            print(f"[WS] event={event} room_id={payload.get('room_id','')} token={payload.get('token','')[:8]}...")
+            logger.info(f"[WS] event={event} room_id={payload.get('room_id','')} token={payload.get('token','')[:8]}...")
 
             result = await server.handle(ws, event, payload)
 
@@ -82,7 +94,7 @@ async def websocket_endpoint(ws: WebSocket):
 
 
 if __name__ == "__main__":
-    print("Cute Poker Modular Starter")
-    print("Open locally: http://127.0.0.1:8000")
-    print("LAN play: http://YOUR_LOCAL_IP:8000")
+    logger.info("Cute Poker Modular Starter")
+    logger.info("Open locally: http://127.0.0.1:8000")
+    logger.info("LAN play: http://YOUR_LOCAL_IP:8000")
     uvicorn.run(app, host="0.0.0.0", port=8000)

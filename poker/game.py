@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 import json
 import os
 import random
 import secrets
 import string
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional, Any
 
 from fastapi import WebSocket
@@ -18,6 +20,17 @@ from poker.models import ChatMessage, Player, Room, Winner
 from poker.odds import calculate_player_odds
 from poker.terminology import classify_hand
 from poker.bot import BotConfig, create_bot_config, bot_decide, calculate_think_time
+
+
+# ─── Timestamped print for server_log.txt ─────────────────────────────────────
+_original_print = builtins.print
+
+
+def print(*args, **kwargs):
+    """Print with HH:MM:SS.mmm timestamp prefix."""
+    ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+    _original_print(f"[{ts}]", *args, **kwargs)
+
 from poker.trash_talk import get_trash_talk, TrashTalkEvent, DELAY_RANGE
 
 
