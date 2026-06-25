@@ -797,8 +797,8 @@ def calculate_player_odds(
             "phase_note": "preflop equity",
         }
     else:
-        # Postflop: use hybrid for equity
-        eq = calculate_equity_hybrid(hero_cards, board_cards, num_opponents, simulations=simulations)
+        # Postflop: always use Monte Carlo for speed (avoid exact turn enumeration)
+        eq = estimate_equity(hero_cards, board_cards, num_opponents, simulations=simulations)
 
         if board_len == 5:
             # River: equity IS current strength (no future cards)

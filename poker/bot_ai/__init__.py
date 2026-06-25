@@ -104,6 +104,8 @@ def advanced_bot_decide(
         and payload is a dict (e.g., {"amount": 150} for bet_raise, {} otherwise).
     """
     # ─── Step 1: Get active subsystems from difficulty controller ───────────
+    import time as _time
+    _t0 = _time.perf_counter()
     subsystems = get_active_subsystems(difficulty)
 
     # ─── Step 2: Analysis Layer ────────────────────────────────────────────
@@ -185,7 +187,10 @@ def advanced_bot_decide(
             pass  # Fall through to full scoring pipeline
 
     # 4b. Compute equity (range-aware if available)
+    _t1 = _time.perf_counter()
     equity = _compute_equity_with_range(game_context, subsystems, opponent_range)
+    _t2 = _time.perf_counter()
+    print(f"  [TIMING] equity={equity:.3f} took {(_t2-_t1)*1000:.0f}ms (phase={game_context.phase})")
 
     # 4c. Compute pot odds
     pot_odds = _compute_pot_odds(game_context)
@@ -307,7 +312,10 @@ def advanced_bot_decide(
     # NOTE: Personality modifiers are now embedded inside compute_base_scores via
     # compute_modifiers(). The separate apply_personality step has been removed to
     # avoid double-counting personality influence.
+    _t3 = _time.perf_counter()
     scores = compute_base_scores(scoring_ctx, legal_actions)
+    _t4 = _time.perf_counter()
+    print(f"  [TIMING] scoring took {(_t4-_t3)*1000:.0f}ms")
 
     # Capture pre-noise scores for logging
     from dataclasses import asdict
@@ -473,6 +481,8 @@ def advanced_bot_decide(
 
     # ─── Step 5: Map internal actions to game actions ──────────────────────
     final_action, final_payload = _map_action_to_game(chosen_action, bet_amount, game_context)
+    _t5 = _time.perf_counter()
+    print(f"  [TIMING] total decision: {(_t5-_t0)*1000:.0f}ms -> {final_action} (equity calc={(_t2-_t1)*1000:.0f}ms)")
 
     # Store debug info for logging (accessed by caller)
     try:

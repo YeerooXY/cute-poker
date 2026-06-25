@@ -1522,7 +1522,7 @@ class PokerServer:
                         eq_result = room_cache.get(cache_key)
                         if eq_result is None:
                             eq_result = calculate_player_odds(
-                                p.cards, room.community, num_opp, 500
+                                p.cards, room.community, num_opp, 150
                             )
                             room_cache[cache_key] = eq_result
 
@@ -1568,7 +1568,7 @@ class PokerServer:
                     if odds is None:
                         try:
                             odds = calculate_player_odds(
-                                viewer.cards, room.community, num_opp, 500
+                                viewer.cards, room.community, num_opp, 200
                             )
                             room_cache[cache_key] = odds
                         except Exception:
