@@ -498,6 +498,19 @@ class PokerServer:
                 if not action_player:
                     self._bot_loop_active[room_id].set()
                     continue
+
+                # Safety: detect stuck state where action_seat points to ineligible player
+                if action_player.folded or action_player.all_in or action_player.stack <= 0:
+                    print(f"  [BOT_LOOP SAFETY] action_seat={room.action_seat} is ineligible "
+                          f"(folded={action_player.folded} all_in={action_player.all_in}), auto-advancing...")
+                    room.action_seat = self.next_action_seat_after(room, room.action_seat)
+                    if room.action_seat is None:
+                        # No one can act — force advance phase
+                        await self.after_action(room)
+                    else:
+                        await self.broadcast(room)
+                    continue
+
                 if action_player.player_id not in self.bots:
                     # It's a human's turn — bot loop is idle
                     self._bot_loop_active[room_id].set()
@@ -789,7 +802,13 @@ class PokerServer:
 
         if player.folded or player.all_in:
             print(f"  -> REJECTED: folded={player.folded} all_in={player.all_in}")
-            await self.send(player.ws, "error", {"message": "You cannot act right now."})
+            # Safety: if action_seat is stuck on this player, advance past them
+            if room.action_seat == player.seat:
+                print(f"  [SAFETY] action_seat stuck on ineligible player {player.name}, advancing...")
+                room.action_seat = self.next_action_seat_after(room, room.action_seat)
+                await self.broadcast(room)
+            else:
+                await self.send(player.ws, "error", {"message": "You cannot act right now."})
             return
 
         if action == "fold":
@@ -1006,6 +1025,14 @@ class PokerServer:
                 await self.advance_phase(room)
         else:
             room.action_seat = self.next_action_seat_after(room, room.action_seat)
+            # Safety: if action_seat landed on an ineligible player (race condition),
+            # keep advancing until we find a valid player or exhaust all seats.
+            if room.action_seat is not None:
+                p = self.player_by_seat(room, room.action_seat)
+                if p and (p.folded or p.all_in or p.stack <= 0):
+                    print(f"  [SAFETY] action_seat={room.action_seat} is ineligible "
+                          f"(folded={p.folded} all_in={p.all_in} stack={p.stack}), advancing...")
+                    room.action_seat = self.next_action_seat_after(room, room.action_seat)
             await self.broadcast(room)
 
     def _assert_betting_valid(self, room: Room, where: str = ""):
