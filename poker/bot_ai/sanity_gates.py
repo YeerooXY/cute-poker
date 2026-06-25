@@ -1,4 +1,4 @@
-"""Sanity gates module for Balanced Bot AI (Patch 1).
+﻿"""Sanity gates module for Balanced Bot AI (Patch 1).
 
 Sanity gates are score masks applied to ActionScores after EV scoring and
 before action selection. They prevent fundamental poker logic violations by
@@ -86,34 +86,34 @@ def apply_raise_ladder_gate(scores: ActionScores, ctx: GateContext) -> ActionSco
 
     hand_rank = HAND_CLASS_ORDER.get(ctx.hand_class, -1)
 
-    # 2+ raises + low equity → block raise
+    # 2+ raises + low equity -> block raise
     if ctx.equity < 0.45:
         scores.raise_ = -1e9
         logger.info(
-            f"Raise-ladder gate: raise → -1e9 (equity={ctx.equity} < 0.45, "
+            f"Raise-ladder gate: raise -> -1e9 (equity={ctx.equity} < 0.45, "
             f"raises={ctx.raises_faced_this_street})"
         )
 
-    # 2+ raises + one pair + high SPR + would be all-in → block all-in raise
+    # 2+ raises + one pair + high SPR + would be all-in -> block all-in raise
     if hand_rank <= 3 and ctx.spr > 2.0 and ctx.would_be_all_in:
         scores.raise_ = -1e9
         logger.info(
-            f"Raise-ladder gate: raise → -1e9 (one pair, SPR={ctx.spr} > 2.0, all-in)"
+            f"Raise-ladder gate: raise -> -1e9 (one pair, SPR={ctx.spr} > 2.0, all-in)"
         )
 
-    # 2+ raises + below two pair + no strong draw → discourage raise
+    # 2+ raises + below two pair + no strong draw -> discourage raise
     if hand_rank < 5 and not ctx.has_strong_draw:
         scores.raise_ -= 0.25 * ctx.pot
         logger.info(
             f"Raise-ladder gate: raise -= {0.25 * ctx.pot} (hand < two_pair, no draw)"
         )
 
-    # 3+ raises + equity < 60% → block raise and penalize call
+    # 3+ raises + equity < 60% -> block raise and penalize call
     if ctx.raises_faced_this_street >= 3 and ctx.equity < 0.60:
         scores.raise_ = -1e9
         scores.call -= 0.15 * ctx.pot
         logger.info(
-            f"Raise-ladder gate: raise → -1e9, call -= {0.15 * ctx.pot} "
+            f"Raise-ladder gate: raise -> -1e9, call -= {0.15 * ctx.pot} "
             f"(3+ raises, equity={ctx.equity})"
         )
 
@@ -137,21 +137,21 @@ def apply_allin_gate(scores: ActionScores, ctx: GateContext) -> ActionScores:
 
     hand_rank = HAND_CLASS_ORDER.get(ctx.hand_class, -1)
 
-    # High SPR + weak hand + no draw → block all-in
+    # High SPR + weak hand + no draw -> block all-in
     if ctx.spr > 3.0 and hand_rank <= 3 and not ctx.has_strong_draw:
         scores.raise_ = -1e9
         logger.info(
-            f"All-in gate: raise → -1e9 (SPR={ctx.spr}, hand={ctx.hand_class}, no draw)"
+            f"All-in gate: raise -> -1e9 (SPR={ctx.spr}, hand={ctx.hand_class}, no draw)"
         )
 
-    # Very high SPR + below two pair + not great equity → block all-in
+    # Very high SPR + below two pair + not great equity -> block all-in
     if ctx.spr > 6.0 and hand_rank < 5 and ctx.equity <= 0.70:
         scores.raise_ = -1e9
         logger.info(
-            f"All-in gate: raise → -1e9 (SPR={ctx.spr} > 6, hand={ctx.hand_class}, equity={ctx.equity})"
+            f"All-in gate: raise -> -1e9 (SPR={ctx.spr} > 6, hand={ctx.hand_class}, equity={ctx.equity})"
         )
 
-    # Low SPR + strong hand/draw → encourage all-in
+    # Low SPR + strong hand/draw -> encourage all-in
     if ctx.spr <= 1.5 and (hand_rank >= 3 or ctx.has_strong_draw):
         scores.raise_ += 0.2 * ctx.pot
         logger.info(
@@ -226,8 +226,8 @@ def apply_preflop_gate(scores: ActionScores, ctx: GateContext) -> ActionScores:
         scores.fold = -1e9
         scores.raise_ += 0.3 * ctx.pot
         logger.info(
-            f"Preflop premium gate: fold {original_fold} → -1e9, "
-            f"raise {original_raise} → {scores.raise_}"
+            f"Preflop premium gate: fold {original_fold} -> -1e9, "
+            f"raise {original_raise} -> {scores.raise_}"
         )
 
     # Deep-stack 4-bet protection (only blocks all-in raises)
@@ -240,7 +240,7 @@ def apply_preflop_gate(scores: ActionScores, ctx: GateContext) -> ActionScores:
         original_raise = scores.raise_
         scores.raise_ = -1e9
         logger.info(
-            f"Preflop deep-stack gate: raise {original_raise} → -1e9 "
+            f"Preflop deep-stack gate: raise {original_raise} -> -1e9 "
             f"(non-top-5%, {ctx.effective_stack_bb}BB, would_be_all_in)"
         )
 
@@ -267,7 +267,7 @@ def apply_postflop_gate(scores: ActionScores, ctx: GateContext) -> ActionScores:
         if hand_rank != -1 and hand_rank <= 1:  # bottom_pair or worse
             scores.raise_ = -1e9
             logger.info(
-                f"Postflop dry board gate: raise → -1e9 (hand_class={ctx.hand_class})"
+                f"Postflop dry board gate: raise -> -1e9 (hand_class={ctx.hand_class})"
             )
         elif ctx.hand_class == "middle_pair" and ctx.equity < 0.40:
             scores.raise_ -= 0.2 * ctx.pot
@@ -280,12 +280,12 @@ def apply_postflop_gate(scores: ActionScores, ctx: GateContext) -> ActionScores:
     if ctx.equity > ctx.pot_odds + 0.05 and hand_rank >= 3:  # top_pair or better
         scores.fold = -1e9
         scores.call += 0.15 * ctx.pot
-        logger.info(f"Pot-odds gate: fold → -1e9, call += {0.15 * ctx.pot}")
+        logger.info(f"Pot-odds gate: fold -> -1e9, call += {0.15 * ctx.pot}")
 
     if ctx.equity > ctx.pot_odds + 0.10:  # any hand
         scores.fold = -1e9
         logger.info(
-            f"Pot-odds gate (strong): fold → -1e9 "
+            f"Pot-odds gate (strong): fold -> -1e9 "
             f"(equity={ctx.equity}, pot_odds={ctx.pot_odds})"
         )
 
@@ -293,7 +293,7 @@ def apply_postflop_gate(scores: ActionScores, ctx: GateContext) -> ActionScores:
 
 
 def apply_sanity_gates(scores: ActionScores, ctx: GateContext) -> ActionScores:
-    """Apply all gates in sequence: preflop → postflop → all-in → raise-ladder.
+    """Apply all gates in sequence: preflop -> postflop -> all-in -> raise-ladder.
 
     Each gate modifies scores in-place via score masks:
       - Forbidden: score = -1e9
