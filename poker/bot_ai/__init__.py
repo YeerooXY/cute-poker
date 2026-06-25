@@ -504,15 +504,23 @@ def advanced_bot_decide(
 
 
 def _compute_equity(game_context: AIGameContext) -> float:
-    """Compute equity using hybrid calculator (lookup/exact/MC) with fallback to 0.5."""
+    """Compute equity using Monte Carlo with reduced simulations for fast bot decisions."""
     try:
-        from poker.odds import calculate_equity_hybrid
+        from poker.odds import estimate_equity, preflop_equity_lookup
 
-        result = calculate_equity_hybrid(
-            game_context.hole_cards,
-            game_context.community,
-            game_context.num_opponents,
-        )
+        board = game_context.community
+        if len(board) == 0:
+            # Preflop: instant lookup
+            result = preflop_equity_lookup(game_context.hole_cards, game_context.num_opponents)
+        else:
+            # Postflop: always use Monte Carlo (150 sims) — fast enough for bot decisions
+            # Avoids the expensive exact enumeration on turn that takes 3-5 seconds
+            result = estimate_equity(
+                game_context.hole_cards,
+                board,
+                game_context.num_opponents,
+                simulations=150,
+            )
         return result["equity"]
     except Exception:
         return 0.5
