@@ -423,10 +423,11 @@ function leaveGame() {
 function renderState(state) {
   const previousState = lastState;
   lastState = state;
+  const showdownDisplay = state.phase === "showdown" || Boolean(state.showdown_mode);
 
   // ─── HUD ───
   els.roomId.textContent = state.room_id;
-  els.phaseBadge.textContent = state.paused ? "PAUSED" : state.phase.toUpperCase();
+  els.phaseBadge.textContent = state.paused ? "PAUSED" : showdownDisplay ? "SHOWDOWN" : state.phase.toUpperCase();
   const animatePot = shouldAnimatePotCountUp(previousState, state);
   setPotValue(state.pot, animatePot);
 
@@ -434,7 +435,7 @@ function renderState(state) {
   const potLabel = document.querySelector(".pot-label");
   if (potLabel) potLabel.textContent = state.phase === "showdown" ? "FINAL POT" : "POT";
   const tableFelt = document.querySelector(".table-felt");
-  if (tableFelt) tableFelt.classList.toggle("showdown-table-glow", state.phase === "showdown");
+  if (tableFelt) tableFelt.classList.toggle("showdown-table-glow", showdownDisplay);
 
   // Blind info
   const blindEl = document.getElementById("blindInfo");
@@ -469,7 +470,7 @@ function renderState(state) {
   const actionRowMain = els.actionBar.querySelector(".action-row-main");
   const actionRowRaise = els.actionBar.querySelector(".action-row-raise");
   const actionRowCustom = els.actionBar.querySelector(".action-row-custom");
-  if (state.phase === "showdown") {
+  if (showdownDisplay) {
     if (actionRowMain) actionRowMain.style.display = "none";
     if (actionRowRaise) actionRowRaise.style.display = "none";
     if (actionRowCustom) actionRowCustom.style.display = "none";
@@ -529,7 +530,7 @@ function renderState(state) {
 
   // ─── Your hand ───
   // Hide the hero hand bar during showdown so the post-hand panel can own the result view.
-  renderYourHand(state.phase === "showdown" ? null : viewerData);
+  renderYourHand(showdownDisplay ? null : viewerData);
 
   // ─── Player seats ───
   renderPlayers(state.players, previousState, state);

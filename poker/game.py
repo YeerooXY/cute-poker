@@ -292,6 +292,7 @@ class PokerServer:
                     "connected": humans,
                     "max": MAX_SEATS,
                     "phase": room.phase,
+            "showdown_mode": showdown_mode,
                 })
         await self.send(ws, "rooms_list", {"rooms": rooms_list})
 
@@ -1396,6 +1397,11 @@ class PokerServer:
 
         room.action_seat = None
 
+        # No more player decisions can happen from this point. Broadcast this
+        # locked state immediately so the UI can switch to showdown display mode
+        # before the board finishes running out.
+        await self.broadcast(room)
+
         # Reset per-street state
         for p in room.players.values():
             p.committed = 0
@@ -1685,12 +1691,46 @@ class PokerServer:
         is_spectator_viewer = viewer and viewer.is_spectator
         is_postflop = room.phase in ["flop", "turn", "river"]
 
-        # Detect all-in runout: all active players are all-in (show cards to everyone)
-        all_in_runout = self._is_all_in_runout(room) and room.phase in ("flop", "turn", "river")
+        # Detect states where betting is locked and no more player decisions can happen.
+        # Backend phase still tracks the runout street, but the frontend may display
+        # this as showdown mode immediately.
+        contenders_for_showdown_mode = [
+            p for p in room.seated_players()
+            if p.cards and not p.folded
+        ]
+        showdown_mode = (
+            room.phase == "showdown"
+            or (
+                room.phase in ("preflop", "flop", "turn", "river")
+                and room.action_seat is None
+                and len(contenders_for_showdown_mode) >= 2
+            )
+        )
+        all_in_runout = showdown_mode and room.phase != "showdown"
         uncontested_winner_ids = {
             w.player_id for w in room.winners
             if w.reason == "Everyone else folded"
         }
+        real_showdown = (
+            room.phase == "showdown"
+            and any(w.reason != "Everyone else folded" for w in room.winners)
+        )
+
+        # Showdown display mode means betting is locked and no more player
+        # decisions can happen, even if the backend is still running out board cards.
+        live_contenders_for_showdown_mode = [
+            p for p in room.seated_players()
+            if p.cards and not p.folded
+        ]
+        showdown_mode = (
+            room.phase == "showdown"
+            or (
+                room.phase in ("preflop", "flop", "turn", "river")
+                and room.action_seat is None
+                and len(live_contenders_for_showdown_mode) >= 2
+            )
+        )
+        locked_runout_reveal = showdown_mode and room.phase != "showdown"
 
         # Compute clockwise seat offsets from dealer for active players
         seat_offsets: dict[int, int] = {}  # seat -> offset
@@ -1767,10 +1807,11 @@ class PokerServer:
                 show_cards = (
                     p.token == viewer_token
                     or (viewer and viewer.is_spectator and room.phase != "showdown")
-                    or (viewer and viewer.is_spectator and has_showdown_hand)
-                    or (room.phase == "showdown" and has_showdown_hand)
+                    or (viewer and viewer.is_spectator and (has_showdown_hand or real_showdown or locked_runout_reveal))
+                    or (room.phase == "showdown" and (has_showdown_hand or real_showdown))
+                    or (locked_runout_reveal and p.cards)
                     or (p.player_id in uncontested_winner_ids and uncontested_reveal_mode == "both")
-                    or (all_in_runout and p.cards)
+                    or all_in_runout
                 )
                 cards = p.cards if show_cards else ["BACK"] * len(p.cards)
 
@@ -1909,6 +1950,7 @@ class PokerServer:
         return {
             "room_id": room.room_id,
             "phase": room.phase,
+            "showdown_mode": showdown_mode,
             "paused": room.paused,
             "pot": room.pot,
             "current_bet": room.current_bet,

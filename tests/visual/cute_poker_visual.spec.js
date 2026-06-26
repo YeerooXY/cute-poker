@@ -486,3 +486,89 @@ test("fold-win winner stays hidden and modal says uncontested", async ({ page },
   });
   expect(foldWinScreenshot.length).toBeGreaterThan(10_000);
 });
+
+
+const lockedRunoutShowdownModeState = {
+  ...actionLogEdgeState,
+  room_id: "LOCKED-RUNOUT",
+  phase: "flop",
+  showdown_mode: true,
+  pot: 2000,
+  community: ["2♣", "7♦", "9♥"],
+  winners: [],
+  action_log: [
+    { player: "Nemo", action: "small_blind", amount: 5, phase: "preflop", is_all_in: false },
+    { player: "Dindybot", action: "big_blind", amount: 10, phase: "preflop", is_all_in: false },
+    { player: "Nemo", action: "bet_raise", amount: 1000, phase: "preflop", is_all_in: true },
+    { player: "Dindybot", action: "check_call", amount: 990, phase: "preflop", is_all_in: true },
+  ],
+  viewer: {
+    ...actionLogEdgeState.viewer,
+    is_turn: false,
+    to_call: 0,
+    committed: 0,
+    stack: 0,
+  },
+  players: [
+    {
+      ...showdownState.players[0],
+      id: "nemo",
+      player_id: "nemo",
+      name: "Nemo",
+      is_you: true,
+      is_bot: false,
+      folded: false,
+      all_in: true,
+      stack: 0,
+      committed: 0,
+      total_invested: 1000,
+      cards: ["A♠", "A♥"],
+      hand_name: "",
+      hand_detail: "",
+      best_cards: [],
+    },
+    {
+      ...showdownState.players[1],
+      id: "dindybot",
+      player_id: "dindybot",
+      name: "Dindybot",
+      is_you: false,
+      is_bot: true,
+      folded: false,
+      all_in: true,
+      stack: 0,
+      committed: 0,
+      total_invested: 1000,
+      cards: ["K♠", "K♥"],
+      hand_name: "",
+      hand_detail: "",
+      best_cards: [],
+    },
+  ],
+};
+
+test("locked runout uses showdown display mode before final result", async ({ page }, testInfo) => {
+  await page.goto("/");
+  await showGameWithState(page, lockedRunoutShowdownModeState);
+
+  await expect(page.locator("#phaseBadge")).toContainText("SHOWDOWN");
+  await expect(page.locator(".table-felt")).toHaveClass(/showdown-table-glow/);
+  await expect(page.locator(".action-row-main")).toBeHidden();
+  await expect(page.locator(".action-row-raise")).toBeHidden();
+  await expect(page.locator(".action-row-custom")).toBeHidden();
+  await expect(page.locator("#yourHandBar")).toHaveClass(/hand-bar-hidden/);
+  await expect(page.locator("#postHandPanel")).toHaveClass(/hidden/);
+
+  const botSeat = page.locator(".player-seat").filter({ hasText: "Dindybot" });
+  await expect(botSeat.locator(".seat-cards")).toContainText("K");
+  await expect(botSeat.locator(".seat-cards")).toContainText("♠");
+  await expect(botSeat.locator(".seat-cards")).toContainText("♥");
+  await expect(botSeat.locator(".seat-cards .playing-card.card-back")).toHaveCount(0);
+
+  await waitForVisualSettle(page);
+  const screenshot = await page.screenshot({
+    path: artifactPath(testInfo, `locked-runout-showdown-mode-${testInfo.project.name}.png`),
+    fullPage: false,
+  });
+  expect(screenshot.length).toBeGreaterThan(10_000);
+});
