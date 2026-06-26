@@ -163,6 +163,8 @@ class PokerServer:
         auto_ante = payload.get("auto_ante", False)
         room.auto_ante = bool(auto_ante)
 
+        room.allow_folded_reveals = bool(payload.get("allow_folded_reveals", True))
+
         player = self.add_new_player(room, ws, payload.get("name", "Player"), payload.get("avatar", "🎭"))
         room.creator_token = player.token
 
@@ -826,6 +828,10 @@ class PokerServer:
             await self.remove_bot(room)
             return
 
+        if action == "reveal_folded_hand":
+            await self.reveal_folded_hand(room, player, payload)
+            return
+
         if room.phase not in ["preflop", "flop", "turn", "river"]:
             print(f"  -> REJECTED: no betting in phase {room.phase}")
             await self.send(player.ws, "error", {"message": "No betting action is currently available."})
@@ -932,6 +938,87 @@ class PokerServer:
 
         await self.after_action(room)
 
+    def folded_cards_for_viewer(self, room: Room, player: Player, viewer_token: str) -> list[str]:
+        """Return the folded player's cards as this viewer is allowed to see them.
+
+        Critical privacy rule:
+        folded cards are never sent to other players/spectators until the owner
+        explicitly reveals left, right, or both after showdown.
+        """
+        if not player.cards:
+            return []
+
+        backs = ["BACK"] * len(player.cards)
+
+        if not player.folded:
+            return backs
+
+        # The owner may receive their own cards. The frontend still renders the
+        # public showdown row according to folded_reveal_mode.
+        if player.token == viewer_token:
+            return list(player.cards)
+
+        if room.phase != "showdown":
+            return backs
+
+        if not getattr(room, "allow_folded_reveals", True):
+            return backs
+
+        if len(player.cards) != 2:
+            return backs
+
+        mode = getattr(player, "folded_reveal_mode", "hidden")
+        if mode == "left":
+            return [player.cards[0], "BACK"]
+        if mode == "right":
+            return ["BACK", player.cards[1]]
+        if mode == "both":
+            return list(player.cards)
+
+        return backs
+
+    async def reveal_folded_hand(self, room: Room, player: Player, payload: dict[str, Any]):
+        """Reveal part/all of the folded player's own hand after showdown."""
+        if not getattr(room, "allow_folded_reveals", True):
+            await self.send(player.ws, "error", {"message": "Folded hand reveals are disabled in this room."})
+            return
+
+        if room.phase != "showdown":
+            await self.send(player.ws, "error", {"message": "Folded hands can only be revealed after the hand."})
+            return
+
+        if not player.folded or len(player.cards) != 2:
+            await self.send(player.ws, "error", {"message": "You do not have a folded hand to reveal."})
+            return
+
+        current = getattr(player, "folded_reveal_mode", "hidden")
+        if current == "muck":
+            await self.send(player.ws, "error", {"message": "This folded hand has already been mucked."})
+            return
+
+        if current == "both":
+            await self.send(player.ws, "error", {"message": "This folded hand is already fully revealed."})
+            return
+
+        mode = str(payload.get("mode", "")).lower()
+        if mode not in {"left", "right", "both", "muck"}:
+            await self.send(player.ws, "error", {"message": "Invalid reveal mode."})
+            return
+
+        # Muck is a final hidden choice. Do not allow hiding again after a card
+        # was publicly revealed.
+        if mode == "muck" and current != "hidden":
+            await self.send(player.ws, "error", {"message": "This folded hand has already been partially revealed."})
+            return
+
+        if mode == "left" and current == "right":
+            mode = "both"
+        elif mode == "right" and current == "left":
+            mode = "both"
+
+        player.folded_reveal_mode = mode
+        await self.broadcast(room)
+
     def commit_chips(self, room: Room, player: Player, amount: int):
         amount = max(0, min(amount, player.stack))
         player.stack -= amount
@@ -981,6 +1068,7 @@ class PokerServer:
             p.hand_start_stack = p.stack
             p.cards = []
             p.folded = False
+            p.folded_reveal_mode = "hidden"
             p.all_in = False
             p.committed = 0
             p.total_invested = 0
@@ -1570,16 +1658,51 @@ class PokerServer:
 
         for p in room.seated_players():
             # Card visibility:
-            # - A player may always see their own hole cards.
-            # - Spectators may see all cards.
-            # - At showdown, reveal only non-folded contenders.
-            # - During all-in runout, reveal only non-folded contenders.
-            # Folded cards stay mucked unless a future explicit reveal feature exposes them.
-            show_cards = (p.token == viewer_token
-                         or (viewer and viewer.is_spectator)
-                         or (room.phase == "showdown" and not p.folded)
-                         or (all_in_runout and p.cards and not p.folded))
-            cards = p.cards if show_cards else ["BACK"] * len(p.cards)
+            # - A player may always receive their own hole cards.
+            # - Spectators may see live/non-folded cards as before.
+            # - At showdown, reveal non-folded contenders.
+            # - Folded cards are privacy-gated by folded_reveal_mode.
+            #   Spectators do NOT bypass folded-card privacy.
+            folded_reveal_mode = getattr(p, "folded_reveal_mode", "hidden") if p.folded else ""
+            can_reveal_folded_hand = (
+                bool(getattr(room, "allow_folded_reveals", True))
+                and room.phase == "showdown"
+                and p.folded
+                and p.token == viewer_token
+                and folded_reveal_mode not in ("both", "muck")
+                and len(p.cards) == 2
+            )
+
+            would_have_hand_name = ""
+            would_have_hand_detail = ""
+            would_have_best_cards: list[str] = []
+
+            if p.folded:
+                cards = self.folded_cards_for_viewer(room, p, viewer_token)
+
+                if (
+                    room.phase == "showdown"
+                    and folded_reveal_mode == "both"
+                    and len(p.cards) == 2
+                    and len(room.community) == 5
+                ):
+                    try:
+                        score, name, best_cards = evaluate_7(p.cards + room.community)
+                        would_have_hand_name = name
+                        would_have_hand_detail = describe_hand(score, name)
+                        would_have_best_cards = best_cards
+                    except Exception:
+                        would_have_hand_name = ""
+                        would_have_hand_detail = ""
+                        would_have_best_cards = []
+            else:
+                show_cards = (
+                    p.token == viewer_token
+                    or (viewer and viewer.is_spectator)
+                    or room.phase == "showdown"
+                    or (all_in_runout and p.cards)
+                )
+                cards = p.cards if show_cards else ["BACK"] * len(p.cards)
 
             to_call = max(0, room.current_bet - p.committed)
 
@@ -1595,6 +1718,11 @@ class PokerServer:
                 "total_invested": p.total_invested,
                 "hand_delta": getattr(room, "hand_deltas", {}).get(p.player_id) if room.phase == "showdown" else None,
                 "folded": p.folded,
+                "folded_reveal_mode": folded_reveal_mode,
+                "can_reveal_folded_hand": can_reveal_folded_hand,
+                "would_have_hand_name": would_have_hand_name,
+                "would_have_hand_detail": would_have_hand_detail,
+                "would_have_best_cards": display_cards(would_have_best_cards) if would_have_best_cards else [],
                 "all_in": p.all_in,
                 "is_you": p.token == viewer_token,
                 "is_dealer": p.seat == room.dealer_seat,
@@ -1720,6 +1848,7 @@ class PokerServer:
             "hands_played": room.hands_played,
             "blind_level": room.current_blind_level,
             "blind_increase_hands": room.blind_increase_hands,
+            "allow_folded_reveals": getattr(room, "allow_folded_reveals", True),
             "community": display_cards(room.community),
             "players": players,
             "messages": [

@@ -25,6 +25,7 @@ class Player:
     hand_start_stack: int = 1000
     cards: list[str] = field(default_factory=list)
     folded: bool = False
+    folded_reveal_mode: str = "hidden"  # hidden, left, right, both, muck
     all_in: bool = False
     committed: int = 0
     total_invested: int = 0
@@ -64,6 +65,7 @@ class Room:
     pot_breakdown: list = field(default_factory=list)  # Per-pot tier results for UI
     action_log: list = field(default_factory=list)  # Actions taken this hand (for analysis)
     hand_deltas: dict[str, int] = field(default_factory=dict)  # Net result this hand by player_id
+    allow_folded_reveals: bool = True  # If True, folded players may reveal after showdown
 
     phase: str = "lobby"  # lobby, preflop, flop, turn, river, showdown
     pot: int = 0

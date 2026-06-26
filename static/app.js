@@ -380,6 +380,7 @@ function createRoom() {
   const ante = parseInt(document.getElementById("anteInput")?.value || "0", 10);
   const anteMode = document.getElementById("anteModeSelect")?.value || "classic";
   const autoAnte = document.getElementById("autoAnteCheck")?.checked || false;
+  const allowFoldedReveals = document.getElementById("allowFoldedRevealsCheck")?.checked ?? true;
   send("create", {
     name: els.nameInput.value || "Player",
     avatar: selectedAvatar,
@@ -387,6 +388,7 @@ function createRoom() {
     ante: ante || 0,
     ante_mode: anteMode,
     auto_ante: autoAnte,
+    allow_folded_reveals: allowFoldedReveals,
   });
 }
 
@@ -1001,6 +1003,78 @@ function renderBestFiveBreakdownHtml(player, state) {
 }
 
 
+function foldedRevealMode(player) {
+  return String(player.folded_reveal_mode || "hidden").toLowerCase();
+}
+
+function foldedCardsForModal(player) {
+  const mode = foldedRevealMode(player);
+  const cards = Array.isArray(player.cards) ? player.cards : [];
+  const left = cards[0] && cards[0] !== "BACK" ? cards[0] : "🂠";
+  const right = cards[1] && cards[1] !== "BACK" ? cards[1] : "🂠";
+
+  if (mode === "left") return [left, "🂠"];
+  if (mode === "right") return ["🂠", right];
+  if (mode === "both") return [left, right];
+  return ["🂠", "🂠"];
+}
+
+function foldedRevealDetail(player) {
+  const mode = foldedRevealMode(player);
+  if (mode === "both") {
+    const detail = player.would_have_hand_detail || player.would_have_hand_name || "";
+    return detail ? `Would have made ${detail}` : "Revealed folded hand";
+  }
+  if (mode === "left" || mode === "right") return "Revealed one card";
+  if (mode === "muck") return "Mucked";
+  return "Folded hand hidden";
+}
+
+function renderFoldedRevealActions(player) {
+  if (!player.can_reveal_folded_hand) return "";
+
+  const mode = foldedRevealMode(player);
+  const buttons = [];
+
+  if (mode !== "left") {
+    buttons.push('<button type="button" class="btn btn-tiny btn-dim folded-reveal-btn" data-folded-reveal="left">Show left</button>');
+  }
+  if (mode !== "right") {
+    buttons.push('<button type="button" class="btn btn-tiny btn-dim folded-reveal-btn" data-folded-reveal="right">Show right</button>');
+  }
+  buttons.push('<button type="button" class="btn btn-tiny btn-deal folded-reveal-btn" data-folded-reveal="both">Show both</button>');
+
+  if (mode === "hidden") {
+    buttons.push('<button type="button" class="btn btn-tiny btn-dim folded-reveal-btn" data-folded-reveal="muck">Muck</button>');
+  }
+
+  return `<div class="folded-reveal-actions">${buttons.join("")}</div>`;
+}
+
+function renderFoldedWouldHaveBreakdown(player, state) {
+  if (foldedRevealMode(player) !== "both") return "";
+  if (!player.would_have_best_cards || player.would_have_best_cards.length !== 5) return "";
+
+  return renderBestFiveBreakdownHtml({
+    ...player,
+    hand_name: player.would_have_hand_name,
+    hand_detail: player.would_have_hand_detail,
+    best_cards: player.would_have_best_cards,
+  }, state);
+}
+
+function bindFoldedRevealButtons() {
+  if (!els.postHandBody) return;
+
+  els.postHandBody.querySelectorAll("[data-folded-reveal]").forEach(btn => {
+    btn.onclick = () => {
+      const mode = btn.dataset.foldedReveal;
+      if (mode) action("reveal_folded_hand", { mode });
+    };
+  });
+}
+
+
 function renderPostHandPanel(state) {
   if (!els.postHandPanel) return;
   const winners = Array.isArray(state.winners) ? state.winners : [];
@@ -1094,22 +1168,32 @@ function renderPostHandPanel(state) {
     const delta = handDeltas.get(p.name);
     const amount = formatHandDelta(delta);
     const amountClass = handDeltaClass(delta);
+    const mode = foldedRevealMode(p);
+    const modalCards = foldedCardsForModal(p);
+    const detail = foldedRevealDetail(p);
+    const revealActions = renderFoldedRevealActions(p);
+    const wouldHaveBreakdown = renderFoldedWouldHaveBreakdown(p, state);
+    const rowExtraClass = mode === "both" ? " would-have" : (mode === "left" || mode === "right") ? " partial-revealed" : "";
+
     return `
-      <div class="post-hand-row mucked">
+      <div class="post-hand-row mucked${rowExtraClass}">
         <div class="post-hand-player">
           <span class="post-hand-name">${esc(p.name)}</span>
-          <span class="post-hand-result">mucked</span>
+          <span class="post-hand-result">${mode === "both" ? "revealed" : mode === "muck" ? "mucked" : "mucked"}</span>
         </div>
         <div class="post-hand-cards">
-          ${makeCardHtml("🂠")}${makeCardHtml("🂠")}
+          ${modalCards.map(card => makeCardHtml(card)).join("")}
         </div>
-        <div class="post-hand-detail">Folded hand hidden</div>
+        <div class="post-hand-detail">${esc(detail)}</div>
         <div class="post-hand-amount ${amountClass}" title="Net result this hand">${esc(amount)}</div>
+        ${wouldHaveBreakdown}
+        ${revealActions}
       </div>
     `;
   }).join("");
 
   els.postHandBody.innerHTML = `${shownRows}${muckedRows}`;
+  bindFoldedRevealButtons();
 }
 
 function formatPlayerShowdownEntry(player, winnerNames) {

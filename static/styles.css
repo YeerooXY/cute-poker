@@ -895,6 +895,29 @@ html, body {
   font-size: 12px;
 }
 
+.folded-reveal-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.folded-reveal-btn {
+  font-size: 10px;
+  padding: 5px 8px;
+  border-radius: 7px;
+}
+
+.post-hand-row.partial-revealed {
+  border-color: rgba(232, 185, 35, 0.28);
+}
+
+.post-hand-row.would-have {
+  border-color: rgba(66, 165, 245, 0.35);
+}
+
 .action-bar {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: 480px;

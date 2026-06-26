@@ -299,3 +299,83 @@ test("action log visual smoke covers returned excess, showdown rows, and runout 
   });
   expect(screenshot.length).toBeGreaterThan(10_000);
 });
+
+const foldedRevealOwnerHiddenState = {
+  ...actionLogEdgeState,
+  room_id: "REVEAL-HIDDEN",
+  allow_folded_reveals: true,
+  players: actionLogEdgeState.players.map(p => p.name === "SmallBlind"
+    ? {
+        ...p,
+        is_you: true,
+        cards: ["A♥", "Q♥"],
+        folded: true,
+        folded_reveal_mode: "hidden",
+        can_reveal_folded_hand: true,
+      }
+    : { ...p, is_you: false }
+  ),
+};
+
+const foldedRevealLeftState = {
+  ...foldedRevealOwnerHiddenState,
+  room_id: "REVEAL-LEFT",
+  players: foldedRevealOwnerHiddenState.players.map(p => p.name === "SmallBlind"
+    ? {
+        ...p,
+        folded_reveal_mode: "left",
+        can_reveal_folded_hand: true,
+      }
+    : p
+  ),
+};
+
+const foldedRevealBothState = {
+  ...foldedRevealOwnerHiddenState,
+  room_id: "REVEAL-BOTH",
+  players: foldedRevealOwnerHiddenState.players.map(p => p.name === "SmallBlind"
+    ? {
+        ...p,
+        folded_reveal_mode: "both",
+        can_reveal_folded_hand: false,
+        would_have_hand_name: "Flush",
+        would_have_hand_detail: "Ace-high Flush",
+        would_have_best_cards: ["A♥", "K♥", "Q♥", "10♥", "7♥"],
+      }
+    : p
+  ),
+};
+
+test("folded owner gets reveal controls and both-revealed hand gets would-have breakdown", async ({ page }) => {
+  await page.goto("/");
+  await showGameWithState(page, foldedRevealOwnerHiddenState);
+
+  const hiddenRow = page.locator(".post-hand-row").filter({ hasText: "SmallBlind" });
+  await expect(hiddenRow.locator(".post-hand-detail")).toContainText("Folded hand hidden");
+  await expect(hiddenRow.locator(".playing-card.card-back")).toHaveCount(2);
+  await expect(hiddenRow.locator("[data-folded-reveal='left']")).toHaveCount(1);
+  await expect(hiddenRow.locator("[data-folded-reveal='right']")).toHaveCount(1);
+  await expect(hiddenRow.locator("[data-folded-reveal='both']")).toHaveCount(1);
+  await expect(hiddenRow.locator("[data-folded-reveal='muck']")).toHaveCount(1);
+  await expect(hiddenRow.locator(".post-hand-breakdown")).toHaveCount(0);
+
+  await showGameWithState(page, foldedRevealLeftState);
+
+  const leftRow = page.locator(".post-hand-row").filter({ hasText: "SmallBlind" });
+  await expect(leftRow.locator(".post-hand-detail")).toContainText("Revealed one card");
+  await expect(leftRow.locator(".post-hand-cards .playing-card.card-back")).toHaveCount(1);
+  await expect(leftRow.locator(".post-hand-cards")).toContainText("A");
+  await expect(leftRow.locator(".post-hand-cards")).toContainText("♥");
+  await expect(leftRow.locator(".post-hand-breakdown")).toHaveCount(0);
+
+  await showGameWithState(page, foldedRevealBothState);
+
+  const revealedRow = page.locator(".post-hand-row").filter({ hasText: "SmallBlind" });
+  await expect(revealedRow.locator(".post-hand-detail")).toContainText("Would have made Ace-high Flush");
+  await expect(revealedRow.locator(".post-hand-cards .playing-card.card-back")).toHaveCount(0);
+  await expect(revealedRow.locator(".post-hand-cards")).toContainText("A");
+  await expect(revealedRow.locator(".post-hand-cards")).toContainText("Q");
+  await expect(revealedRow.locator(".post-hand-cards")).toContainText("♥");
+  await expect(revealedRow.locator(".post-hand-breakdown")).toContainText("Best 5 from 7");
+  await expect(revealedRow.locator("[data-folded-reveal]")).toHaveCount(0);
+});
