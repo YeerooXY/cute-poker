@@ -8,6 +8,14 @@ function artifactPath(testInfo, name) {
   return path.join(dir, name);
 }
 
+function showGameWithState(page, state) {
+  return page.evaluate((nextState) => {
+    document.getElementById("connectScreen").classList.add("hidden");
+    document.getElementById("gameScreen").classList.remove("hidden");
+    window.renderState(nextState);
+  }, state);
+}
+
 const showdownState = {
   room_id: "VISUAL",
   paused: false,
@@ -113,13 +121,72 @@ const showdownState = {
   ],
 };
 
+const actionLogEdgeState = {
+  ...showdownState,
+  room_id: "EDGE",
+  pot: 1246,
+  hands_played: 8,
+  community: ["A♠", "K♥", "10♥", "7♣", "2♦"],
+  viewer: {
+    ...showdownState.viewer,
+    is_turn: false,
+    to_call: 0,
+  },
+  players: [
+    {
+      ...showdownState.players[0],
+      name: "SmallBlind",
+      player_id: "sb",
+      stack: 1175,
+      committed: 0,
+      hand_name: "One Pair",
+      hand_detail: "Pair of Aces",
+      best_cards: ["A♥", "A♠", "K♥", "10♥", "7♣"],
+    },
+    {
+      ...showdownState.players[1],
+      name: "Dindybot",
+      player_id: "dindy",
+      stack: 362,
+      committed: 0,
+      all_in: false,
+      hand_name: "Flush",
+      hand_detail: "King-high Flush",
+      best_cards: ["K♥", "J♥", "10♥", "9♥", "7♥"],
+    },
+    {
+      ...showdownState.players[2],
+      name: "Papperbot",
+      player_id: "papper",
+      stack: 0,
+      committed: 0,
+      all_in: true,
+      hand_name: "Two Pair",
+      hand_detail: "Aces and Kings",
+      best_cards: ["A♦", "A♣", "K♥", "K♣", "10♥"],
+    },
+  ],
+  winners: [
+    {
+      name: "Dindybot",
+      amount: 1246,
+      hand_name: "Flush",
+      hand_detail: "King-high Flush",
+      reason: "Best hand at showdown",
+    },
+  ],
+  action_log: [
+    { player: "SmallBlind", action: "small_blind", amount: 5, phase: "preflop", is_all_in: false },
+    { player: "Dindybot", action: "big_blind", amount: 10, phase: "preflop", is_all_in: false },
+    { player: "SmallBlind", action: "check_call", amount: 5, phase: "preflop", is_all_in: false },
+    { player: "Papperbot", action: "bet_raise", amount: 628, phase: "flop", is_all_in: true },
+    { player: "Dindybot", action: "check_call", amount: 618, phase: "flop", is_all_in: false },
+  ],
+};
+
 test("showdown visual smoke renders panel, cards, chips, and glow", async ({ page }, testInfo) => {
   await page.goto("/");
-  await page.evaluate((state) => {
-    document.getElementById("connectScreen").classList.add("hidden");
-    document.getElementById("gameScreen").classList.remove("hidden");
-    window.renderState(state);
-  }, showdownState);
+  await showGameWithState(page, showdownState);
 
   await expect(page.locator("#postHandPanel")).toBeVisible();
   await expect(page.locator("#postHandTitle")).toContainText("Nemo wins 840");
@@ -149,6 +216,34 @@ test("showdown visual smoke renders panel, cards, chips, and glow", async ({ pag
 
   const screenshot = await page.screenshot({
     path: artifactPath(testInfo, `showdown-${testInfo.project.name}.png`),
+    fullPage: false,
+  });
+  expect(screenshot.length).toBeGreaterThan(10_000);
+});
+
+test("action log visual smoke covers returned excess, showdown rows, and runout separators", async ({ page }, testInfo) => {
+  await page.goto("/");
+  await showGameWithState(page, actionLogEdgeState);
+
+  const logText = await page.locator("#actionLogBody").innerText();
+  expect(logText).toContain("SmallBlind calls 5");
+  expect(logText).not.toContain("SmallBlind checks");
+  expect(logText).toContain("Dindybot calls 618");
+  expect(logText).not.toContain("Dindybot goes all-in");
+  expect(logText).toContain("River:");
+  expect(logText).toContain("Showdown");
+  expect(logText).toContain("Dindybot: King-high Flush");
+  expect(logText).toContain("— wins");
+  expect(logText).toContain("Dindybot wins 1246 with King-high Flush");
+
+  await expect(page.locator(".action-row-main")).toBeHidden();
+  await expect(page.locator(".action-row-raise")).toBeHidden();
+  await expect(page.locator(".action-row-custom")).toBeHidden();
+  await expect(page.locator(".showdown-hand.showdown-winner-hand")).toHaveCount(1);
+  await expect(page.locator("#postHandTitle")).toContainText("Dindybot wins 1246");
+
+  const screenshot = await page.screenshot({
+    path: artifactPath(testInfo, `action-log-edge-${testInfo.project.name}.png`),
     fullPage: false,
   });
   expect(screenshot.length).toBeGreaterThan(10_000);
