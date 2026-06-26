@@ -145,6 +145,8 @@ function formatActionEntry(entry) {
   // Blinds always show their specific verb regardless of all-in status
   if (entry.action === "small_blind") return `${player} posts SB ${amount}`;
   if (entry.action === "big_blind") return `${player} posts BB ${amount}`;
+  if (entry.action === "ante") return `${player} posts ante ${amount}`;
+  if (entry.action === "big_blind_ante") return `${player} posts BBA ${amount}`;
 
   // All-in handling — action-aware (except blinds handled above)
   if (entry.is_all_in) {
@@ -800,7 +802,7 @@ function directPlayerDelta(player) {
 
 function parseContributionAmount(actionText) {
   const patterns = [
-    /\bposts(?:\s+(?:sb|bb|small blind|big blind))?\s+(\d+)/i,
+    /\bposts(?:\s+(?:sb|bb|small blind|big blind|ante|bba))?\s+(\d+)/i,
     /\bcalls\s+(\d+)/i,
     /\bbets\s+(\d+)/i,
     /\bgoes\s+all-?in\s+for\s+(\d+)/i,
@@ -1072,6 +1074,13 @@ function bindFoldedRevealButtons() {
       if (mode) action("reveal_folded_hand", { mode });
     };
   });
+
+  els.postHandBody.querySelectorAll("[data-uncontested-reveal]").forEach(btn => {
+    btn.onclick = () => {
+      const mode = btn.dataset.uncontestedReveal || "both";
+      action("reveal_uncontested_hand", { mode });
+    };
+  });
 }
 
 
@@ -1098,6 +1107,7 @@ function renderPostHandPanel(state) {
   if (!els.postHandBody) return;
 
   const winnerNames = new Set(winners.map(w => w.name));
+  const winnerByName = new Map(winners.map(w => [w.name, w]));
   const players = Array.isArray(state.players) ? state.players : [];
 
   const revealedPlayers = players
@@ -1122,7 +1132,12 @@ function renderPostHandPanel(state) {
 
       return p.folded || invested || hasDelta || hadCards;
     })
-    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    .sort((a, b) => {
+      const aWinner = winnerNames.has(a.name) ? 0 : 1;
+      const bWinner = winnerNames.has(b.name) ? 0 : 1;
+      if (aWinner !== bWinner) return aWinner - bWinner;
+      return String(a.name).localeCompare(String(b.name));
+    });
 
   if (revealedPlayers.length === 0 && foldedPlayers.length === 0) {
     els.postHandBody.innerHTML = winners.map(w => `
@@ -1169,17 +1184,33 @@ function renderPostHandPanel(state) {
     const amount = formatHandDelta(delta);
     const amountClass = handDeltaClass(delta);
     const mode = foldedRevealMode(p);
-    const modalCards = foldedCardsForModal(p);
-    const detail = foldedRevealDetail(p);
-    const revealActions = renderFoldedRevealActions(p);
-    const wouldHaveBreakdown = renderFoldedWouldHaveBreakdown(p, state);
+    const winner = winnerByName.get(p.name);
+    const isUncontestedWinner = Boolean(winner && winner.reason === "Everyone else folded" && !p.hand_name);
+
+    const uncontestedRevealMode = String(p.uncontested_reveal_mode || "hidden").toLowerCase();
+    const isUncontestedRevealed = isUncontestedWinner && uncontestedRevealMode === "both";
+    const canRevealUncontested = Boolean(isUncontestedWinner && p.can_reveal_uncontested_hand && !isUncontestedRevealed);
+
+    const modalCards = isUncontestedWinner
+      ? (isUncontestedRevealed && Array.isArray(p.cards) && p.cards.length > 0 ? p.cards : ["🂠", "🂠"])
+      : foldedCardsForModal(p);
+    const detail = isUncontestedWinner
+      ? (isUncontestedRevealed ? "Winner revealed their hand after everyone folded" : "Hand not shown · Everyone else folded")
+      : foldedRevealDetail(p);
+    const result = isUncontestedWinner ? (isUncontestedRevealed ? "revealed winner" : "wins uncontested") : mode === "both" ? "revealed" : "mucked";
+    const uncontestedActions = canRevealUncontested
+      ? '<div class="folded-reveal-actions"><button type="button" class="btn btn-tiny btn-deal" data-uncontested-reveal="both">Show hand</button></div>'
+      : "";
+    const revealActions = isUncontestedWinner ? uncontestedActions : renderFoldedRevealActions(p);
+    const wouldHaveBreakdown = isUncontestedWinner ? "" : renderFoldedWouldHaveBreakdown(p, state);
+    const baseRowClass = isUncontestedWinner ? " winner post-hand-winner-glow uncontested" : " mucked";
     const rowExtraClass = mode === "both" ? " would-have" : (mode === "left" || mode === "right") ? " partial-revealed" : "";
 
     return `
-      <div class="post-hand-row mucked${rowExtraClass}">
+      <div class="post-hand-row${baseRowClass}${rowExtraClass}">
         <div class="post-hand-player">
           <span class="post-hand-name">${esc(p.name)}</span>
-          <span class="post-hand-result">${mode === "both" ? "revealed" : mode === "muck" ? "mucked" : "mucked"}</span>
+          <span class="post-hand-result">${esc(result)}</span>
         </div>
         <div class="post-hand-cards">
           ${modalCards.map(card => makeCardHtml(card)).join("")}

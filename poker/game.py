@@ -832,6 +832,10 @@ class PokerServer:
             await self.reveal_folded_hand(room, player, payload)
             return
 
+        if action == "reveal_uncontested_hand":
+            await self.reveal_uncontested_hand(room, player, payload)
+            return
+
         if room.phase not in ["preflop", "flop", "turn", "river"]:
             print(f"  -> REJECTED: no betting in phase {room.phase}")
             await self.send(player.ws, "error", {"message": "No betting action is currently available."})
@@ -1019,6 +1023,39 @@ class PokerServer:
         player.folded_reveal_mode = mode
         await self.broadcast(room)
 
+    async def reveal_uncontested_hand(self, room: Room, player: Player, payload: dict[str, Any]):
+        """Let an uncontested winner reveal their hole cards after everyone else folded."""
+        if not getattr(room, "allow_folded_reveals", True):
+            await self.send(player.ws, "error", {"message": "Post-hand reveals are disabled in this room."})
+            return
+
+        if room.phase != "showdown":
+            await self.send(player.ws, "error", {"message": "Hands can only be revealed after the hand."})
+            return
+
+        is_uncontested_winner = any(
+            w.player_id == player.player_id and w.reason == "Everyone else folded"
+            for w in room.winners
+        )
+        if not is_uncontested_winner or player.folded or len(player.cards) != 2:
+            await self.send(player.ws, "error", {"message": "You do not have an uncontested winning hand to reveal."})
+            return
+
+        if getattr(player, "uncontested_reveal_mode", "hidden") == "both":
+            await self.send(player.ws, "error", {"message": "This hand is already revealed."})
+            return
+
+        player.uncontested_reveal_mode = "both"
+        await self.broadcast(room)
+
+        amount = max(0, min(amount, player.stack))
+        player.stack -= amount
+        player.committed += amount
+        player.total_invested += amount
+        room.pot += amount
+        if player.stack == 0:
+            player.all_in = True
+
     def commit_chips(self, room: Room, player: Player, amount: int):
         amount = max(0, min(amount, player.stack))
         player.stack -= amount
@@ -1069,6 +1106,7 @@ class PokerServer:
             p.cards = []
             p.folded = False
             p.folded_reveal_mode = "hidden"
+            p.uncontested_reveal_mode = "hidden"
             p.all_in = False
             p.committed = 0
             p.total_invested = 0
@@ -1105,12 +1143,26 @@ class PokerServer:
                 if dealer_player and dealer_player.stack > 0:
                     bba_amount = min(room.big_blind, dealer_player.stack)
                     self.commit_chips(room, dealer_player, bba_amount)
+                    room.action_log.append({
+                        "player": dealer_player.name,
+                        "action": "big_blind_ante",
+                        "amount": bba_amount,
+                        "phase": "preflop",
+                        "is_all_in": dealer_player.all_in,
+                    })
             else:
                 # Classic ante: every player posts
                 for p in active:
                     ante_amount = min(room.ante, p.stack)
                     if ante_amount > 0:
                         self.commit_chips(room, p, ante_amount)
+                        room.action_log.append({
+                            "player": p.name,
+                            "action": "ante",
+                            "amount": ante_amount,
+                            "phase": "preflop",
+                            "is_all_in": p.all_in,
+                        })
 
         if sb:
             sb_amount = min(room.small_blind, sb.stack)
@@ -1635,6 +1687,10 @@ class PokerServer:
 
         # Detect all-in runout: all active players are all-in (show cards to everyone)
         all_in_runout = self._is_all_in_runout(room) and room.phase in ("flop", "turn", "river")
+        uncontested_winner_ids = {
+            w.player_id for w in room.winners
+            if w.reason == "Everyone else folded"
+        }
 
         # Compute clockwise seat offsets from dealer for active players
         seat_offsets: dict[int, int] = {}  # seat -> offset
@@ -1672,6 +1728,16 @@ class PokerServer:
                 and folded_reveal_mode not in ("both", "muck")
                 and len(p.cards) == 2
             )
+            uncontested_reveal_mode = getattr(p, "uncontested_reveal_mode", "hidden")
+            can_reveal_uncontested_hand = (
+                bool(getattr(room, "allow_folded_reveals", True))
+                and room.phase == "showdown"
+                and not p.folded
+                and p.player_id in uncontested_winner_ids
+                and p.token == viewer_token
+                and uncontested_reveal_mode != "both"
+                and len(p.cards) == 2
+            )
 
             would_have_hand_name = ""
             would_have_hand_detail = ""
@@ -1703,6 +1769,7 @@ class PokerServer:
                     or (viewer and viewer.is_spectator and room.phase != "showdown")
                     or (viewer and viewer.is_spectator and has_showdown_hand)
                     or (room.phase == "showdown" and has_showdown_hand)
+                    or (p.player_id in uncontested_winner_ids and uncontested_reveal_mode == "both")
                     or (all_in_runout and p.cards)
                 )
                 cards = p.cards if show_cards else ["BACK"] * len(p.cards)
@@ -1723,6 +1790,8 @@ class PokerServer:
                 "folded": p.folded,
                 "folded_reveal_mode": folded_reveal_mode,
                 "can_reveal_folded_hand": can_reveal_folded_hand,
+                "uncontested_reveal_mode": uncontested_reveal_mode,
+                "can_reveal_uncontested_hand": can_reveal_uncontested_hand,
                 "would_have_hand_name": would_have_hand_name,
                 "would_have_hand_detail": would_have_hand_detail,
                 "would_have_best_cards": display_cards(would_have_best_cards) if would_have_best_cards else [],
