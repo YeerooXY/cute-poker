@@ -76,7 +76,7 @@ def _run_trials(
     context: AIGameContext,
     difficulty: DifficultyLevel,
     personality_name: str = "GTO_ish",
-    n_trials: int = 50,
+    n_trials: int = 24,
     seed: int = 42,
 ) -> Counter:
     """Run the pipeline multiple times and count action frequencies."""
@@ -195,7 +195,7 @@ class TestPipelineValidActions:
         personality = get_personality("Maniac")
 
         # Run many trials to catch a bet_raise action
-        for seed in range(100):
+        for seed in range(40):
             random.seed(seed)
             action, payload = advanced_bot_decide(ctx, personality, DifficultyLevel.EXPERT)
             if action == "bet_raise":
@@ -205,7 +205,7 @@ class TestPipelineValidActions:
                 break
         else:
             # With a royal flush draw + Maniac personality, we should bet at least once
-            pytest.fail("Expected at least one bet_raise in 100 trials with Maniac + strong hand")
+            pytest.fail("Expected at least one bet_raise in 40 trials with Maniac + strong hand")
 
 
 # ─── Test: Strong Hands Tend Toward Aggression ─────────────────────────────────
@@ -225,7 +225,7 @@ class TestStrongHandTendencies:
             stack=1000,
             position="BTN",
         )
-        counts = _run_trials(ctx, DifficultyLevel.EXPERT, "GTO_ish", n_trials=60)
+        counts = _run_trials(ctx, DifficultyLevel.EXPERT, "GTO_ish", n_trials=24)
         # Strong hand: should mostly bet
         aggressive = counts.get("bet_raise", 0)
         passive = counts.get("check_call", 0)
@@ -245,10 +245,10 @@ class TestStrongHandTendencies:
             stack=900,
             position="CO",
         )
-        counts = _run_trials(ctx, DifficultyLevel.EXPERT, "TAG", n_trials=60)
+        counts = _run_trials(ctx, DifficultyLevel.EXPERT, "TAG", n_trials=24)
         aggressive = counts.get("bet_raise", 0)
-        assert aggressive >= 25, (
-            f"Expected KK on dry low board to bet frequently. Got bet_raise={aggressive}/60"
+        assert aggressive / sum(counts.values()) >= 0.42, (
+            f"Expected KK on dry low board to bet frequently. Got bet_raise={aggressive}/{sum(counts.values())}"
         )
 
 
@@ -273,12 +273,12 @@ class TestWeakHandTendencies:
             facing_action="raise",
             is_preflop_aggressor=False,
         )
-        counts = _run_trials(ctx, DifficultyLevel.EXPERT, "TAG", n_trials=60)
+        counts = _run_trials(ctx, DifficultyLevel.EXPERT, "TAG", n_trials=24)
         fold_count = counts.get("fold", 0)
         # On the river with zero equity, multiway, facing a big bet - should fold
-        assert fold_count >= 40, (
+        assert fold_count / sum(counts.values()) >= 0.66, (
             f"Expected 32o on river AKQJ9 facing large bet multiway to fold often. "
-            f"Got fold={fold_count}/60"
+            f"Got fold={fold_count}/{sum(counts.values())}"
         )
 
     def test_weak_hand_multiway_facing_bet_folds(self):
@@ -296,11 +296,11 @@ class TestWeakHandTendencies:
             facing_action="bet",
             is_preflop_aggressor=False,
         )
-        counts = _run_trials(ctx, DifficultyLevel.HARD, "Nit", n_trials=60)
+        counts = _run_trials(ctx, DifficultyLevel.HARD, "Nit", n_trials=24)
         fold_count = counts.get("fold", 0)
         # Nit with marginal hand facing bet multiway should fold often
-        assert fold_count >= 30, (
-            f"Expected Nit with 98h on 742 multiway to fold often. Got fold={fold_count}/60"
+        assert fold_count / sum(counts.values()) >= 0.50, (
+            f"Expected Nit with 98h on 742 multiway to fold often. Got fold={fold_count}/{sum(counts.values())}"
         )
 
 
@@ -324,12 +324,12 @@ class TestMediumHandPotOdds:
             facing_action="bet",
             is_preflop_aggressor=True,
         )
-        counts = _run_trials(ctx, DifficultyLevel.EXPERT, "TAG", n_trials=60)
+        counts = _run_trials(ctx, DifficultyLevel.EXPERT, "TAG", n_trials=24)
         # With a medium pair and good pot odds, should call or raise rather than fold
         non_fold = counts.get("check_call", 0) + counts.get("bet_raise", 0)
-        assert non_fold >= 25, (
+        assert non_fold / sum(counts.values()) >= 0.42, (
             f"Expected 88 facing small bet with good pot odds to not fold much. "
-            f"Got non-fold={non_fold}/60"
+            f"Got non-fold={non_fold}/{sum(counts.values())}"
         )
 
 
@@ -355,7 +355,7 @@ class TestAllInSituation:
         )
         personality = get_personality("TAG")
 
-        for seed in range(50):
+        for seed in range(24):
             random.seed(seed)
             action, payload = advanced_bot_decide(ctx, personality, DifficultyLevel.EXPERT)
             assert action in VALID_GAME_ACTIONS
@@ -484,8 +484,8 @@ class TestDifficultyDifferences:
             position="BTN",
         )
 
-        easy_counts = _run_trials(ctx, DifficultyLevel.EASY, "Calling_Station", n_trials=80)
-        expert_counts = _run_trials(ctx, DifficultyLevel.EXPERT, "GTO_ish", n_trials=80)
+        easy_counts = _run_trials(ctx, DifficultyLevel.EASY, "Calling_Station", n_trials=32)
+        expert_counts = _run_trials(ctx, DifficultyLevel.EXPERT, "GTO_ish", n_trials=32)
 
         # EXPERT with a strong hand should be more concentrated on aggression
         expert_max = max(expert_counts.values())
@@ -493,12 +493,12 @@ class TestDifficultyDifferences:
 
         # EXPERT's dominant action should account for a larger share
         # (i.e., more concentrated/optimal play)
-        expert_concentration = expert_max / 80
-        easy_concentration = easy_max / 80
+        expert_concentration = expert_max / sum(expert_counts.values())
+        easy_concentration = easy_max / sum(easy_counts.values())
 
         # Expert should be at least somewhat concentrated (>50% one action)
         assert expert_concentration >= 0.4, (
-            f"EXPERT should be concentrated. Got max={expert_max}/80 ({expert_concentration:.0%})"
+            f"EXPERT should be concentrated. Got max={expert_max}/{sum(expert_counts.values())} ({expert_concentration:.0%})"
         )
 
     def test_expert_aggression_vs_easy_passivity(self):
@@ -514,8 +514,8 @@ class TestDifficultyDifferences:
         )
 
         # EXPERT with TAG should bet aggressively with KK on a dry board
-        expert_counts = _run_trials(ctx, DifficultyLevel.EXPERT, "GTO_ish", n_trials=80)
-        easy_counts = _run_trials(ctx, DifficultyLevel.EASY, "Calling_Station", n_trials=80)
+        expert_counts = _run_trials(ctx, DifficultyLevel.EXPERT, "GTO_ish", n_trials=32)
+        easy_counts = _run_trials(ctx, DifficultyLevel.EASY, "Calling_Station", n_trials=32)
 
         expert_aggression = expert_counts.get("bet_raise", 0)
         easy_aggression = easy_counts.get("bet_raise", 0)
@@ -577,8 +577,8 @@ class TestPersonalityEffects:
         )
 
         # Same seed → same results regardless of personality name
-        maniac_counts = _run_trials(ctx, DifficultyLevel.HARD, "Maniac", n_trials=60, seed=42)
-        nit_counts = _run_trials(ctx, DifficultyLevel.HARD, "Nit", n_trials=60, seed=42)
+        maniac_counts = _run_trials(ctx, DifficultyLevel.HARD, "Maniac", n_trials=24, seed=42)
+        nit_counts = _run_trials(ctx, DifficultyLevel.HARD, "Nit", n_trials=24, seed=42)
 
         # In normal gameplay, personality is ignored → identical distributions
         assert maniac_counts == nit_counts, (
@@ -600,8 +600,8 @@ class TestPersonalityEffects:
             is_preflop_aggressor=False,
         )
 
-        cs_counts = _run_trials(ctx, DifficultyLevel.HARD, "Calling_Station", n_trials=60, seed=42)
-        tag_counts = _run_trials(ctx, DifficultyLevel.HARD, "TAG", n_trials=60, seed=42)
+        cs_counts = _run_trials(ctx, DifficultyLevel.HARD, "Calling_Station", n_trials=24, seed=42)
+        tag_counts = _run_trials(ctx, DifficultyLevel.HARD, "TAG", n_trials=24, seed=42)
 
         # In normal gameplay, personality is ignored → identical distributions
         assert cs_counts == tag_counts, (

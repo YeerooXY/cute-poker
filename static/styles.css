@@ -3881,3 +3881,226 @@ body.showdown-cinema .post-hand-panel.post-hand-modal {
   display: none !important;
 }
 
+
+/* ─────────────────────────────────────────────────────────────
+   Cinematic shared result stage
+   The showdown tray owns the board; this panel owns the hand result.
+   Keep this CSS-only: no privacy/reveal/game-logic changes here.
+   ───────────────────────────────────────────────────────────── */
+
+body.showdown-cinema .post-hand-panel.post-hand-modal {
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  bottom: clamp(28px, 5vh, 78px) !important;
+  width: min(980px, calc(100vw - 36px)) !important;
+  max-height: min(72vh, 680px) !important;
+  padding: clamp(14px, 1.8vw, 22px) !important;
+  gap: clamp(10px, 1.5vw, 16px) !important;
+  border-radius: 18px !important;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(245, 212, 66, 0.10), transparent 34%),
+    rgba(5, 22, 8, 0.982) !important;
+  border: 1px solid rgba(245, 212, 66, 0.58) !important;
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.74),
+    0 0 42px rgba(232, 185, 35, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+  animation: postHandResultStageGrow 240ms ease-out both !important;
+}
+
+@keyframes postHandResultStageGrow {
+  from {
+    opacity: 0;
+    clip-path: inset(18% 8% 0 8% round 18px);
+  }
+
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0 round 18px);
+  }
+}
+
+body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-header {
+  align-items: center !important;
+  padding: 0 2px 2px !important;
+}
+
+body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-kicker {
+  color: rgba(245, 212, 66, 0.86) !important;
+  font-size: 12px !important;
+  letter-spacing: 1.4px !important;
+  text-transform: uppercase !important;
+}
+
+body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-title {
+  font-size: clamp(21px, 2.4vw, 34px) !important;
+  line-height: 1.05 !important;
+}
+
+body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-pot {
+  align-self: center !important;
+  padding: 8px 12px !important;
+  border-radius: 999px !important;
+  color: rgba(245, 212, 66, 0.92) !important;
+}
+
+body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-body {
+  gap: 10px !important;
+  max-height: min(50vh, 470px) !important;
+  padding: 6px !important;
+  background: rgba(0, 0, 0, 0.16) !important;
+}
+
+/* Hero result row: winner or uncontested winner goes first and gets the stage. */
+body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-row.winner {
+  position: relative !important;
+  grid-template-columns: minmax(150px, 0.9fr) minmax(220px, auto) minmax(160px, 1fr) auto !important;
+  min-height: 96px !important;
+  padding: clamp(14px, 1.8vw, 22px) !important;
+  border-radius: 16px !important;
+  border-color: rgba(245, 212, 66, 0.68) !important;
+  background:
+    radial-gradient(circle at 16% 36%, rgba(245, 212, 66, 0.18), transparent 40%),
+    linear-gradient(135deg, rgba(27, 94, 32, 0.62), rgba(0, 0, 0, 0.50)) !important;
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.36),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.055) !important;
+}
+
+body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-row.winner::before {
+  content: "WINNER";
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  color: rgba(245, 212, 66, 0.48);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 1.8px;
+}
+
+body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-row.winner .post-hand-name {
+  font-size: clamp(20px, 2.25vw, 30px) !important;
+  line-height: 1.04 !important;
+}
+
+body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-row.winner .post-hand-result {
+  margin-top: 5px !important;
+  color: rgba(201, 230, 202, 0.90) !important;
+  font-size: clamp(13px, 1.35vw, 17px) !important;
+}
+
+body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-row.winner .post-hand-cards {
+  justify-content: center !important;
+  gap: 8px !important;
+}
+
+body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-row.winner .post-hand-cards .playing-card {
+  width: clamp(42px, 4.5vw, 58px) !important;
+  height: clamp(60px, 6.3vw, 82px) !important;
+  font-size: clamp(15px, 1.8vw, 22px) !important;
+}
+
+body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-row.winner .post-hand-amount {
+  font-size: clamp(18px, 2.1vw, 28px) !important;
+  padding: 8px 14px !important;
+}
+
+/* Secondary rows: everyone remains represented, but visually below the result. */
+body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-row:not(.winner) {
+  min-height: 58px !important;
+  padding: 10px 12px !important;
+  border-radius: 12px !important;
+  background: rgba(0, 0, 0, 0.30) !important;
+}
+
+body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-row.mucked,
+body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-row.partial-revealed {
+  opacity: 0.86 !important;
+}
+
+body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-detail:empty {
+  display: none !important;
+}
+
+@media (max-width: 760px) {
+  body.showdown-cinema .post-hand-panel.post-hand-modal {
+    bottom: 16px !important;
+    width: calc(100vw - 20px) !important;
+    max-height: calc(100vh - 150px) !important;
+    padding: 12px !important;
+    border-radius: 16px !important;
+  }
+
+  body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-header {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-body {
+    max-height: calc(100vh - 330px) !important;
+    gap: 10px !important;
+  }
+
+  body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-row.winner,
+  body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-row:not(.winner) {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-areas:
+      "player amount"
+      "cards cards"
+      "detail detail"
+      "breakdown breakdown" !important;
+    gap: 10px 12px !important;
+    align-items: start !important;
+  }
+
+  body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-row.winner {
+    min-height: 0 !important;
+    padding: 16px !important;
+  }
+
+  body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-row.winner::before {
+    display: none !important;
+  }
+
+  body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-player {
+    grid-area: player !important;
+  }
+
+  body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-amount {
+    grid-area: amount !important;
+    justify-self: end !important;
+  }
+
+  body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-cards {
+    grid-area: cards !important;
+    justify-content: flex-start !important;
+    overflow-x: auto !important;
+  }
+
+  body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-detail {
+    grid-area: detail !important;
+  }
+
+  body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-breakdown {
+    grid-area: breakdown !important;
+  }
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   Mobile showdown result/action-bar clearance
+   Keep the expanded result stage above the bottom action bar.
+   ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 760px) {
+  body.showdown-cinema .post-hand-panel.post-hand-modal {
+    bottom: clamp(44px, 8vh, 92px) !important;
+    max-height: calc(100vh - 220px) !important;
+  }
+
+  body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-body {
+    max-height: calc(100vh - 395px) !important;
+  }
+}
+
