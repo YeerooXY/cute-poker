@@ -43,6 +43,16 @@ async def test_hu_equal_stack_allin_call():
 
     await server.start_hand(room)
 
+    # Force deterministic non-tie all-in result. Without this, the random
+    # deck can occasionally create a split pot, which makes this invariant
+    # test flaky instead of testing the loser-goes-to-zero case.
+    p1.cards = ["AS", "AH"]
+    p2.cards = ["KS", "KH"]
+
+    # runout_to_showdown pops from the end and burns before flop/turn/river.
+    # This produces community: 2C, 7D, 9H, JC, QD.
+    room.deck = ["QD", "3C", "JC", "4D", "9H", "7D", "2C", "5S"]
+
     # Shover (SB/dealer in HU) goes all-in
     ap = server.player_by_seat(room, room.action_seat)
     assert ap.name == "Shover"

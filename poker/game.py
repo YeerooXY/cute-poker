@@ -1696,10 +1696,13 @@ class PokerServer:
                         would_have_hand_detail = ""
                         would_have_best_cards = []
             else:
+                has_showdown_hand = bool(p.last_hand_name)
+
                 show_cards = (
                     p.token == viewer_token
-                    or (viewer and viewer.is_spectator)
-                    or room.phase == "showdown"
+                    or (viewer and viewer.is_spectator and room.phase != "showdown")
+                    or (viewer and viewer.is_spectator and has_showdown_hand)
+                    or (room.phase == "showdown" and has_showdown_hand)
                     or (all_in_runout and p.cards)
                 )
                 cards = p.cards if show_cards else ["BACK"] * len(p.cards)

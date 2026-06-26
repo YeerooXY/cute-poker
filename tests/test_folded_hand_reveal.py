@@ -119,3 +119,20 @@ def test_muck_is_final_and_room_setting_can_disable_reveals():
 
     asyncio.run(server.reveal_folded_hand(room, folder, {"mode": "left"}))
     assert folder.folded_reveal_mode == "hidden"
+
+def test_non_showdown_winner_cards_hidden_when_everyone_else_folds():
+    server, room, folder, other, spectator = make_room()
+
+    # Simulates award_to_last_player(): phase is "showdown" because the hand is
+    # complete, but the winner never reached an evaluated real showdown.
+    room.phase = "showdown"
+    other.folded = False
+    other.last_hand_name = ""
+    other.last_hand_detail = ""
+    other.last_best_cards = []
+
+    other_player_view = server.visible_state(room, folder.token)
+    assert player_state(other_player_view, "Other")["cards"] == ["🂠", "🂠"]
+
+    spectator_view = server.visible_state(room, spectator.token)
+    assert player_state(spectator_view, "Other")["cards"] == ["🂠", "🂠"]
