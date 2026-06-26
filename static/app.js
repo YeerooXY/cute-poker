@@ -13,7 +13,9 @@ const els = {};
 "customBetBtn","resetBtn","adminActions","copyRoomBtn","leaveBtn","chatToggle","chatClose",
 "chatPanel","chatMessages","chatInput","chatBtn","actionBar","turnInfo",
 "pauseBtn","sitOutBtn","spectateBtn","addBotBtn","removeBotBtn","botDifficultySelect",
-"hintsToggle","bbToggleBtn","potChips","autoDealToggle","autoDealCountdown","outsBox"
+"hintsToggle","bbToggleBtn","potChips","autoDealToggle","autoDealCountdown","outsBox",
+"actionLogHandNum","actionLogBody","actionLogPanel","actionLogToggle","postHandPanel",
+"postHandKicker","postHandTitle","postHandPot","postHandBody","postHandDealBtn"
 ].forEach(id => { els[id] = $(id); });
 
 // ─── State ───
@@ -21,6 +23,8 @@ let ws = null;
 let roomId = localStorage.getItem("poker_room_id") || "";
 let token = localStorage.getItem("poker_token") || "";
 let lastState = null;
+let potAnimationFrame = null;
+let displayedPotAmount = null;
 let selectedAvatar = localStorage.getItem("poker_avatar") || "🎭";
 let reconnectAttempts = 0;
 let reconnectTimer = null;
@@ -29,14 +33,131 @@ let intentionalDisconnect = false;
 // ─── Helpers ───
 function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
-function makeCardHtml(card) {
+function makeCardHtml(card, extraClass = "") {
   if (card === "🂠") return '<div class="playing-card card-back">🂠</div>';
   const red = card.includes("♥") || card.includes("♦") ? " red" : "";
-  return `<div class="playing-card${red}">${esc(card)}</div>`;
+  const extra = extraClass ? ` ${extraClass}` : "";
+  return `<div class="playing-card${red}${extra}">${esc(card)}</div>`;
 }
 
 function safeGetItem(key) { try { return localStorage.getItem(key); } catch { return null; } }
 function safeSetItem(key, val) { try { localStorage.setItem(key, val); } catch {} }
+
+function getNewCardFlags(cards, previousCards) {
+  const prev = Array.isArray(previousCards) ? previousCards : [];
+  return (cards || []).map((card, idx) => prev[idx] !== card);
+}
+
+function shouldAnimatePotCountUp(previousState, state) {
+  if (!previousState || !state || state.phase === "showdown") return false;
+  if (previousState.room_id !== state.room_id) return false;
+  if (previousState.hands_played !== state.hands_played) return false;
+  const prevPot = Number(previousState.pot);
+  const nextPot = Number(state.pot);
+  return Number.isFinite(prevPot) && Number.isFinite(nextPot) && nextPot > prevPot;
+}
+
+const CHIP_DENOMINATIONS = [1000, 500, 100, 25, 5, 1];
+
+function decomposeChips(amount) {
+  let remaining = Math.max(0, Math.floor(Number(amount) || 0));
+  const result = [];
+  for (const denom of CHIP_DENOMINATIONS) {
+    if (remaining >= denom) {
+      const count = Math.floor(remaining / denom);
+      result.push({ denom, count });
+      remaining -= count * denom;
+    }
+    if (remaining === 0) break;
+  }
+  return result;
+}
+
+function renderChipStackHtml(amount, extraClass = "") {
+  const stacks = decomposeChips(amount);
+  if (stacks.length === 0) return "";
+  const cls = extraClass ? ` chip-stack-animate ${extraClass}` : " chip-stack-animate";
+  return `<div class="chip-stack${cls}">` + stacks.map(({ denom, count }) => {
+    const visible = Math.min(count, 4);
+    const chips = Array.from({ length: visible }, (_, idx) =>
+      `<span class="chip-item chip-denom-${denom}" style="--chip-index:${idx}"><span class="chip-label">${denom}</span></span>`
+    ).join("");
+    const countLabel = count > 4 ? `<span class="chip-count">x${count}</span>` : "";
+    return `<span class="denom-stack">${chips}${countLabel}</span>`;
+  }).join("") + `</div>`;
+}
+
+function setPotValue(amount, animate) {
+  if (!els.potValue) return;
+  const next = Number(amount) || 0;
+
+  if (potAnimationFrame) {
+    cancelAnimationFrame(potAnimationFrame);
+    potAnimationFrame = null;
+  }
+
+  if (!animate || displayedPotAmount === null) {
+    displayedPotAmount = next;
+    els.potValue.textContent = next;
+    els.potValue.classList.remove("pot-counting");
+    return;
+  }
+
+  const start = displayedPotAmount;
+  const delta = next - start;
+  const startedAt = performance.now();
+  const duration = 360;
+  els.potValue.classList.add("pot-counting");
+
+  function tick(now) {
+    const t = Math.min(1, (now - startedAt) / duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    displayedPotAmount = Math.round(start + delta * eased);
+    els.potValue.textContent = displayedPotAmount;
+    if (t < 1) {
+      potAnimationFrame = requestAnimationFrame(tick);
+    } else {
+      displayedPotAmount = next;
+      els.potValue.textContent = next;
+      els.potValue.classList.remove("pot-counting");
+      potAnimationFrame = null;
+    }
+  }
+
+  potAnimationFrame = requestAnimationFrame(tick);
+}
+
+// ─── Action Log Helpers ───
+function formatActionEntry(entry) {
+  const player = entry.player || "";
+  const amount = entry.amount || 0;
+
+  // Blinds always show their specific verb regardless of all-in status
+  if (entry.action === "small_blind") return `${player} posts SB ${amount}`;
+  if (entry.action === "big_blind") return `${player} posts BB ${amount}`;
+
+  // All-in handling — action-aware (except blinds handled above)
+  if (entry.is_all_in) {
+    if (entry.action === "fold") return `${player} folds`;
+    if (entry.action === "check_call") {
+      if (amount > 0) return `${player} calls ${amount} and is all-in`;
+      return `${player} is all-in`;
+    }
+    if (entry.action === "bet_raise") {
+      return entry._isFirstBetOnStreet
+        ? `${player} goes all-in for ${amount}`
+        : `${player} raises all-in to ${amount}`;
+    }
+    return `${player} is all-in`;
+  }
+
+  switch (entry.action) {
+    case "fold":       return `${player} folds`;
+    case "check_call": return amount > 0 ? `${player} calls ${amount}` : `${player} checks`;
+    case "bet_raise":  return entry._isFirstBetOnStreet ? `${player} bets ${amount}` : `${player} raises to ${amount}`;
+    default:           return `${player} ${entry.action || "acts"}`;
+  }
+}
 
 // ─── Name persistence ───
 function loadSavedPlayerName() {
@@ -62,6 +183,11 @@ document.querySelectorAll(".avatar-opt").forEach(el => {
 
 // ─── Room settings / game history toggles ───
 document.addEventListener("DOMContentLoaded", () => {
+  // Attach auto-scroll listener to action log body
+  if (els.actionLogBody) {
+    els.actionLogBody.addEventListener("scroll", onActionLogScroll);
+  }
+
   const histHeader = document.querySelector(".game-history-header");
   const histBody = document.querySelector(".game-history-body");
   if (histHeader && histBody) {
@@ -281,16 +407,20 @@ function leaveGame() {
 // Render state — pure DOM update, no animations
 // ═══════════════════════════════════════════════════════════════
 function renderState(state) {
+  const previousState = lastState;
   lastState = state;
 
   // ─── HUD ───
   els.roomId.textContent = state.room_id;
   els.phaseBadge.textContent = state.paused ? "PAUSED" : state.phase.toUpperCase();
-  els.potValue.textContent = state.pot;
+  const animatePot = shouldAnimatePotCountUp(previousState, state);
+  setPotValue(state.pot, animatePot);
 
   // Pot label
   const potLabel = document.querySelector(".pot-label");
   if (potLabel) potLabel.textContent = state.phase === "showdown" ? "FINAL POT" : "POT";
+  const tableFelt = document.querySelector(".table-felt");
+  if (tableFelt) tableFelt.classList.toggle("showdown-table-glow", state.phase === "showdown");
 
   // Blind info
   const blindEl = document.getElementById("blindInfo");
@@ -304,8 +434,9 @@ function renderState(state) {
     blindEl.textContent = txt;
   }
 
-  // Pot chips (just text, no chip visual)
-  if (els.potChips) els.potChips.innerHTML = "";
+  if (els.potChips) {
+    els.potChips.innerHTML = renderChipStackHtml(state.pot, animatePot ? "chip-to-pot-in" : "");
+  }
 
   // ─── Turn indicator ───
   const isMyTurn = state.viewer && state.viewer.is_turn;
@@ -320,12 +451,35 @@ function renderState(state) {
     els.actionBar.classList.remove("my-turn");
   }
 
+  // ─── Hide action buttons at showdown ───
+  const actionRowMain = els.actionBar.querySelector(".action-row-main");
+  const actionRowRaise = els.actionBar.querySelector(".action-row-raise");
+  const actionRowCustom = els.actionBar.querySelector(".action-row-custom");
+  if (state.phase === "showdown") {
+    if (actionRowMain) actionRowMain.style.display = "none";
+    if (actionRowRaise) actionRowRaise.style.display = "none";
+    if (actionRowCustom) actionRowCustom.style.display = "none";
+  } else {
+    if (actionRowMain) actionRowMain.style.display = "";
+    if (actionRowRaise) actionRowRaise.style.display = "";
+    if (actionRowCustom) actionRowCustom.style.display = "";
+  }
+
   // ─── Winners in pot area (text, no overlay) ───
   if (state.winners && state.winners.length > 0 && state.phase === "showdown") {
-    const winTxt = state.winners.map(w =>
-      `${esc(w.name)} wins ${w.amount} (${esc(w.hand_name || w.reason || "")})`
-    ).join(" | ");
-    els.potValue.textContent = `${state.pot} — ${winTxt}`;
+    const winTxt = state.winners.map(w => {
+      if (w.hand_name && w.reason !== "Everyone else folded") {
+        return `${esc(w.name)} wins ${w.amount} with a ${esc(w.hand_name)}`;
+      }
+      return `${esc(w.name)} wins ${w.amount}`;
+    }).join(" | ");
+    if (potAnimationFrame) {
+      cancelAnimationFrame(potAnimationFrame);
+      potAnimationFrame = null;
+    }
+    displayedPotAmount = Number(state.pot) || displayedPotAmount;
+    els.potValue.classList.remove("pot-counting");
+    els.potValue.textContent = winTxt;
     els.winnerOverlay.classList.add("hidden");
   } else {
     els.winnerOverlay.classList.add("hidden");
@@ -357,16 +511,20 @@ function renderState(state) {
   }
 
   // ─── Community cards ───
-  renderCommunity(state.community);
+  renderCommunity(state.community, previousState ? previousState.community : []);
 
   // ─── Your hand ───
   renderYourHand(viewerData);
 
   // ─── Player seats ───
-  renderPlayers(state.players);
+  renderPlayers(state.players, previousState, state);
 
   // ─── Chat ───
   renderChat(state.messages);
+
+  // ─── Action Log ───
+  renderActionLog(state);
+  renderPostHandPanel(state);
 
   // ─── Action button labels ───
   if (isMyTurn) {
@@ -385,9 +543,12 @@ function renderState(state) {
 }
 
 // ─── Community cards ───
-function renderCommunity(cards) {
+function renderCommunity(cards, previousCards = []) {
   if (!cards || cards.length === 0) { els.community.innerHTML = ""; return; }
-  els.community.innerHTML = cards.map(makeCardHtml).join("");
+  const newFlags = getNewCardFlags(cards, previousCards);
+  els.community.innerHTML = cards.map((card, idx) =>
+    makeCardHtml(card, newFlags[idx] ? "new-card" : "")
+  ).join("");
 }
 
 // ─── Your hand ───
@@ -404,8 +565,14 @@ function renderYourHand(viewer) {
 }
 
 // ─── Players around table ───
-function renderPlayers(players) {
+function renderPlayers(players, previousState = null, state = null) {
   els.playerPositions.innerHTML = "";
+  const previousById = new Map((previousState?.players || []).map(p => [p.player_id || p.name, p]));
+  const winnerNames = new Set(
+    state && state.phase === "showdown" && Array.isArray(state.winners)
+      ? state.winners.map(w => w.name)
+      : []
+  );
 
   players.forEach((p, idx) => {
     const pos = SEAT_POSITIONS[idx % SEAT_POSITIONS.length];
@@ -414,6 +581,7 @@ function renderPlayers(players) {
     if (p.is_turn) cls += " active-turn";
     if (p.folded) cls += " folded";
     if (p.is_you) cls += " is-you";
+    if (winnerNames.has(p.name)) cls += " showdown-winner-glow";
     seat.className = cls;
     seat.style.top = pos.top;
     seat.style.left = pos.left;
@@ -433,8 +601,15 @@ function renderPlayers(players) {
     // Cards (other players, not you)
     let cards = "";
     if (p.cards && p.cards.length > 0 && !p.is_you) {
-      cards = `<div class="seat-cards">${p.cards.map(makeCardHtml).join("")}</div>`;
+      const previousPlayer = previousById.get(p.player_id || p.name);
+      const newFlags = getNewCardFlags(p.cards, previousPlayer ? previousPlayer.cards : []);
+      cards = `<div class="seat-cards">${p.cards.map((card, cardIdx) =>
+        makeCardHtml(card, newFlags[cardIdx] ? "new-card" : "")
+      ).join("")}</div>`;
     }
+    const committedChips = p.committed > 0
+      ? `<div class="seat-chips">${renderChipStackHtml(p.committed, "seat-committed-chips")}</div>`
+      : "";
 
     seat.innerHTML = `
       <div class="seat-header">
@@ -444,8 +619,9 @@ function renderPlayers(players) {
       </div>
       <div class="seat-badges">${badges.join("")}</div>
       ${cards}
+      ${committedChips}
       ${p.committed > 0 ? `<div class="seat-meta">Bet: ${p.committed}</div>` : ""}
-      ${p.hand_name ? `<div class="seat-meta" style="color:var(--gold-light)">${esc(p.hand_name)}</div>` : ""}
+      ${p.hand_name ? `<div class="seat-meta seat-hand-rank">${esc(p.hand_detail || p.hand_name)}</div>` : ""}
     `;
     els.playerPositions.appendChild(seat);
   });
@@ -468,6 +644,7 @@ els.joinBtn.onclick = joinRoom;
 els.reconnectBtn.onclick = reconnectLast;
 els.leaveBtn.onclick = leaveGame;
 els.startBtn.onclick = () => action("start_hand");
+if (els.postHandDealBtn) els.postHandDealBtn.onclick = () => action("start_hand");
 els.foldBtn.onclick = () => action("fold");
 els.checkCallBtn.onclick = () => action("check_call");
 els.betHalfPotBtn.onclick = () => {
@@ -514,9 +691,299 @@ if (els.hintsToggle) els.hintsToggle.onclick = () => {};
 if (els.bbToggleBtn) els.bbToggleBtn.style.display = "none";
 
 // ═══════════════════════════════════════════════════════════════
+// Action Log Helpers
+// ═══════════════════════════════════════════════════════════════
+
+// ─── Auto-scroll state ───
+let actionLogAutoScroll = true;
+
+function onActionLogScroll() {
+  const el = els.actionLogBody;
+  if (!el) return;
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 10;
+  actionLogAutoScroll = atBottom;
+}
+
+function scrollActionLogToBottom() {
+  if (actionLogAutoScroll && els.actionLogBody) {
+    els.actionLogBody.scrollTop = els.actionLogBody.scrollHeight;
+  }
+}
+
+function formatWinnerEntry(winner) {
+  if (winner.hand_name && winner.reason !== "Everyone else folded") {
+    const detail = winner.hand_detail || winner.hand_name;
+    return `${winner.name} wins ${winner.amount} with ${detail}`;
+  }
+  return `${winner.name} wins ${winner.amount}`;
+}
+
+function formatPostHandTitle(winners) {
+  if (!winners || winners.length === 0) return "Hand complete";
+  if (winners.length === 1) return formatWinnerEntry(winners[0]);
+  const names = winners.map(w => w.name).join(", ");
+  const total = winners.reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
+  return `${names} split ${total}`;
+}
+
+function renderPostHandPanel(state) {
+  if (!els.postHandPanel) return;
+  const winners = Array.isArray(state.winners) ? state.winners : [];
+  const visible = state.phase === "showdown" && winners.length > 0;
+
+  els.postHandPanel.classList.toggle("hidden", !visible);
+  if (!visible) {
+    if (els.postHandTitle) els.postHandTitle.textContent = "";
+    if (els.postHandPot) els.postHandPot.textContent = "";
+    if (els.postHandBody) els.postHandBody.innerHTML = "";
+    return;
+  }
+
+  if (els.postHandKicker) {
+    els.postHandKicker.textContent = winners.length > 1 ? "Split pot" : "Hand complete";
+  }
+  if (els.postHandTitle) els.postHandTitle.textContent = formatPostHandTitle(winners);
+  if (els.postHandPot) els.postHandPot.textContent = `Final pot ${state.pot || 0}`;
+
+  if (!els.postHandBody) return;
+  const winnerNames = new Set(winners.map(w => w.name));
+  const revealedPlayers = (state.players || [])
+    .filter(p => p.hand_name && p.best_cards && p.best_cards.length > 0 && !p.folded);
+
+  if (revealedPlayers.length === 0) {
+    els.postHandBody.innerHTML = winners.map(w => `
+      <div class="post-hand-row winner">
+        <span class="post-hand-name">${esc(w.name)}</span>
+        <span class="post-hand-detail">${esc(w.reason || "wins")}</span>
+        <span class="post-hand-amount">+${esc(w.amount || 0)}</span>
+      </div>
+    `).join("");
+    return;
+  }
+
+  els.postHandBody.innerHTML = revealedPlayers.map(p => {
+    const isWinner = winnerNames.has(p.name);
+    const detail = p.hand_detail || p.hand_name;
+    const cards = p.best_cards.map(card => makeCardHtml(card, "showdown-card-flip")).join("");
+    const result = isWinner ? (winners.length > 1 ? "splits" : "wins") : "shows";
+    const won = winners.find(w => w.name === p.name);
+    const amount = won ? `+${won.amount}` : "";
+    return `
+      <div class="post-hand-row${isWinner ? " winner post-hand-winner-glow" : ""}">
+        <div class="post-hand-player">
+          <span class="post-hand-name">${esc(p.name)}</span>
+          <span class="post-hand-result">${result}</span>
+        </div>
+        <div class="post-hand-cards">${cards}</div>
+        <div class="post-hand-detail">${esc(detail)}</div>
+        <div class="post-hand-amount">${esc(amount)}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function formatPlayerShowdownEntry(player, winnerNames) {
+  if (!player.hand_name || !player.best_cards || player.best_cards.length === 0) return null;
+  const cardsStr = player.best_cards.map(c => {
+    const isRed = c.includes("♥") || c.includes("♦");
+    return `<span class="${isRed ? "card-red" : "card-white"}">${esc(c)}</span>`;
+  }).join(" ");
+  const detail = player.hand_detail || player.hand_name;
+  const isWinner = winnerNames && winnerNames.has(player.name);
+  return { name: player.name, detail, cardsHtml: cardsStr, isWinner };
+}
+
+function renderStreetSeparator(phase, community) {
+  const div = document.createElement("div");
+  div.className = "street-separator";
+
+  let cards = [];
+  if (phase === "flop") {
+    cards = (community || []).slice(0, 3);
+  } else if (phase === "turn") {
+    cards = (community || []).slice(3, 4);
+  } else if (phase === "river") {
+    cards = (community || []).slice(4, 5);
+  }
+
+  const streetName = phase.charAt(0).toUpperCase() + phase.slice(1);
+  const cardSpans = cards.map(card => {
+    const isRed = card.includes("♥") || card.includes("♦");
+    const cls = isRed ? "card-red" : "card-white";
+    return `<span class="${cls}">${esc(card)}</span>`;
+  }).join(" ");
+
+  div.innerHTML = `─── ${esc(streetName)}: ${cardSpans} ───`;
+  return div;
+}
+
+// ─── Render Action Log ───
+function renderActionLog(state) {
+  // Update hand number
+  if (els.actionLogHandNum) {
+    els.actionLogHandNum.textContent = state.hands_played || 0;
+  }
+
+  // Clear the body
+  if (!els.actionLogBody) return;
+  els.actionLogBody.innerHTML = "";
+
+  // Handle missing/undefined action_log gracefully
+  const actionLog = state.action_log;
+  if (!actionLog || !Array.isArray(actionLog) || actionLog.length === 0) {
+    // If showdown with winners but no action log, still show winners
+    if (state.phase === "showdown" && state.winners && state.winners.length > 0) {
+      state.winners.forEach(winner => {
+        const winDiv = document.createElement("div");
+        winDiv.className = "winner-entry";
+        winDiv.textContent = formatWinnerEntry(winner);
+        els.actionLogBody.appendChild(winDiv);
+      });
+    }
+    scrollActionLogToBottom();
+    return;
+  }
+
+  // Iterate action_log entries with phase transition detection
+  let prevPhase = null;
+  let streetHasBet = false; // tracks if a bet_raise has been seen on the current street
+  actionLog.forEach(entry => {
+    // Detect phase transition and insert street separator
+    if (prevPhase !== null && entry.phase && entry.phase !== prevPhase) {
+      const separator = renderStreetSeparator(entry.phase, state.community);
+      els.actionLogBody.appendChild(separator);
+      streetHasBet = false; // reset on new street
+    }
+    prevPhase = entry.phase;
+
+    // Mark first bet_raise on the current street for bet vs. raise distinction
+    if (entry.action === "bet_raise") {
+      if (!streetHasBet) {
+        entry._isFirstBetOnStreet = true;
+        streetHasBet = true;
+      } else {
+        entry._isFirstBetOnStreet = false;
+      }
+    }
+
+    // Create action entry div
+    const entryDiv = document.createElement("div");
+    entryDiv.className = "action-entry";
+    entryDiv.textContent = formatActionEntry(entry);
+    els.actionLogBody.appendChild(entryDiv);
+  });
+
+  // Insert missing street separators for all-in runouts
+  // (no actions logged on turn/river phases, but community cards were dealt)
+  const hasRiverPhaseEntry = actionLog.some(e => e.phase === "river");
+  const hasTurnPhaseEntry = actionLog.some(e => e.phase === "turn");
+  const hasFlopPhaseEntry = actionLog.some(e => e.phase === "flop");
+  const lastPhase = actionLog.length > 0 ? actionLog[actionLog.length - 1].phase : null;
+
+  if (state.community && state.community.length >= 3 && !hasFlopPhaseEntry && lastPhase === "preflop") {
+    const flopSeparator = renderStreetSeparator("flop", state.community);
+    els.actionLogBody.appendChild(flopSeparator);
+  }
+
+  if (state.community && state.community.length >= 4 && !hasTurnPhaseEntry && (lastPhase === "flop" || lastPhase === "preflop")) {
+    const turnSeparator = renderStreetSeparator("turn", state.community);
+    els.actionLogBody.appendChild(turnSeparator);
+  }
+
+  if (state.community && state.community.length === 5 && !hasRiverPhaseEntry) {
+    if (lastPhase === "flop" || lastPhase === "turn" || lastPhase === "preflop") {
+      const riverSeparator = renderStreetSeparator("river", state.community);
+      els.actionLogBody.appendChild(riverSeparator);
+    }
+  }
+
+  // Append showdown details and winner entries at the bottom during showdown
+  if (state.phase === "showdown" && state.winners && state.winners.length > 0) {
+    // Show a showdown separator
+    const showdownSep = document.createElement("div");
+    showdownSep.className = "street-separator";
+    showdownSep.innerHTML = `─── Showdown ───`;
+    els.actionLogBody.appendChild(showdownSep);
+
+    // Display each revealed player's best 5-card hand
+    if (state.players) {
+      const winners = state.winners || [];
+      const winnerNames = new Set(winners.map(w => w.name));
+      const winnerSuffix = winners.length > 1 ? " — splits" : " — wins";
+      const revealedPlayers = state.players.filter(p => p.hand_name && p.best_cards && p.best_cards.length > 0 && !p.folded);
+      revealedPlayers.forEach(p => {
+        const info = formatPlayerShowdownEntry(p, winnerNames);
+        if (info) {
+          const handDiv = document.createElement("div");
+          handDiv.className = `action-entry showdown-hand${info.isWinner ? " showdown-winner-hand" : ""}`;
+          const resultSuffix = info.isWinner ? winnerSuffix : "";
+          handDiv.innerHTML = `${esc(info.name)}: ${esc(info.detail)} ${info.cardsHtml}${resultSuffix}`;
+          els.actionLogBody.appendChild(handDiv);
+        }
+      });
+    }
+
+    // Winner entries
+    state.winners.forEach(winner => {
+      const winDiv = document.createElement("div");
+      winDiv.className = "winner-entry";
+      winDiv.textContent = formatWinnerEntry(winner);
+      els.actionLogBody.appendChild(winDiv);
+    });
+  }
+
+  // Auto-scroll to bottom (respects manual scroll-up)
+  scrollActionLogToBottom();
+}
+
+// ─── Action Log Toggle ───
+const PANEL_KEY = "poker_action_log_expanded";
+let panelExpanded = true; // default to expanded
+
+function applyPanelState() {
+  if (!els.actionLogPanel || !els.actionLogToggle) return;
+  if (panelExpanded) {
+    els.actionLogPanel.classList.remove("collapsed");
+    els.actionLogToggle.classList.remove("panel-collapsed");
+    els.actionLogToggle.textContent = "◀";
+  } else {
+    els.actionLogPanel.classList.add("collapsed");
+    els.actionLogToggle.classList.add("panel-collapsed");
+    els.actionLogToggle.textContent = "▶";
+  }
+}
+
+function initActionLogToggle() {
+  // Read initial state from localStorage (default to expanded/true)
+  try {
+    const stored = localStorage.getItem(PANEL_KEY);
+    const defaultExpanded = !window.matchMedia || !window.matchMedia("(max-width: 768px)").matches;
+    panelExpanded = stored === null ? defaultExpanded : stored !== "false";
+  } catch (e) {
+    panelExpanded = true;
+  }
+
+  applyPanelState();
+
+  // Attach click handler
+  if (els.actionLogToggle) {
+    els.actionLogToggle.addEventListener("click", () => {
+      panelExpanded = !panelExpanded;
+      applyPanelState();
+      try {
+        localStorage.setItem(PANEL_KEY, String(panelExpanded));
+      } catch (e) {
+        // Private browsing or quota exceeded — silently ignore
+      }
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Init
 // ═══════════════════════════════════════════════════════════════
 loadSavedPlayerName();
+initActionLogToggle();
 
 if (roomId && token) {
   reconnectLast();

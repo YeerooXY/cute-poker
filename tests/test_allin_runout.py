@@ -16,8 +16,11 @@ from unittest.mock import AsyncMock
 
 os.environ["POKER_SIMULATION"] = "1"
 
+import poker.game as game_module
 from poker.game import PokerServer
 from poker.models import Room, Player
+
+game_module._SIMULATION_MODE = True
 
 
 # ============================================================

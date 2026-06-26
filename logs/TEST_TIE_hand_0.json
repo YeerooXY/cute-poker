@@ -1,0 +1,78 @@
+{
+  "hand_number": 0,
+  "timestamp": "2026-06-26T10:40:48.709777+00:00",
+  "room_id": "TEST_TIE",
+  "players": [
+    {
+      "name": "Player0",
+      "seat": 0,
+      "hole_cards": [
+        "9S",
+        "8S"
+      ],
+      "stack_after": 198,
+      "total_invested": 198,
+      "folded": false,
+      "all_in": false
+    },
+    {
+      "name": "Player1",
+      "seat": 1,
+      "hole_cards": [
+        "7S",
+        "6S"
+      ],
+      "stack_after": 198,
+      "total_invested": 198,
+      "folded": false,
+      "all_in": false
+    },
+    {
+      "name": "Player2",
+      "seat": 2,
+      "hole_cards": [
+        "5S",
+        "4S"
+      ],
+      "stack_after": 198,
+      "total_invested": 198,
+      "folded": false,
+      "all_in": false
+    }
+  ],
+  "community_cards": {
+    "flop": [
+      "AS",
+      "KS",
+      "QS"
+    ],
+    "turn": [
+      "JS"
+    ],
+    "river": [
+      "TS"
+    ]
+  },
+  "pot": 594,
+  "winners": [
+    {
+      "name": "Player0",
+      "amount": 198,
+      "reason": "Best hand at showdown",
+      "hand_name": "Royal flush"
+    },
+    {
+      "name": "Player1",
+      "amount": 198,
+      "reason": "Best hand at showdown",
+      "hand_name": "Royal flush"
+    },
+    {
+      "name": "Player2",
+      "amount": 198,
+      "reason": "Best hand at showdown",
+      "hand_name": "Royal flush"
+    }
+  ],
+  "actions": []
+}

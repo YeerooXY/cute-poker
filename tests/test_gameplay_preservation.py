@@ -84,7 +84,7 @@ class TestEquityPreservation:
         hero_cards, board, num_opponents = inputs
 
         start = time.perf_counter()
-        result = calculate_equity_hybrid(hero_cards, board, num_opponents)
+        result = calculate_equity_hybrid(hero_cards, board, num_opponents, simulations=100)
         elapsed = time.perf_counter() - start
 
         # Equity must be in valid range

@@ -1,0 +1,72 @@
+{
+  "hand_number": 0,
+  "timestamp": "2026-06-26T10:40:45.553482+00:00",
+  "room_id": "test_side_pot",
+  "players": [
+    {
+      "name": "PlayerA",
+      "seat": 0,
+      "hole_cards": [
+        "AH",
+        "KH"
+      ],
+      "stack_after": 300,
+      "total_invested": 100,
+      "folded": false,
+      "all_in": true
+    },
+    {
+      "name": "PlayerB",
+      "seat": 1,
+      "hole_cards": [
+        "3S",
+        "4S"
+      ],
+      "stack_after": 0,
+      "total_invested": 500,
+      "folded": false,
+      "all_in": true
+    },
+    {
+      "name": "PlayerC",
+      "seat": 2,
+      "hole_cards": [
+        "6H",
+        "7H"
+      ],
+      "stack_after": 800,
+      "total_invested": 500,
+      "folded": false,
+      "all_in": true
+    }
+  ],
+  "community_cards": {
+    "flop": [
+      "2C",
+      "5D",
+      "9S"
+    ],
+    "turn": [
+      "JH"
+    ],
+    "river": [
+      "QC"
+    ]
+  },
+  "pot": 1100,
+  "winners": [
+    {
+      "name": "PlayerA",
+      "amount": 300,
+      "reason": "Best hand at showdown",
+      "hand_name": "High card"
+    },
+    {
+      "name": "PlayerC",
+      "amount": 800,
+      "reason": "Best hand at showdown",
+      "hand_name": "High card"
+    }
+  ],
+  "actions": []
+}

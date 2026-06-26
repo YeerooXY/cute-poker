@@ -1,0 +1,145 @@
+{
+  "hand_number": 1,
+  "timestamp": "2026-06-26T10:40:48.804675+00:00",
+  "room_id": "TEST",
+  "players": [
+    {
+      "name": "A",
+      "seat": 1,
+      "hole_cards": [
+        "3D",
+        "3C"
+      ],
+      "stack_after": 4000,
+      "total_invested": 1000,
+      "folded": false,
+      "all_in": true
+    },
+    {
+      "name": "B",
+      "seat": 2,
+      "hole_cards": [
+        "5C",
+        "JD"
+      ],
+      "stack_after": 0,
+      "total_invested": 1000,
+      "folded": false,
+      "all_in": true
+    },
+    {
+      "name": "C",
+      "seat": 3,
+      "hole_cards": [
+        "7C",
+        "6S"
+      ],
+      "stack_after": 0,
+      "total_invested": 1000,
+      "folded": false,
+      "all_in": true
+    },
+    {
+      "name": "D",
+      "seat": 4,
+      "hole_cards": [
+        "KS",
+        "5S"
+      ],
+      "stack_after": 0,
+      "total_invested": 1000,
+      "folded": false,
+      "all_in": true
+    }
+  ],
+  "community_cards": {
+    "flop": [
+      "3S",
+      "TC",
+      "AD"
+    ],
+    "turn": [
+      "8C"
+    ],
+    "river": [
+      "6D"
+    ]
+  },
+  "pot": 4000,
+  "winners": [
+    {
+      "name": "A",
+      "amount": 4000,
+      "reason": "Best hand at showdown",
+      "hand_name": "Three of a kind"
+    }
+  ],
+  "actions": [
+    {
+      "player": "B",
+      "action": "small_blind",
+      "amount": 5,
+      "phase": "preflop",
+      "is_all_in": false
+    },
+    {
+      "player": "C",
+      "action": "big_blind",
+      "amount": 10,
+      "phase": "preflop",
+      "is_all_in": false
+    },
+    {
+      "player": "D",
+      "is_bot": false,
+      "phase": "preflop",
+      "pot": 1015,
+      "current_bet": 1000,
+      "committed": 1000,
+      "committed_before": 0,
+      "stack": 0,
+      "action": "bet_raise",
+      "amount": 1000,
+      "is_all_in": true
+    },
+    {
+      "player": "A",
+      "is_bot": false,
+      "phase": "preflop",
+      "pot": 2015,
+      "current_bet": 1000,
+      "committed": 1000,
+      "committed_before": 0,
+      "stack": 0,
+      "action": "bet_raise",
+      "amount": 1000,
+      "is_all_in": true
+    },
+    {
+      "player": "B",
+      "is_bot": false,
+      "phase": "preflop",
+      "pot": 3010,
+      "current_bet": 1000,
+      "committed": 1000,
+      "committed_before": 5,
+      "stack": 0,
+      "action": "bet_raise",
+      "amount": 1000,
+      "is_all_in": true
+    },
+    {
+      "player": "C",
+      "is_bot": false,
+      "phase": "preflop",
+      "pot": 4000,
+      "current_bet": 1000,
+      "committed": 1000,
+      "committed_before": 10,
+      "stack": 0,
+      "action": "bet_raise",
+      "amount": 1000,
+      "is_all_in": true
+    }
+  ]
+}

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <title>Cute Poker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-  <link href="/static/styles.css?v=3" rel="stylesheet">
+  <link href="/static/styles.css?v=4" rel="stylesheet">
 </head>
 <body>
   <!-- Connect screen -->
@@ -153,6 +153,21 @@
       <div id="handStrength" class="hand-strength-badge"></div>
     </div>
 
+    <!-- Post-hand summary -->
+    <div id="postHandPanel" class="post-hand-panel hidden">
+      <div class="post-hand-header">
+        <div>
+          <div id="postHandKicker" class="post-hand-kicker">Hand complete</div>
+          <div id="postHandTitle" class="post-hand-title"></div>
+        </div>
+        <div id="postHandPot" class="post-hand-pot"></div>
+      </div>
+      <div id="postHandBody" class="post-hand-body"></div>
+      <div class="post-hand-actions">
+        <button id="postHandDealBtn" class="btn btn-deal">Deal Next</button>
+      </div>
+    </div>
+
     <!-- Action bar -->
     <div id="actionBar" class="action-bar">
       <div class="action-row-main">
@@ -204,8 +219,19 @@
         <button id="chatBtn" class="btn btn-dim">Send</button>
       </div>
     </div>
+
+    <!-- Action Log panel -->
+    <div id="actionLogPanel" class="action-log-panel">
+      <div class="action-log-header">
+        <span class="action-log-title">Hand #<span id="actionLogHandNum">0</span></span>
+      </div>
+      <div id="actionLogBody" class="action-log-body">
+        <!-- Action entries rendered here -->
+      </div>
+    </div>
+    <button id="actionLogToggle" class="action-log-toggle">◀</button>
   </div>
 
-  <script src="/static/app.js?v=3"></script>
+  <script src="/static/app.js?v=4"></script>
 </body>
 </html>

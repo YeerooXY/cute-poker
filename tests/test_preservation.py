@@ -19,6 +19,7 @@ Tests cover:
 - commit_chips clamping to prevent negative stacks
 """
 
+import asyncio
 import pytest
 from unittest.mock import AsyncMock
 from hypothesis import given, settings, assume, HealthCheck
@@ -245,7 +246,7 @@ async def test_raise_action_preserves_mechanics(data):
 @pytest.mark.asyncio
 @given(data=st.data())
 @settings(max_examples=3, deadline=60000, suppress_health_check=[HealthCheck.function_scoped_fixture])
-async def test_showdown_winner_amounts_equal_pot(data):
+async def test_showdown_winner_amounts_equal_pot(data, monkeypatch):
     """
     Property: For all showdown states, sum of winner amounts equals pot.
 
@@ -253,6 +254,11 @@ async def test_showdown_winner_amounts_equal_pot(data):
     """
     server = PokerServer()
     room, players, ws_list = await create_room_with_players(server, 2)
+
+    async def no_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(asyncio, "sleep", no_sleep)
 
     # Start a hand
     await server.start_hand(room)

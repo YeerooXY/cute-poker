@@ -14,7 +14,7 @@ from typing import Optional, Any
 from fastapi import WebSocket
 
 from poker.cards import display_cards, new_deck
-from poker.evaluator import evaluate_7
+from poker.evaluator import evaluate_7, describe_hand
 from poker.logs import save_hand_log
 from poker.models import ChatMessage, Player, Room, Winner
 from poker.odds import calculate_player_odds
@@ -37,6 +37,26 @@ from poker.trash_talk import get_trash_talk, TrashTalkEvent, DELAY_RANGE
 MAX_SEATS = 8
 STARTING_STACK = 1000
 _SIMULATION_MODE = os.getenv("POKER_SIMULATION") == "1"
+
+# ─── Action log sanitization ──────────────────────────────────────────────────
+
+_ALLOWED_ACTION_LOG_FIELDS = {"player", "action", "amount", "phase", "is_all_in"}
+
+_ACTION_LOG_DEFAULTS: dict[str, Any] = {
+    "player": "",
+    "action": "",
+    "amount": 0,
+    "phase": "preflop",
+    "is_all_in": False,
+}
+
+
+def _sanitize_action_log(raw_log: list[dict]) -> list[dict]:
+    """Strip debug/internal fields from action_log for client broadcast."""
+    return [
+        {k: entry.get(k, _ACTION_LOG_DEFAULTS[k]) for k in _ALLOWED_ACTION_LOG_FIELDS}
+        for entry in raw_log
+    ]
 
 
 @dataclass
@@ -561,6 +581,16 @@ class PokerServer:
                     
                     # Log bot decision with AI debug info
                     debug = getattr(config, '_last_debug', {})
+                    committed_before = action_player.committed
+                    to_call_amount = max(0, room.current_bet - action_player.committed)
+                    if action_name == "fold":
+                        will_be_all_in = False
+                    elif action_name == "check_call":
+                        will_be_all_in = action_player.stack <= to_call_amount
+                    elif action_name == "bet_raise":
+                        will_be_all_in = extras.get("amount", 0) >= action_player.committed + action_player.stack
+                    else:
+                        will_be_all_in = False
                     room.action_log.append({
                         "player": config.name,
                         "is_bot": True,
@@ -570,11 +600,13 @@ class PokerServer:
                         "pot": room.pot,
                         "current_bet": room.current_bet,
                         "committed": action_player.committed,
+                        "committed_before": committed_before,
                         "stack": action_player.stack,
                         "to_call": max(0, room.current_bet - action_player.committed),
                         "action": action_name,
-                        "amount": extras.get("amount", 0),
+                        "amount": extras.get("amount", 0) if action_name == "bet_raise" else to_call_amount if action_name == "check_call" else 0,
                         "ai_debug": debug,
+                        "is_all_in": will_be_all_in,
                     })
                     
                     payload = {"action": action_name, "room_id": room_id,
@@ -582,12 +614,16 @@ class PokerServer:
                     await self.player_action(room, action_player, action_name, payload)
                 except Exception:
                     # Fallback: just check/call
+                    fallback_to_call = max(0, room.current_bet - action_player.committed)
                     room.action_log.append({
                         "player": config.name,
                         "is_bot": True,
                         "phase": room.phase,
                         "action": "check_call",
+                        "amount": fallback_to_call,
+                        "committed_before": action_player.committed,
                         "note": "exception fallback",
+                        "is_all_in": action_player.stack <= fallback_to_call,
                     })
                     await self.player_action(room, action_player, "check_call", {})
 
@@ -811,6 +847,8 @@ class PokerServer:
                 await self.send(player.ws, "error", {"message": "You cannot act right now."})
             return
 
+        committed_before = player.committed
+
         if action == "fold":
             player.folded = True
             player.acted = True
@@ -885,9 +923,11 @@ class PokerServer:
                 "pot": room.pot,
                 "current_bet": room.current_bet,
                 "committed": player.committed,
+                "committed_before": committed_before,
                 "stack": player.stack,
                 "action": action,
-                "amount": int(payload.get("amount", 0)) if action == "bet_raise" else 0,
+                "amount": int(payload.get("amount", 0)) if action == "bet_raise" else call_amount if action == "check_call" else 0,
+                "is_all_in": player.all_in,
             })
 
         await self.after_action(room)
@@ -927,6 +967,7 @@ class PokerServer:
             p.acted = False
             p.last_hand_name = ""
             p.last_best_cards = []
+            p.last_hand_detail = ""
 
         active = [p for p in room.seated_players()
                   if p.stack > 0 and not p.sitting_out and not p.is_spectator]
@@ -964,12 +1005,28 @@ class PokerServer:
                         self.commit_chips(room, p, ante_amount)
 
         if sb:
+            sb_amount = min(room.small_blind, sb.stack)
             self.commit_chips(room, sb, room.small_blind)
             room.sb_seat = sb.seat
+            room.action_log.append({
+                "player": sb.name,
+                "action": "small_blind",
+                "amount": sb_amount,
+                "phase": "preflop",
+                "is_all_in": sb.all_in,
+            })
         if bb:
+            bb_amount = min(room.big_blind, bb.stack)
             self.commit_chips(room, bb, room.big_blind)
             room.current_bet = bb.committed
             room.bb_seat = bb.seat
+            room.action_log.append({
+                "player": bb.name,
+                "action": "big_blind",
+                "amount": bb_amount,
+                "phase": "preflop",
+                "is_all_in": bb.all_in,
+            })
 
         # Track hands played for blind progression
         room.hands_played += 1
@@ -1132,9 +1189,31 @@ class PokerServer:
         highest_player.total_invested -= excess
         room.pot -= excess
         highest_player.all_in = highest_player.stack == 0
+        self._normalize_returned_excess_action_log(room, highest_player)
 
         # Recalculate room.current_bet from remaining non-folded contenders' committed values
         room.current_bet = max(p.committed for p in contenders)
+
+    def _normalize_returned_excess_action_log(self, room: Room, player: Player) -> None:
+        """Rewrite the covering player's unmatched shove as the effective call."""
+        for entry in reversed(room.action_log):
+            if entry.get("player") != player.name:
+                continue
+            if entry.get("action") != "bet_raise" or not entry.get("is_all_in"):
+                return
+
+            committed_before = entry.get("committed_before")
+            if committed_before is None:
+                committed_before = 0
+
+            call_amount = max(0, player.committed - committed_before)
+            entry["action"] = "check_call"
+            entry["amount"] = call_amount
+            entry["committed"] = player.committed
+            entry["stack"] = player.stack
+            entry["is_all_in"] = player.all_in
+            entry["note"] = "uncalled excess returned"
+            return
 
     def award_to_last_player(self, room: Room):
         winner = [p for p in room.seated_players() if p.cards and not p.folded][0]
@@ -1268,6 +1347,7 @@ class PokerServer:
             p._showdown_score = score
             p.last_hand_name = name
             p.last_best_cards = best_cards
+            p.last_hand_detail = describe_hand(score, name)
 
         # Calculate side pots based on total_invested
         # Sort contenders by investment level
@@ -1374,6 +1454,7 @@ class PokerServer:
                 reason="Best hand at showdown",
                 hand_name=p.last_hand_name,
                 best_cards=p.last_best_cards,
+                hand_detail=p.last_hand_detail,
             ))
 
         # Clean up temp attributes
@@ -1493,6 +1574,7 @@ class PokerServer:
                 "is_action": p.seat == room.action_seat,
                 "cards": display_cards(cards),
                 "hand_name": p.last_hand_name if room.phase == "showdown" else "",
+                "hand_detail": p.last_hand_detail if room.phase == "showdown" else "",
                 "best_cards": display_cards(p.last_best_cards) if room.phase == "showdown" else [],
                 "to_call": to_call,
                 "sitting_out": p.sitting_out,
@@ -1626,11 +1708,13 @@ class PokerServer:
                     "amount": w.amount,
                     "reason": w.reason,
                     "hand_name": w.hand_name,
+                    "hand_detail": w.hand_detail,
                     "best_cards": display_cards(w.best_cards),
                 }
                 for w in room.winners
             ],
             "pot_breakdown": room.pot_breakdown,
+            "action_log": _sanitize_action_log(room.action_log),
             "viewer": {
                 "is_turn": is_viewer_turn,
                 "to_call": viewer_to_call,

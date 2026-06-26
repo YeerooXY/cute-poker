@@ -1,0 +1,79 @@
+{
+  "hand_number": 0,
+  "timestamp": "2026-06-26T10:40:48.658960+00:00",
+  "room_id": "TEST_LAST",
+  "players": [
+    {
+      "name": "Player0",
+      "seat": 0,
+      "hole_cards": [
+        "AH",
+        "KS"
+      ],
+      "stack_after": 510,
+      "total_invested": 0,
+      "folded": false,
+      "all_in": false
+    },
+    {
+      "name": "Player1",
+      "seat": 1,
+      "hole_cards": [],
+      "stack_after": 500,
+      "total_invested": 0,
+      "folded": true,
+      "all_in": false
+    },
+    {
+      "name": "Player2",
+      "seat": 2,
+      "hole_cards": [],
+      "stack_after": 500,
+      "total_invested": 0,
+      "folded": true,
+      "all_in": false
+    },
+    {
+      "name": "Player3",
+      "seat": 3,
+      "hole_cards": [],
+      "stack_after": 500,
+      "total_invested": 0,
+      "folded": true,
+      "all_in": false
+    },
+    {
+      "name": "Player4",
+      "seat": 4,
+      "hole_cards": [],
+      "stack_after": 500,
+      "total_invested": 0,
+      "folded": true,
+      "all_in": false
+    },
+    {
+      "name": "Player5",
+      "seat": 5,
+      "hole_cards": [],
+      "stack_after": 500,
+      "total_invested": 0,
+      "folded": true,
+      "all_in": false
+    }
+  ],
+  "community_cards": {
+    "flop": [],
+    "turn": [],
+    "river": []
+  },
+  "pot": 10,
+  "winners": [
+    {
+      "name": "Player0",
+      "amount": 10,
+      "reason": "Everyone else folded",
+      "hand_name": ""
+    }
+  ],
+  "actions": []
+}

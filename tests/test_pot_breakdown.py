@@ -16,9 +16,12 @@ import pytest
 
 os.environ["POKER_SIMULATION"] = "1"
 
+import poker.game as game_module
 from poker.game import PokerServer
 from poker.models import Room, Player
 from poker.cards import new_deck
+
+game_module._SIMULATION_MODE = True
 
 
 # ─── Helpers ───

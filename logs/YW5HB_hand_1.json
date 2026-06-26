@@ -1,0 +1,75 @@
+{
+  "hand_number": 1,
+  "timestamp": "2026-06-26T10:40:49.228982+00:00",
+  "room_id": "YW5HB",
+  "players": [
+    {
+      "name": "Admin",
+      "seat": 1,
+      "hole_cards": [
+        "AH",
+        "7C"
+      ],
+      "stack_after": 1005,
+      "total_invested": 5,
+      "folded": false,
+      "all_in": true
+    },
+    {
+      "name": "Player2",
+      "seat": 2,
+      "hole_cards": [
+        "4D",
+        "QC"
+      ],
+      "stack_after": 995,
+      "total_invested": 10,
+      "folded": false,
+      "all_in": true
+    }
+  ],
+  "community_cards": {
+    "flop": [
+      "8H",
+      "6D",
+      "7S"
+    ],
+    "turn": [
+      "TH"
+    ],
+    "river": [
+      "KD"
+    ]
+  },
+  "pot": 15,
+  "winners": [
+    {
+      "name": "Admin",
+      "amount": 10,
+      "reason": "Best hand at showdown",
+      "hand_name": "One pair"
+    },
+    {
+      "name": "Player2",
+      "amount": 5,
+      "reason": "Best hand at showdown",
+      "hand_name": "High card"
+    }
+  ],
+  "actions": [
+    {
+      "player": "Admin",
+      "action": "small_blind",
+      "amount": 5,
+      "phase": "preflop",
+      "is_all_in": false
+    },
+    {
+      "player": "Player2",
+      "action": "big_blind",
+      "amount": 10,
+      "phase": "preflop",
+      "is_all_in": false
+    }
+  ]
+}

@@ -31,6 +31,7 @@ class Player:
 
     last_hand_name: str = ""
     last_best_cards: list[str] = field(default_factory=list)
+    last_hand_detail: str = ""  # detailed description with kicker info
 
     disconnected_at: float = 0.0  # timestamp when disconnected
     sitting_out: bool = False
@@ -46,6 +47,7 @@ class Winner:
     reason: str
     hand_name: str = ""
     best_cards: list[str] = field(default_factory=list)
+    hand_detail: str = ""  # detailed description with kicker info
 
 
 @dataclass

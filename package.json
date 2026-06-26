@@ -1,0 +1,29 @@
+{
+  "name": "cute_poker_modular",
+  "version": "1.0.0",
+  "description": "A free, browser-based Texas Hold'em poker game designed for private games with friends. Create a room, share the code, and play — no accounts, no downloads, no fuss. Cute Poker runs entirely in your browser with a lightweight Python server handling game logic, secure card dealing, and real-time communication over WebSockets.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test:visual": "playwright test",
+    "test:visual:headed": "playwright test --headed"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YeerooXY/cute-poker.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/YeerooXY/cute-poker/issues"
+  },
+  "homepage": "https://github.com/YeerooXY/cute-poker#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "fast-check": "^4.8.0",
+    "jsdom": "^29.1.1"
+  }
+}

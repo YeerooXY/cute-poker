@@ -14,9 +14,12 @@ os.environ["POKER_SIMULATION"] = "1"
 import pytest
 from hypothesis import given, settings, strategies as st, assume, HealthCheck
 
+import poker.game as game_module
 from poker.game import PokerServer
 from poker.models import Room, Player
 from poker.cards import RANKS, SUITS
+
+game_module._SIMULATION_MODE = True
 
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
