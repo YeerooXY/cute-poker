@@ -241,14 +241,16 @@ test("showdown visual smoke renders panel, cards, chips, and glow", async ({ pag
     const adminZ = await page.locator("#adminActions").evaluate(el => Number(getComputedStyle(el).zIndex));
     expect(panelZ).toBeGreaterThan(adminZ);
   } else {
-    await expect(page.locator("#actionLogPanel")).not.toHaveClass(/collapsed/);
+    // Desktop action log now defaults collapsed so it does not steal table space.
+    await expect(page.locator("#actionLogPanel")).toHaveClass(/collapsed/);
   }
 
   const panelBox = await page.locator("#postHandPanel").boundingBox();
-  const actionBarBox = await page.locator("#actionBar").boundingBox();
   expect(panelBox).toBeTruthy();
-  expect(actionBarBox).toBeTruthy();
-  expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(actionBarBox.y + 4);
+
+  // Hand-complete result owns the bottom UI; the action bar should not compete
+  // with the result panel while the hand-complete panel is visible.
+  await expect(page.locator("#actionBar")).toBeHidden();
 
   await waitForVisualSettle(page);
 

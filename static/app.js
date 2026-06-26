@@ -335,6 +335,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // ─── Seat positions (8 max) ───
+// Position 0 is viewer-relative bottom/hero seat.
 const SEAT_POSITIONS = [
   { top: "78%", left: "50%" },
   { top: "65%", left: "10%" },
@@ -345,6 +346,18 @@ const SEAT_POSITIONS = [
   { top: "65%", left: "90%" },
   { top: "5%",  left: "50%" },
 ];
+
+function orderPlayersForViewer(players) {
+  const list = Array.isArray(players) ? players : [];
+  const viewerIdx = list.findIndex(p => p && p.is_you);
+
+  if (viewerIdx <= 0) return list;
+
+  return [
+    ...list.slice(viewerIdx),
+    ...list.slice(0, viewerIdx),
+  ];
+}
 
 // ═══════════════════════════════════════════════════════════════
 // WebSocket
@@ -771,6 +784,95 @@ function syncBettingControls(state, isMyTurn, showdownDisplay) {
 }
 
 
+
+let lastAnimationStateKey = null;
+let lastCardAnimationStateKey = null;
+
+function compactAnimationCards(cards) {
+  return Array.isArray(cards) ? cards.join("|") : "";
+}
+
+function compactAnimationWinners(winners) {
+  return (Array.isArray(winners) ? winners : []).map(w => ({
+    id: w.player_id || w.id || w.name || "",
+    name: w.name || "",
+    amount: Number(w.amount) || 0,
+    reason: w.reason || "",
+    hand: w.hand_detail || w.hand_name || "",
+  }));
+}
+
+function compactAnimationPlayers(players) {
+  return (Array.isArray(players) ? players : []).map(p => ({
+    id: p.player_id || p.id || p.name || "",
+    name: p.name || "",
+    folded: Boolean(p.folded),
+    all_in: Boolean(p.all_in),
+    cards: compactAnimationCards(p.cards),
+    best: compactAnimationCards(p.best_cards),
+    hand: p.hand_detail || p.hand_name || "",
+    foldedReveal: p.folded_reveal_mode || "",
+    uncontestedReveal: p.uncontested_reveal_mode || "",
+    canRevealFolded: Boolean(p.can_reveal_folded_hand),
+    canRevealUncontested: Boolean(p.can_reveal_uncontested_hand),
+  }));
+}
+
+function buildAnimationStateKey(state) {
+  if (!state) return "";
+  return JSON.stringify({
+    room: state.room_id || "",
+    hand: state.hand_id || state.hand_number || state.hands_played || 0,
+    phase: state.phase || "",
+    showdownMode: Boolean(state.showdown_mode),
+    paused: Boolean(state.paused),
+    community: compactAnimationCards(state.community),
+    pot: Number(state.pot) || 0,
+    winners: compactAnimationWinners(state.winners),
+    players: compactAnimationPlayers(state.players),
+  });
+}
+
+function buildCardAnimationStateKey(state) {
+  if (!state) return "";
+  return JSON.stringify({
+    room: state.room_id || "",
+    hand: state.hand_id || state.hand_number || state.hands_played || 0,
+    phase: state.phase || "",
+    showdownMode: Boolean(state.showdown_mode),
+    community: compactAnimationCards(state.community),
+    players: compactAnimationPlayers(state.players).map(p => ({
+      id: p.id,
+      cards: p.cards,
+      best: p.best,
+      hand: p.hand,
+      folded: p.folded,
+      foldedReveal: p.foldedReveal,
+      uncontestedReveal: p.uncontestedReveal,
+    })),
+    winners: compactAnimationWinners(state.winners).map(w => ({
+      id: w.id,
+      reason: w.reason,
+      hand: w.hand,
+    })),
+  });
+}
+
+function syncRefreshAnimationSuppression(state) {
+  const key = buildAnimationStateKey(state);
+  const cardKey = buildCardAnimationStateKey(state);
+
+  const isRefresh = Boolean(lastAnimationStateKey && key === lastAnimationStateKey);
+  const isCardRefresh = Boolean(lastCardAnimationStateKey && cardKey === lastCardAnimationStateKey);
+
+  document.body.classList.toggle("suppress-refresh-animations", isRefresh);
+  document.body.classList.toggle("suppress-card-refresh-animations", isCardRefresh);
+
+  lastAnimationStateKey = key;
+  lastCardAnimationStateKey = cardKey;
+}
+
+
 function renderState(state) {
   const previousState = lastState;
   lastState = state;
@@ -778,6 +880,7 @@ function renderState(state) {
   const handCompleteDisplay = state.phase === "showdown" && Array.isArray(state.winners) && state.winners.length > 0;
   document.body.classList.toggle("showdown-cinema", showdownDisplay);
   document.body.classList.toggle("hand-complete-cinema", handCompleteDisplay);
+  syncRefreshAnimationSuppression(state);
 
   // ─── HUD ───
   els.roomId.textContent = state.room_id;
@@ -948,7 +1051,9 @@ function renderPlayers(players, previousState = null, state = null) {
       : []
   );
 
-  players.forEach((p, idx) => {
+  const orderedPlayers = orderPlayersForViewer(players);
+
+  orderedPlayers.forEach((p, idx) => {
     const pos = SEAT_POSITIONS[idx % SEAT_POSITIONS.length];
     const seat = document.createElement("div");
     let cls = "player-seat";
@@ -1947,6 +2052,8 @@ let panelExpanded = true; // default to expanded
 
 function applyPanelState() {
   if (!els.actionLogPanel || !els.actionLogToggle) return;
+  document.body.classList.toggle("action-log-open", panelExpanded);
+
   if (panelExpanded) {
     els.actionLogPanel.classList.remove("collapsed");
     els.actionLogToggle.classList.remove("panel-collapsed");
@@ -1962,7 +2069,7 @@ function initActionLogToggle() {
   // Read initial state from localStorage (default to expanded/true)
   try {
     const stored = localStorage.getItem(PANEL_KEY);
-    const defaultExpanded = !window.matchMedia || !window.matchMedia("(max-width: 768px)").matches;
+    const defaultExpanded = false;
     panelExpanded = stored === null ? defaultExpanded : stored !== "false";
   } catch (e) {
     panelExpanded = true;
