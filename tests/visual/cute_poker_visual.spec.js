@@ -783,6 +783,114 @@ test("showdown cards are ordered strongest to weakest", async ({ page }) => {
 });
 
 
+
+function canonicalSeatTestPlayer({ id, name, seat, isYou = false, isBot = true }) {
+  return {
+    ...showdownState.players[0],
+    id,
+    player_id: id,
+    name,
+    seat,
+    avatar: isYou ? "🎭" : "🤖",
+    stack: 1000,
+    committed: 0,
+    total_invested: 0,
+    hand_delta: null,
+    cards: [],
+    is_you: isYou,
+    is_turn: false,
+    is_dealer: false,
+    is_sb: false,
+    is_bb: false,
+    is_bot: isBot,
+    all_in: false,
+    folded: false,
+    connected: true,
+    sitting_out: false,
+    is_spectator: false,
+    hand_name: "",
+    hand_detail: "",
+    best_cards: [],
+  };
+}
+
+const canonicalSeatOrderState = {
+  ...showdownState,
+  room_id: "CANONICAL-SEATS",
+  phase: "lobby",
+  showdown_mode: false,
+  pot: 0,
+  current_bet: 0,
+  community: [],
+  winners: [],
+  hand_deltas: {},
+  action_log: [],
+  viewer: {
+    ...showdownState.viewer,
+    is_turn: false,
+    to_call: 0,
+    committed: 0,
+    stack: 1000,
+  },
+  // Intentionally scrambled array order. Visual order must come from server seat.
+  players: [
+    canonicalSeatTestPlayer({ id: "seat-four", name: "SeatFour", seat: 4 }),
+    canonicalSeatTestPlayer({ id: "hero-seat-seven", name: "HeroSeatSeven", seat: 7, isYou: true, isBot: false }),
+    canonicalSeatTestPlayer({ id: "seat-one", name: "SeatOne", seat: 1 }),
+    canonicalSeatTestPlayer({ id: "seat-eight", name: "SeatEight", seat: 8 }),
+  ],
+};
+
+test("viewer-relative seats follow canonical server seat order without reshuffling", async ({ page }) => {
+  await page.goto("/");
+  await showGameWithState(page, canonicalSeatOrderState);
+
+  const seatPos = async (name) => page.locator(".player-seat").filter({ hasText: name }).evaluate(el => ({
+    top: el.style.top,
+    left: el.style.left,
+  }));
+
+  await expect(page.locator(".player-seat").filter({ hasText: "HeroSeatSeven" })).toHaveCount(1);
+  expect(await seatPos("HeroSeatSeven")).toEqual({ top: "78%", left: "50%" });
+
+  // Viewer is canonical seat 7, so canonical seats 8 and 1 wrap around beside them.
+  expect(await seatPos("SeatEight")).toEqual({ top: "65%", left: "10%" });
+  expect(await seatPos("SeatOne")).toEqual({ top: "30%", left: "5%" });
+  expect(await seatPos("SeatFour")).toEqual({ top: "5%", left: "75%" });
+
+  const withInsertedCanonicalSeat = {
+    ...canonicalSeatOrderState,
+    players: [
+      ...canonicalSeatOrderState.players,
+      canonicalSeatTestPlayer({ id: "seat-two", name: "SeatTwo", seat: 2 }),
+    ],
+  };
+
+  await showGameWithState(page, withInsertedCanonicalSeat);
+
+  // Adding a player into the canonical gap gets their own canonical visual slot.
+  // Existing players do not jump.
+  expect(await seatPos("HeroSeatSeven")).toEqual({ top: "78%", left: "50%" });
+  expect(await seatPos("SeatEight")).toEqual({ top: "65%", left: "10%" });
+  expect(await seatPos("SeatOne")).toEqual({ top: "30%", left: "5%" });
+  expect(await seatPos("SeatTwo")).toEqual({ top: "5%", left: "25%" });
+  expect(await seatPos("SeatFour")).toEqual({ top: "5%", left: "75%" });
+
+  const afterRemovedCanonicalSeat = {
+    ...withInsertedCanonicalSeat,
+    players: withInsertedCanonicalSeat.players.filter(p => p.name !== "SeatOne"),
+  };
+
+  await showGameWithState(page, afterRemovedCanonicalSeat);
+
+  // Removing a player frees only their visual slot; other canonical seats stay put.
+  expect(await seatPos("HeroSeatSeven")).toEqual({ top: "78%", left: "50%" });
+  expect(await seatPos("SeatEight")).toEqual({ top: "65%", left: "10%" });
+  expect(await seatPos("SeatTwo")).toEqual({ top: "5%", left: "25%" });
+  expect(await seatPos("SeatFour")).toEqual({ top: "5%", left: "75%" });
+});
+
+
 const nonAdminShowdownControlsState = {
   ...showdownState,
   room_id: "NON-ADMIN-DEAL",

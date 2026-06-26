@@ -347,9 +347,12 @@ const SEAT_POSITIONS = [
   { top: "5%",  left: "50%" },
 ];
 
-const VISUAL_SEAT_FILL_ORDER = [7, 2, 5, 1, 6, 3, 4];
-let visualSeatRoomId = null;
-let visualSeatByPlayerKey = new Map();
+// Canonical server-seat offsets mapped to visual table positions.
+// Offset 0 is always the viewer/bottom seat. Positive offsets follow the
+// server's canonical table order, wrapping around from seat 8 back to seat 1.
+//
+// Visual path: bottom → left side → top center → right side.
+const CANONICAL_VISUAL_SEAT_BY_OFFSET = [0, 1, 2, 3, 7, 4, 5, 6];
 
 function stablePlayerKey(player) {
   if (!player) return "";
@@ -362,79 +365,90 @@ function stablePlayerKey(player) {
   );
 }
 
-function nextFreeVisualSeat(usedSeats) {
-  const preferred = VISUAL_SEAT_FILL_ORDER.find(seat => !usedSeats.has(seat));
-  if (preferred != null) return preferred;
+function canonicalSeatNumber(player) {
+  if (!player) return null;
 
-  for (let seat = 1; seat < SEAT_POSITIONS.length; seat += 1) {
-    if (!usedSeats.has(seat)) return seat;
+  const seat = Number(player.seat);
+  if (Number.isInteger(seat) && seat >= 1 && seat <= SEAT_POSITIONS.length) {
+    return seat;
   }
 
+  // Future-proof fallback if the backend later exposes a zero-based seat_index.
+  const seatIndex = Number(player.seat_index ?? player.seatIndex);
+  if (Number.isInteger(seatIndex) && seatIndex >= 0 && seatIndex < SEAT_POSITIONS.length) {
+    return seatIndex + 1;
+  }
+  if (Number.isInteger(seatIndex) && seatIndex >= 1 && seatIndex <= SEAT_POSITIONS.length) {
+    return seatIndex;
+  }
+
+  return null;
+}
+
+function canonicalSeatDelta(playerSeat, viewerSeat) {
+  if (!Number.isInteger(playerSeat) || !Number.isInteger(viewerSeat)) {
+    return null;
+  }
+  return (playerSeat - viewerSeat + SEAT_POSITIONS.length) % SEAT_POSITIONS.length;
+}
+
+function firstUnusedVisualSeat(usedSeats, includeHeroSeat = false) {
+  const start = includeHeroSeat ? 0 : 1;
+  for (let seat = start; seat < SEAT_POSITIONS.length; seat += 1) {
+    if (!usedSeats.has(seat)) return seat;
+  }
   return 0;
 }
 
 function assignStableViewerSeats(players, state = null) {
   const list = Array.isArray(players) ? players : [];
-  const roomId = state && state.room_id ? String(state.room_id) : "";
-
-  if (roomId && visualSeatRoomId !== roomId) {
-    visualSeatRoomId = roomId;
-    visualSeatByPlayerKey = new Map();
-  }
-
-  const liveKeys = new Set(list.map(stablePlayerKey).filter(Boolean));
-  for (const key of [...visualSeatByPlayerKey.keys()]) {
-    if (!liveKeys.has(key)) visualSeatByPlayerKey.delete(key);
-  }
-
-  const assignments = new Map();
-  const usedSeats = new Set();
   const viewer = list.find(p => p && p.is_you);
-  const viewerKey = stablePlayerKey(viewer);
+  const viewerSeat = canonicalSeatNumber(viewer);
+  const usedSeats = new Set();
 
-  if (viewerKey) {
-    visualSeatByPlayerKey.set(viewerKey, 0);
-    assignments.set(viewerKey, 0);
-    usedSeats.add(0);
-  }
+  const assigned = list.map((player, originalIndex) => {
+    const canonicalSeat = canonicalSeatNumber(player);
+    const delta = canonicalSeatDelta(canonicalSeat, viewerSeat);
 
-  // Existing non-viewer players keep their previous visual seats.
-  for (const player of list) {
-    const key = stablePlayerKey(player);
-    if (!key || key === viewerKey) continue;
-
-    const oldSeat = visualSeatByPlayerKey.get(key);
-    if (
-      Number.isInteger(oldSeat)
-      && oldSeat > 0
-      && oldSeat < SEAT_POSITIONS.length
-      && !usedSeats.has(oldSeat)
-    ) {
-      assignments.set(key, oldSeat);
-      usedSeats.add(oldSeat);
+    let visualSeat = null;
+    if (player && player.is_you) {
+      visualSeat = 0;
+    } else if (delta !== null) {
+      visualSeat = CANONICAL_VISUAL_SEAT_BY_OFFSET[delta];
     }
-  }
 
-  // New players fill empty seats in a comfortable viewer-relative order.
-  const viewerIdx = list.findIndex(p => p && p.is_you);
-  const fillOrderPlayers = viewerIdx >= 0
-    ? [...list.slice(viewerIdx + 1), ...list.slice(0, viewerIdx)]
-    : list;
+    // Defensive fallback for malformed/legacy states with missing or duplicate seats.
+    if (!Number.isInteger(visualSeat) || usedSeats.has(visualSeat)) {
+      visualSeat = firstUnusedVisualSeat(usedSeats, Boolean(player && player.is_you));
+    }
 
-  for (const player of fillOrderPlayers) {
-    const key = stablePlayerKey(player);
-    if (!key || key === viewerKey || assignments.has(key)) continue;
+    usedSeats.add(visualSeat);
 
-    const seat = nextFreeVisualSeat(usedSeats);
-    assignments.set(key, seat);
-    visualSeatByPlayerKey.set(key, seat);
-    usedSeats.add(seat);
-  }
+    return {
+      player,
+      visualSeat,
+      canonicalSeat,
+      delta,
+      originalIndex,
+      key: stablePlayerKey(player),
+    };
+  });
 
-  return list.map(player => ({
-    player,
-    visualSeat: assignments.get(stablePlayerKey(player)) ?? 0,
-  }));
+  // Render in viewer-rotated canonical order, not incoming array order.
+  return assigned.sort((a, b) => {
+    if (a.player && a.player.is_you) return -1;
+    if (b.player && b.player.is_you) return 1;
+
+    if (a.delta !== null && b.delta !== null && a.delta !== b.delta) {
+      return a.delta - b.delta;
+    }
+
+    if (a.canonicalSeat !== null && b.canonicalSeat !== null && a.canonicalSeat !== b.canonicalSeat) {
+      return a.canonicalSeat - b.canonicalSeat;
+    }
+
+    return a.key.localeCompare(b.key) || a.originalIndex - b.originalIndex;
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
