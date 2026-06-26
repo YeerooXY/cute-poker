@@ -347,16 +347,94 @@ const SEAT_POSITIONS = [
   { top: "5%",  left: "50%" },
 ];
 
-function orderPlayersForViewer(players) {
+const VISUAL_SEAT_FILL_ORDER = [7, 2, 5, 1, 6, 3, 4];
+let visualSeatRoomId = null;
+let visualSeatByPlayerKey = new Map();
+
+function stablePlayerKey(player) {
+  if (!player) return "";
+  return String(
+    player.player_id
+    || player.id
+    || player.token
+    || player.name
+    || ""
+  );
+}
+
+function nextFreeVisualSeat(usedSeats) {
+  const preferred = VISUAL_SEAT_FILL_ORDER.find(seat => !usedSeats.has(seat));
+  if (preferred != null) return preferred;
+
+  for (let seat = 1; seat < SEAT_POSITIONS.length; seat += 1) {
+    if (!usedSeats.has(seat)) return seat;
+  }
+
+  return 0;
+}
+
+function assignStableViewerSeats(players, state = null) {
   const list = Array.isArray(players) ? players : [];
+  const roomId = state && state.room_id ? String(state.room_id) : "";
+
+  if (roomId && visualSeatRoomId !== roomId) {
+    visualSeatRoomId = roomId;
+    visualSeatByPlayerKey = new Map();
+  }
+
+  const liveKeys = new Set(list.map(stablePlayerKey).filter(Boolean));
+  for (const key of [...visualSeatByPlayerKey.keys()]) {
+    if (!liveKeys.has(key)) visualSeatByPlayerKey.delete(key);
+  }
+
+  const assignments = new Map();
+  const usedSeats = new Set();
+  const viewer = list.find(p => p && p.is_you);
+  const viewerKey = stablePlayerKey(viewer);
+
+  if (viewerKey) {
+    visualSeatByPlayerKey.set(viewerKey, 0);
+    assignments.set(viewerKey, 0);
+    usedSeats.add(0);
+  }
+
+  // Existing non-viewer players keep their previous visual seats.
+  for (const player of list) {
+    const key = stablePlayerKey(player);
+    if (!key || key === viewerKey) continue;
+
+    const oldSeat = visualSeatByPlayerKey.get(key);
+    if (
+      Number.isInteger(oldSeat)
+      && oldSeat > 0
+      && oldSeat < SEAT_POSITIONS.length
+      && !usedSeats.has(oldSeat)
+    ) {
+      assignments.set(key, oldSeat);
+      usedSeats.add(oldSeat);
+    }
+  }
+
+  // New players fill empty seats in a comfortable viewer-relative order.
   const viewerIdx = list.findIndex(p => p && p.is_you);
+  const fillOrderPlayers = viewerIdx >= 0
+    ? [...list.slice(viewerIdx + 1), ...list.slice(0, viewerIdx)]
+    : list;
 
-  if (viewerIdx <= 0) return list;
+  for (const player of fillOrderPlayers) {
+    const key = stablePlayerKey(player);
+    if (!key || key === viewerKey || assignments.has(key)) continue;
 
-  return [
-    ...list.slice(viewerIdx),
-    ...list.slice(0, viewerIdx),
-  ];
+    const seat = nextFreeVisualSeat(usedSeats);
+    assignments.set(key, seat);
+    visualSeatByPlayerKey.set(key, seat);
+    usedSeats.add(seat);
+  }
+
+  return list.map(player => ({
+    player,
+    visualSeat: assignments.get(stablePlayerKey(player)) ?? 0,
+  }));
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1051,10 +1129,10 @@ function renderPlayers(players, previousState = null, state = null) {
       : []
   );
 
-  const orderedPlayers = orderPlayersForViewer(players);
+  const seatedPlayers = assignStableViewerSeats(players, state);
 
-  orderedPlayers.forEach((p, idx) => {
-    const pos = SEAT_POSITIONS[idx % SEAT_POSITIONS.length];
+  seatedPlayers.forEach(({ player: p, visualSeat }) => {
+    const pos = SEAT_POSITIONS[visualSeat % SEAT_POSITIONS.length];
     const seat = document.createElement("div");
     let cls = "player-seat";
     if (p.is_turn) cls += " active-turn";
