@@ -1029,11 +1029,26 @@ function renderPostHandPanel(state) {
   const revealedPlayers = players
     .filter(p => p.hand_name && p.best_cards && p.best_cards.length > 0 && !p.folded);
 
-  const foldedPlayers = players
-    .filter(p => p.folded)
-    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
-
   const handDeltas = computeHandDeltas(state, winners);
+
+  const revealedKeys = new Set(revealedPlayers.map(p => p.id || p.name));
+
+  // Any player who participated in the hand but does not have a valid revealed
+  // showdown hand should be treated as mucked. This is safer than relying only
+  // on p.folded, and prevents folded/mucked players from disappearing in visual
+  // fixtures or future partial-reveal states.
+  const foldedPlayers = players
+    .filter(p => {
+      const key = p.id || p.name;
+      if (revealedKeys.has(key)) return false;
+
+      const invested = Number(p.total_invested || 0) > 0 || Number(p.committed || 0) > 0;
+      const hasDelta = handDeltas.has(p.name);
+      const hadCards = Array.isArray(p.cards) && p.cards.length > 0;
+
+      return p.folded || invested || hasDelta || hadCards;
+    })
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 
   if (revealedPlayers.length === 0 && foldedPlayers.length === 0) {
     els.postHandBody.innerHTML = winners.map(w => `

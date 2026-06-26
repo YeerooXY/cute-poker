@@ -1569,10 +1569,15 @@ class PokerServer:
                     seat_offsets[seat] = i
 
         for p in room.seated_players():
-            # Spectators see all cards; players see own cards + showdown + all-in runout
+            # Card visibility:
+            # - A player may always see their own hole cards.
+            # - Spectators may see all cards.
+            # - At showdown, reveal only non-folded contenders.
+            # - During all-in runout, reveal only non-folded contenders.
+            # Folded cards stay mucked unless a future explicit reveal feature exposes them.
             show_cards = (p.token == viewer_token
-                         or room.phase == "showdown"
                          or (viewer and viewer.is_spectator)
+                         or (room.phase == "showdown" and not p.folded)
                          or (all_in_runout and p.cards and not p.folded))
             cards = p.cards if show_cards else ["BACK"] * len(p.cards)
 
@@ -1597,9 +1602,9 @@ class PokerServer:
                 "is_bb": p.seat == room.bb_seat,
                 "is_action": p.seat == room.action_seat,
                 "cards": display_cards(cards),
-                "hand_name": p.last_hand_name if room.phase == "showdown" else "",
-                "hand_detail": p.last_hand_detail if room.phase == "showdown" else "",
-                "best_cards": display_cards(p.last_best_cards) if room.phase == "showdown" else [],
+                "hand_name": p.last_hand_name if room.phase == "showdown" and not p.folded else "",
+                "hand_detail": p.last_hand_detail if room.phase == "showdown" and not p.folded else "",
+                "best_cards": display_cards(p.last_best_cards) if room.phase == "showdown" and not p.folded else [],
                 "to_call": to_call,
                 "sitting_out": p.sitting_out,
                 "is_spectator": p.is_spectator,

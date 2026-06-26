@@ -167,9 +167,9 @@ const actionLogEdgeState = {
       player_id: "sb",
       stack: 1175,
       committed: 0,
-      hand_name: "One Pair",
-      hand_detail: "Pair of Aces",
-      best_cards: ["A♥", "A♠", "K♥", "Q♣", "10♥"],
+      hand_name: "",
+      hand_detail: "",
+      best_cards: [],
     },
     {
       ...showdownState.players[1],
@@ -214,6 +214,7 @@ action_log: [
     { player: "SmallBlind", action: "check_call", amount: 5, phase: "preflop", is_all_in: false },
     { player: "Papperbot", action: "bet_raise", amount: 628, phase: "flop", is_all_in: true },
     { player: "Dindybot", action: "check_call", amount: 618, phase: "flop", is_all_in: false },
+    { player: "SmallBlind", action: "fold", amount: 0, phase: "flop", is_all_in: false },
   ],
 };
 
@@ -263,7 +264,7 @@ test("action log visual smoke covers returned excess, showdown rows, and runout 
   await showGameWithState(page, actionLogEdgeState);
 
   const logText = await page.locator("#actionLogBody").innerText();
-  expect(logText).toContain("SmallBlind calls 5");
+  expect(logText).toContain("SmallBlind folds");
   expect(logText).not.toContain("SmallBlind checks");
   expect(logText).toContain("Dindybot calls 618");
   expect(logText).not.toContain("Dindybot goes all-in");
@@ -280,7 +281,10 @@ test("action log visual smoke covers returned excess, showdown rows, and runout 
   await expect(page.locator(".post-hand-row").first().locator(".post-hand-name")).toContainText("Dindybot");
   await expect(page.locator(".post-hand-row").first().locator(".post-hand-amount")).toContainText("+638");
   await expect(page.locator(".post-hand-row").filter({ hasText: "Papperbot" }).locator(".post-hand-amount")).toContainText("-628");
-  await expect(page.locator(".post-hand-row").filter({ hasText: "SmallBlind" }).locator(".post-hand-amount")).toContainText("-10");
+  const smallBlindRow = page.locator(".post-hand-row").filter({ hasText: "SmallBlind" });
+  await expect(smallBlindRow.locator(".post-hand-amount")).toContainText("-10");
+  await expect(smallBlindRow.locator(".post-hand-result")).toContainText("mucked");
+  await expect(smallBlindRow.locator(".post-hand-breakdown")).toHaveCount(0);
   await expect(page.locator("#postHandTitle")).toContainText("Dindybot wins 1246");
   await expect(page.locator(".post-hand-row").first().locator(".post-hand-detail")).toContainText("King-high Flush");
   await expect(page.locator(".post-hand-row").first().locator(".post-hand-breakdown")).toContainText("Best 5 from 7");
