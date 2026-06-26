@@ -1683,7 +1683,11 @@ class PokerServer:
         room.action_seat = None
 
     def next_occupied_seat(self, room: Room, after_seat: Optional[int]) -> Optional[int]:
-        occupied = [p.seat for p in room.seated_players() if p.stack > 0]
+        occupied = [
+            p.seat
+            for p in room.seated_players()
+            if p.stack > 0 and not p.sitting_out and not p.is_spectator
+        ]
         if not occupied:
             return None
 
@@ -1712,8 +1716,11 @@ class PokerServer:
         for offset in range(1, MAX_SEATS + 1):
             next_seat = ((seat - 1 + offset) % MAX_SEATS) + 1
             p = self.player_by_seat(room, next_seat)
-            if p and (not require_stack or p.stack > 0):
-                return p
+            if not p:
+                continue
+            if require_stack and (p.stack <= 0 or p.sitting_out or p.is_spectator):
+                continue
+            return p
 
         return None
 
