@@ -785,3 +785,42 @@ test("showdown cards are ordered strongest to weakest", async ({ page }) => {
   expect(villainHole).toEqual(["A♦", "K♣"]);
 });
 
+
+const nonAdminShowdownControlsState = {
+  ...showdownState,
+  room_id: "NON-ADMIN-DEAL",
+  phase: "showdown",
+  viewer: {
+    ...showdownState.viewer,
+    is_admin: false,
+  },
+};
+
+test("non-admin cannot see deal controls after showdown", async ({ page }) => {
+  await page.goto("/");
+  await showGameWithState(page, nonAdminShowdownControlsState);
+
+  await expect(page.locator("#postHandPanel")).not.toHaveClass(/hidden/);
+  await expect(page.locator("#startBtn")).toBeHidden();
+  await expect(page.locator("#postHandDealBtn")).toBeHidden();
+});
+
+const adminShowdownControlsState = {
+  ...showdownState,
+  room_id: "ADMIN-DEAL",
+  phase: "showdown",
+  viewer: {
+    ...showdownState.viewer,
+    is_admin: true,
+  },
+};
+
+test("admin can see deal controls after showdown", async ({ page }) => {
+  await page.goto("/");
+  await showGameWithState(page, adminShowdownControlsState);
+
+  await expect(page.locator("#postHandPanel")).not.toHaveClass(/hidden/);
+  await expect(page.locator("#startBtn")).toBeVisible();
+  await expect(page.locator("#postHandDealBtn")).toBeVisible();
+});
+

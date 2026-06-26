@@ -292,7 +292,6 @@ class PokerServer:
                     "connected": humans,
                     "max": MAX_SEATS,
                     "phase": room.phase,
-            "showdown_mode": showdown_mode,
                 })
         await self.send(ws, "rooms_list", {"rooms": rooms_list})
 
@@ -729,6 +728,10 @@ class PokerServer:
         print(f"[ACTION] {player.name} (seat {player.seat}) -> {action} | phase={room.phase} action_seat={room.action_seat} current_bet={room.current_bet} committed={player.committed} stack={player.stack}")
 
         if action == "start_hand":
+            if player.token != room.creator_token:
+                await self.send(player.ws, "error", {"message": "Only the room creator can deal the next hand."})
+                return
+
             if room.paused:
                 await self.send(player.ws, "error", {"message": "Game is paused."})
                 return
@@ -943,6 +946,23 @@ class PokerServer:
 
         await self.after_action(room)
 
+    def uncontested_cards_for_viewer(self, room: Room, player: Player, viewer_token: str) -> list[str]:
+        """Return visible cards for an uncontested winner's optional reveal."""
+        if len(player.cards) != 2:
+            return ["BACK"] * len(player.cards)
+
+        mode = getattr(player, "uncontested_reveal_mode", "hidden")
+        if player.token == viewer_token or mode == "both":
+            return player.cards
+
+        if mode == "left":
+            return [player.cards[0], "BACK"]
+
+        if mode == "right":
+            return ["BACK", player.cards[1]]
+
+        return ["BACK", "BACK"]
+
     def folded_cards_for_viewer(self, room: Room, player: Player, viewer_token: str) -> list[str]:
         """Return the folded player's cards as this viewer is allowed to see them.
 
@@ -1025,7 +1045,7 @@ class PokerServer:
         await self.broadcast(room)
 
     async def reveal_uncontested_hand(self, room: Room, player: Player, payload: dict[str, Any]):
-        """Let an uncontested winner reveal their hole cards after everyone else folded."""
+        """Let an uncontested winner reveal one or both hole cards after everyone else folded."""
         if not getattr(room, "allow_folded_reveals", True):
             await self.send(player.ws, "error", {"message": "Post-hand reveals are disabled in this room."})
             return
@@ -1042,20 +1062,24 @@ class PokerServer:
             await self.send(player.ws, "error", {"message": "You do not have an uncontested winning hand to reveal."})
             return
 
-        if getattr(player, "uncontested_reveal_mode", "hidden") == "both":
-            await self.send(player.ws, "error", {"message": "This hand is already revealed."})
+        mode = str(payload.get("mode", "both")).lower()
+        if mode not in ("left", "right", "both"):
+            await self.send(player.ws, "error", {"message": "Invalid reveal option."})
             return
 
-        player.uncontested_reveal_mode = "both"
-        await self.broadcast(room)
+        current = getattr(player, "uncontested_reveal_mode", "hidden")
+        if current == "both":
+            await self.send(player.ws, "error", {"message": "This hand is already fully revealed."})
+            return
 
-        amount = max(0, min(amount, player.stack))
-        player.stack -= amount
-        player.committed += amount
-        player.total_invested += amount
-        room.pot += amount
-        if player.stack == 0:
-            player.all_in = True
+        if mode == "both":
+            player.uncontested_reveal_mode = "both"
+        elif current == "hidden":
+            player.uncontested_reveal_mode = mode
+        elif current != mode:
+            player.uncontested_reveal_mode = "both"
+
+        await self.broadcast(room)
 
     def commit_chips(self, room: Room, player: Player, amount: int):
         amount = max(0, min(amount, player.stack))
@@ -1813,7 +1837,10 @@ class PokerServer:
                     or (p.player_id in uncontested_winner_ids and uncontested_reveal_mode == "both")
                     or all_in_runout
                 )
-                cards = p.cards if show_cards else ["BACK"] * len(p.cards)
+                if p.player_id in uncontested_winner_ids and room.phase == "showdown":
+                    cards = self.uncontested_cards_for_viewer(room, p, viewer_token)
+                else:
+                    cards = p.cards if show_cards else ["BACK"] * len(p.cards)
 
             to_call = max(0, room.current_bet - p.committed)
 

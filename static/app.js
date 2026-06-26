@@ -535,6 +535,46 @@ function leaveGame() {
 // ═══════════════════════════════════════════════════════════════
 // Render state — pure DOM update, no animations
 // ═══════════════════════════════════════════════════════════════
+
+function canViewerDeal(state) {
+  return Boolean(
+    state
+    && state.viewer
+    && state.viewer.is_admin
+    && ["lobby", "showdown"].includes(state.phase)
+    && !state.paused
+  );
+}
+
+function syncDealControls(state) {
+  const canDeal = canViewerDeal(state);
+
+  const startBtn = els.startBtn || document.getElementById("startBtn");
+  if (startBtn) {
+    startBtn.hidden = !canDeal;
+    startBtn.style.setProperty("display", canDeal ? "inline-flex" : "none", "important");
+  }
+
+  const postHandDealBtn = els.postHandDealBtn || document.getElementById("postHandDealBtn");
+  const postHandPanel = els.postHandPanel || document.getElementById("postHandPanel");
+  const postHandActions = postHandDealBtn ? postHandDealBtn.closest(".post-hand-actions") : null;
+
+  if (postHandPanel) {
+    postHandPanel.classList.toggle("show-deal-actions", canDeal);
+  }
+
+  if (postHandActions) {
+    postHandActions.hidden = !canDeal;
+    postHandActions.style.setProperty("display", canDeal ? "flex" : "none", "important");
+  }
+
+  if (postHandDealBtn) {
+    postHandDealBtn.hidden = !canDeal;
+    postHandDealBtn.style.setProperty("display", canDeal ? "inline-flex" : "none", "important");
+  }
+}
+
+
 function renderState(state) {
   const previousState = lastState;
   lastState = state;
@@ -615,9 +655,17 @@ function renderState(state) {
     els.winnerOverlay.classList.add("hidden");
   }
 
-  // ─── Deal button visible in showdown/lobby ───
-  const canDeal = ["lobby", "showdown"].includes(state.phase) && !state.paused;
+  // ─── Deal button visible only for room creator/admin between hands ───
+  const isAdminViewer = Boolean(state.viewer && state.viewer.is_admin);
+  const canDeal = isAdminViewer && ["lobby", "showdown"].includes(state.phase) && !state.paused;
   els.startBtn.style.display = canDeal ? "" : "none";
+
+  const postHandDealBtn = els.postHandDealBtn || document.getElementById("postHandDealBtn");
+  if (postHandDealBtn) {
+    postHandDealBtn.style.display = canDeal ? "inline-flex" : "none";
+    const postHandActions = postHandDealBtn.closest(".post-hand-actions");
+    if (postHandActions) postHandActions.style.display = canDeal ? "flex" : "none";
+  }
 
   // ─── Admin panel ───
   if (state.viewer && state.viewer.is_admin) {
@@ -657,6 +705,7 @@ function renderState(state) {
   // ─── Action Log ───
   renderActionLog(state);
   renderPostHandPanel(state);
+  syncDealControls(state);
 
   // ─── Action button labels ───
   if (isMyTurn) {
