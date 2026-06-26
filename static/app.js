@@ -549,36 +549,47 @@ function canViewerDeal(state) {
 function syncDealControls(state) {
   const canDeal = canViewerDeal(state);
 
-  const startBtn = els.startBtn || document.getElementById("startBtn");
-  if (startBtn) {
-    startBtn.hidden = !canDeal;
-    startBtn.style.setProperty("display", canDeal ? "inline-flex" : "none", "important");
-  }
-
   const postHandDealBtn = els.postHandDealBtn || document.getElementById("postHandDealBtn");
   const postHandPanel = els.postHandPanel || document.getElementById("postHandPanel");
   const postHandActions = postHandDealBtn ? postHandDealBtn.closest(".post-hand-actions") : null;
+  const postHandVisible = Boolean(
+    postHandPanel
+    && !postHandPanel.classList.contains("hidden")
+    && state
+    && state.phase === "showdown"
+    && Array.isArray(state.winners)
+    && state.winners.length > 0
+  );
+
+  const showBottomDeal = canDeal && !postHandVisible;
+  const showModalDeal = canDeal && postHandVisible;
+
+  const startBtn = els.startBtn || document.getElementById("startBtn");
+  if (startBtn) {
+    startBtn.hidden = !showBottomDeal;
+    startBtn.style.setProperty("display", showBottomDeal ? "inline-flex" : "none", "important");
+  }
 
   if (postHandPanel) {
-    postHandPanel.classList.toggle("show-deal-actions", canDeal);
+    postHandPanel.classList.toggle("show-deal-actions", showModalDeal);
   }
 
   if (postHandActions) {
-    postHandActions.hidden = !canDeal;
-    postHandActions.style.setProperty("display", canDeal ? "flex" : "none", "important");
+    postHandActions.hidden = !showModalDeal;
+    postHandActions.style.setProperty("display", showModalDeal ? "flex" : "none", "important");
   }
 
   if (postHandDealBtn) {
-    postHandDealBtn.hidden = !canDeal;
-    postHandDealBtn.style.setProperty("display", canDeal ? "inline-flex" : "none", "important");
+    postHandDealBtn.hidden = !showModalDeal;
+    postHandDealBtn.style.setProperty("display", showModalDeal ? "inline-flex" : "none", "important");
   }
 }
-
 
 function renderState(state) {
   const previousState = lastState;
   lastState = state;
   const showdownDisplay = state.phase === "showdown" || Boolean(state.showdown_mode);
+  document.body.classList.toggle("showdown-cinema", showdownDisplay);
 
   // ─── HUD ───
   els.roomId.textContent = state.room_id;

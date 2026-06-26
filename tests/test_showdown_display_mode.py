@@ -1,3 +1,5 @@
+import json
+import asyncio
 from poker.game import PokerServer
 from poker.models import Player, Room, Winner
 
@@ -99,3 +101,66 @@ def test_uncontested_win_still_hides_winner_until_winner_reveals():
     revealed_state = server.visible_state(room, folder.token)
 
     assert player_state(revealed_state, "Hero")["cards"] == ["A♠", "A♥"]
+
+
+class DummyWs:
+    def __init__(self):
+        self.sent = []
+
+    async def send_text(self, text):
+        self.sent.append(json.loads(text))
+
+
+def test_list_rooms_does_not_crash_from_showdown_mode_field():
+    server = PokerServer()
+    room = Room(room_id="ROOMS")
+    room.phase = "showdown"
+
+    player = Player(
+        player_id="human",
+        token="human-token",
+        name="Human",
+        seat=1,
+        connected=True,
+    )
+    room.players = {player.player_id: player}
+    server.rooms[room.room_id] = room
+
+    ws = DummyWs()
+    asyncio.run(server.list_rooms(ws))
+
+    assert ws.sent
+    assert ws.sent[0]["event"] == "rooms_list"
+    rooms = ws.sent[0]["payload"]["rooms"]
+    assert rooms[0]["room_id"] == "ROOMS"
+    assert rooms[0]["phase"] == "showdown"
+
+
+def test_uncontested_winner_can_reveal_left_then_right():
+    server, room, winner, folder = make_two_player_room()
+
+    room.phase = "showdown"
+    room.action_seat = None
+    room.winners = [
+        Winner(
+            player_id=winner.player_id,
+            name=winner.name,
+            amount=15,
+            reason="Everyone else folded",
+        )
+    ]
+
+    folder.folded = True
+    winner.uncontested_reveal_mode = "hidden"
+
+    hidden_state = server.visible_state(room, folder.token)
+    assert player_state(hidden_state, "Hero")["cards"] == ["🂠", "🂠"]
+
+    asyncio.run(server.reveal_uncontested_hand(room, winner, {"mode": "left"}))
+    left_state = server.visible_state(room, folder.token)
+    assert player_state(left_state, "Hero")["cards"] == ["A♠", "🂠"]
+
+    asyncio.run(server.reveal_uncontested_hand(room, winner, {"mode": "right"}))
+    both_state = server.visible_state(room, folder.token)
+    assert player_state(both_state, "Hero")["cards"] == ["A♠", "A♥"]
+

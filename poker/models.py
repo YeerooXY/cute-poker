@@ -26,7 +26,7 @@ class Player:
     cards: list[str] = field(default_factory=list)
     folded: bool = False
     folded_reveal_mode: str = "hidden"  # hidden, left, right, both, muck
-    uncontested_reveal_mode: str = "hidden"  # hidden, both; for winners after everyone else folds
+    uncontested_reveal_mode: str = "hidden"  # hidden, left, right, both; for winners after everyone else folds
     all_in: bool = False
     committed: int = 0
     total_invested: int = 0

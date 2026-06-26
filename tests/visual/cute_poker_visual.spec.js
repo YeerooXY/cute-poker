@@ -467,9 +467,7 @@ test("fold-win winner stays hidden and modal says uncontested", async ({ page },
   await page.goto("/");
   await showGameWithState(page, foldWinHiddenState);
 
-  const botSeat = page.locator(".player-seat").filter({ hasText: "Dindybot" });
-  await expect(botSeat.locator(".seat-cards .playing-card.card-back")).toHaveCount(2);
-  await expect(botSeat.locator(".seat-hand-rank")).toHaveCount(0);
+  await expect(page.locator("#playerPositions")).toHaveCSS("opacity", "0");
 
   const winnerRow = page.locator(".post-hand-row").filter({ hasText: "Dindybot" });
   await expect(winnerRow.locator(".post-hand-result")).toContainText("wins uncontested");
@@ -698,21 +696,18 @@ const finalShowdownTrayState = {
   }),
 };
 
-test("final showdown tray shows full board and only live contenders", async ({ page }, testInfo) => {
+test("final hand complete keeps cinematic tray and hides old table display", async ({ page }, testInfo) => {
   await page.goto("/");
-  await showGameWithState(page, finalShowdownTrayState);
+  await showGameWithState(page, showdownState);
 
-  const tray = page.locator("#showdownTray");
-  await expect(tray).not.toHaveClass(/hidden/);
-  await expect(tray).toContainText("Nemo");
-  await expect(tray).toContainText("Dindybot");
-  await expect(tray).not.toContainText("Papperbot");
-  await expect(tray.locator(".showdown-board-cards .playing-card")).toHaveCount(5);
-  await expect(tray.locator(".showdown-contender")).toHaveCount(2);
+  await expect(page.locator("#showdownTray")).not.toHaveClass(/hidden/);
+  await expect(page.locator("#community")).toHaveCSS("opacity", "0");
+  await expect(page.locator("#playerPositions")).toHaveCSS("opacity", "0");
+  await expect(page.locator("#postHandPanel")).not.toHaveClass(/hidden/);
 
   await waitForVisualSettle(page);
   const screenshot = await page.screenshot({
-    path: artifactPath(testInfo, `final-showdown-tray-${testInfo.project.name}.png`),
+    path: artifactPath(testInfo, `final-hand-cinematic-tray-${testInfo.project.name}.png`),
     fullPage: false,
   });
   expect(screenshot.length).toBeGreaterThan(10_000);
@@ -820,7 +815,7 @@ test("admin can see deal controls after showdown", async ({ page }) => {
   await showGameWithState(page, adminShowdownControlsState);
 
   await expect(page.locator("#postHandPanel")).not.toHaveClass(/hidden/);
-  await expect(page.locator("#startBtn")).toBeVisible();
+  await expect(page.locator("#startBtn")).toBeHidden();
   await expect(page.locator("#postHandDealBtn")).toBeVisible();
 });
 

@@ -3725,3 +3725,36 @@ html, body {
   display: none !important;
 }
 
+/* When the post-hand result modal owns "Deal Next", do not show the bottom Deal button too. */
+.post-hand-panel:not(.hidden) ~ .action-bar #startBtn {
+  display: none !important;
+}
+
+/* Cinematic showdown mode:
+   the floating showdown tray owns the card display, while the old table display
+   fades into the background so we do not show the same hands/board twice. */
+body.showdown-cinema .table-felt {
+  filter: brightness(0.62) saturate(0.9);
+}
+
+body.showdown-cinema #community,
+body.showdown-cinema #playerPositions {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+body.showdown-cinema #potChips,
+body.showdown-cinema .pot-chips,
+body.showdown-cinema #potValue,
+body.showdown-cinema .pot-value {
+  opacity: 0.22 !important;
+}
+
+body.showdown-cinema #showdownTray {
+  z-index: 28;
+}
+
+body.showdown-cinema #postHandPanel {
+  z-index: 30;
+}
+
