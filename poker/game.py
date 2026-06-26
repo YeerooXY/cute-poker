@@ -845,6 +845,27 @@ class PokerServer:
             await self.send(player.ws, "error", {"message": "No betting action is currently available."})
             return
 
+        if room.paused:
+            print("  -> REJECTED: game is paused")
+            await self.send(player.ws, "error", {"message": "Game is paused."})
+            return
+
+        if player.is_spectator:
+            print(f"  -> REJECTED: spectator cannot act ({player.name})")
+            await self.send(player.ws, "error", {"message": "Spectators cannot act."})
+            if room.action_seat == player.seat:
+                room.action_seat = self.next_action_seat_after(room, room.action_seat)
+                await self.broadcast(room)
+            return
+
+        if player.sitting_out:
+            print(f"  -> REJECTED: sitting-out player cannot act ({player.name})")
+            await self.send(player.ws, "error", {"message": "Sitting-out players cannot act."})
+            if room.action_seat == player.seat:
+                room.action_seat = self.next_action_seat_after(room, room.action_seat)
+                await self.broadcast(room)
+            return
+
         if room.action_seat != player.seat:
             print(f"  -> REJECTED: not your turn (action_seat={room.action_seat}, your seat={player.seat})")
             await self.send(player.ws, "error", {"message": "It is not your turn."})
@@ -1703,7 +1724,15 @@ class PokerServer:
         for offset in range(1, MAX_SEATS + 1):
             next_seat = ((seat - 1 + offset) % MAX_SEATS) + 1
             p = self.player_by_seat(room, next_seat)
-            if p and p.cards and not p.folded and not p.all_in and p.stack > 0:
+            if (
+                p
+                and p.cards
+                and not p.folded
+                and not p.all_in
+                and p.stack > 0
+                and not p.sitting_out
+                and not p.is_spectator
+            ):
                 return p.seat
 
         return None
