@@ -572,3 +572,216 @@ test("locked runout uses showdown display mode before final result", async ({ pa
   });
   expect(screenshot.length).toBeGreaterThan(10_000);
 });
+
+
+const lockedRunoutTrayState = {
+  ...actionLogEdgeState,
+  room_id: "LOCKED-RUNOUT-TRAY",
+  phase: "flop",
+  showdown_mode: true,
+  pot: 2000,
+  community: ["2♣", "7♦", "9♥"],
+  winners: [],
+  action_log: [
+    { player: "Nemo", action: "small_blind", amount: 5, phase: "preflop", is_all_in: false },
+    { player: "Dindybot", action: "big_blind", amount: 10, phase: "preflop", is_all_in: false },
+    { player: "Nemo", action: "bet_raise", amount: 1000, phase: "preflop", is_all_in: true },
+    { player: "Dindybot", action: "check_call", amount: 990, phase: "preflop", is_all_in: true },
+  ],
+  viewer: {
+    ...actionLogEdgeState.viewer,
+    is_turn: false,
+    to_call: 0,
+    committed: 0,
+    stack: 0,
+  },
+  players: [
+    {
+      ...showdownState.players[0],
+      id: "nemo",
+      player_id: "nemo",
+      name: "Nemo",
+      is_you: true,
+      is_bot: false,
+      folded: false,
+      all_in: true,
+      stack: 0,
+      committed: 0,
+      total_invested: 1000,
+      cards: ["A♠", "A♥"],
+      hand_name: "",
+      hand_detail: "",
+      best_cards: [],
+    },
+    {
+      ...showdownState.players[1],
+      id: "dindybot",
+      player_id: "dindybot",
+      name: "Dindybot",
+      is_you: false,
+      is_bot: true,
+      folded: false,
+      all_in: true,
+      stack: 0,
+      committed: 0,
+      total_invested: 1000,
+      cards: ["K♠", "K♥"],
+      hand_name: "",
+      hand_detail: "",
+      best_cards: [],
+    },
+  ],
+};
+
+test("locked runout showdown tray shows board and contender hands", async ({ page }, testInfo) => {
+  await page.goto("/");
+  await showGameWithState(page, lockedRunoutTrayState);
+
+  const tray = page.locator("#showdownTray");
+  await expect(page.locator("#phaseBadge")).toContainText("SHOWDOWN");
+  await expect(tray).not.toHaveClass(/hidden/);
+  await expect(tray).toContainText("Nemo");
+  await expect(tray).toContainText("Dindybot");
+  await expect(tray.locator(".showdown-board-cards .playing-card")).toHaveCount(3);
+  await expect(tray.locator(".showdown-contender")).toHaveCount(2);
+  await expect(tray.locator(".showdown-contender").filter({ hasText: "Nemo" }).locator(".playing-card.card-back")).toHaveCount(0);
+  await expect(tray.locator(".showdown-contender").filter({ hasText: "Dindybot" }).locator(".playing-card.card-back")).toHaveCount(0);
+
+  await waitForVisualSettle(page);
+  const screenshot = await page.screenshot({
+    path: artifactPath(testInfo, `locked-runout-showdown-tray-${testInfo.project.name}.png`),
+    fullPage: false,
+  });
+  expect(screenshot.length).toBeGreaterThan(10_000);
+});
+
+
+const finalShowdownTrayState = {
+  ...showdownState,
+  room_id: "FINAL-SHOWDOWN-TRAY",
+  phase: "showdown",
+  showdown_mode: true,
+  community: ["A♣", "3♣", "K♠", "Q♦", "K♣"],
+  players: showdownState.players.map(p => {
+    if (p.name === "Nemo") {
+      return {
+        ...p,
+        id: "nemo",
+        player_id: "nemo",
+        cards: ["A♦", "K♥"],
+        folded: false,
+        hand_name: "Two Pair",
+        hand_detail: "Aces and Kings",
+      };
+    }
+    if (p.name === "Dindybot") {
+      return {
+        ...p,
+        id: "dindybot",
+        player_id: "dindybot",
+        cards: ["10♣", "9♣"],
+        folded: false,
+        hand_name: "Flush",
+        hand_detail: "King-high Flush",
+      };
+    }
+    return {
+      ...p,
+      id: "folded",
+      player_id: "folded",
+      cards: ["🂠", "🂠"],
+      folded: true,
+      hand_name: "",
+      hand_detail: "",
+      best_cards: [],
+    };
+  }),
+};
+
+test("final showdown tray shows full board and only live contenders", async ({ page }, testInfo) => {
+  await page.goto("/");
+  await showGameWithState(page, finalShowdownTrayState);
+
+  const tray = page.locator("#showdownTray");
+  await expect(tray).not.toHaveClass(/hidden/);
+  await expect(tray).toContainText("Nemo");
+  await expect(tray).toContainText("Dindybot");
+  await expect(tray).not.toContainText("Papperbot");
+  await expect(tray.locator(".showdown-board-cards .playing-card")).toHaveCount(5);
+  await expect(tray.locator(".showdown-contender")).toHaveCount(2);
+
+  await waitForVisualSettle(page);
+  const screenshot = await page.screenshot({
+    path: artifactPath(testInfo, `final-showdown-tray-${testInfo.project.name}.png`),
+    fullPage: false,
+  });
+  expect(screenshot.length).toBeGreaterThan(10_000);
+});
+
+
+const unorderedBestFiveState = {
+  ...showdownState,
+  room_id: "ORDERED-CARDS",
+  phase: "showdown",
+  showdown_mode: true,
+  community: ["4♥", "10♠", "5♦", "Q♣", "5♠"],
+  players: [
+    {
+      ...showdownState.players[0],
+      id: "hero",
+      player_id: "hero",
+      name: "Hero",
+      is_you: true,
+      folded: false,
+      cards: ["4♣", "4♦"],
+      hand_name: "Two Pair",
+      hand_detail: "Fives and Fours, Ten kicker",
+      best_cards: ["4♣", "4♦", "10♠", "5♦", "5♠"],
+    },
+    {
+      ...showdownState.players[1],
+      id: "villain",
+      player_id: "villain",
+      name: "Villain",
+      is_you: false,
+      folded: false,
+      cards: ["K♣", "A♦"],
+      hand_name: "High Card",
+      hand_detail: "Ace-high",
+      best_cards: ["K♣", "A♦", "Q♣", "10♠", "5♠"],
+    },
+  ],
+  winners: [
+    {
+      player_id: "hero",
+      name: "Hero",
+      amount: 2000,
+      hand_name: "Two Pair",
+      hand_detail: "Fives and Fours, Ten kicker",
+      reason: "Best hand at showdown",
+      best_cards: ["4♣", "4♦", "10♠", "5♦", "5♠"],
+    },
+  ],
+  hand_deltas: {
+    Hero: 1000,
+    Villain: -1000,
+  },
+};
+
+test("showdown cards are ordered strongest to weakest", async ({ page }) => {
+  await page.goto("/");
+  await showGameWithState(page, unorderedBestFiveState);
+
+  const heroRow = page.locator(".post-hand-row").filter({ hasText: "Hero" }).first();
+  const bestCards = await heroRow.locator(".post-hand-cards .playing-card").evaluateAll(cards =>
+    cards.map(card => card.innerText.replace(/\s+/g, ""))
+  );
+  expect(bestCards).toEqual(["5♠", "5♦", "4♣", "4♦", "10♠"]);
+
+  const villainTray = page.locator("#showdownTray .showdown-contender").filter({ hasText: "Villain" });
+  const villainHole = await villainTray.locator(".showdown-contender-cards .playing-card").evaluateAll(cards =>
+    cards.map(card => card.innerText.replace(/\s+/g, ""))
+  );
+  expect(villainHole).toEqual(["A♦", "K♣"]);
+});
+

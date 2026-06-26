@@ -14,7 +14,7 @@ const els = {};
 "chatPanel","chatMessages","chatInput","chatBtn","actionBar","turnInfo",
 "pauseBtn","sitOutBtn","spectateBtn","addBotBtn","removeBotBtn","botDifficultySelect",
 "hintsToggle","bbToggleBtn","potChips","autoDealToggle","autoDealCountdown","outsBox",
-"actionLogHandNum","actionLogBody","actionLogPanel","actionLogToggle","postHandPanel",
+"actionLogHandNum","actionLogBody","actionLogPanel","actionLogToggle","postHandPanel","showdownTray",
 "postHandKicker","postHandTitle","postHandPot","postHandBody","postHandDealBtn"
 ].forEach(id => { els[id] = $(id); });
 
@@ -39,6 +39,121 @@ function parseCard(card) {
   const suit = text.slice(-1);
   const rank = text.slice(0, -1);
   return { rank, suit };
+}
+
+
+
+const DISPLAY_RANK_VALUE = {
+  "A": 14,
+  "K": 13,
+  "Q": 12,
+  "J": 11,
+  "10": 10,
+  "T": 10,
+  "9": 9,
+  "8": 8,
+  "7": 7,
+  "6": 6,
+  "5": 5,
+  "4": 4,
+  "3": 3,
+  "2": 2,
+};
+
+function rankValueForDisplayCard(card) {
+  const text = String(card || "");
+  if (!text || text === "BACK" || text === "🂠") return -1;
+  const rank = text.slice(0, -1);
+  return DISPLAY_RANK_VALUE[rank] || -1;
+}
+
+function cardRankForDisplay(card) {
+  const text = String(card || "");
+  if (!text || text === "BACK" || text === "🂠") return "";
+  return text.slice(0, -1);
+}
+
+function sortCardsHighToLow(cards) {
+  return [...(Array.isArray(cards) ? cards : [])].sort((a, b) => {
+    const av = rankValueForDisplayCard(a);
+    const bv = rankValueForDisplayCard(b);
+    if (av !== bv) return bv - av;
+    return String(a).localeCompare(String(b));
+  });
+}
+
+function sortHoleCardsForDisplay(cards) {
+  return sortCardsHighToLow(cards);
+}
+
+function isWheelStraight(cards) {
+  const ranks = new Set((cards || []).map(cardRankForDisplay));
+  return ranks.has("A") && ranks.has("5") && ranks.has("4") && ranks.has("3") && ranks.has("2");
+}
+
+function sortStraightCardsForDisplay(cards) {
+  const sorted = sortCardsHighToLow(cards);
+  if (!isWheelStraight(sorted)) return sorted;
+  const ace = sorted.find(c => cardRankForDisplay(c) === "A");
+  const rest = sorted.filter(c => cardRankForDisplay(c) !== "A");
+  return [...rest, ace].filter(Boolean);
+}
+
+function groupCardsByRank(cards) {
+  const groups = new Map();
+  for (const card of cards || []) {
+    const rank = cardRankForDisplay(card);
+    if (!groups.has(rank)) groups.set(rank, []);
+    groups.get(rank).push(card);
+  }
+  return [...groups.entries()]
+    .map(([rank, rankCards]) => ({
+      rank,
+      value: DISPLAY_RANK_VALUE[rank] || -1,
+      cards: sortCardsHighToLow(rankCards),
+      count: rankCards.length,
+    }))
+    .sort((a, b) => {
+      if (a.count !== b.count) return b.count - a.count;
+      if (a.value !== b.value) return b.value - a.value;
+      return String(a.rank).localeCompare(String(b.rank));
+    });
+}
+
+function sortGroupedMadeHand(cards, countOrder) {
+  const groups = groupCardsByRank(cards);
+  const result = [];
+
+  for (const wantedCount of countOrder) {
+    const matching = groups
+      .filter(g => g.count === wantedCount)
+      .sort((a, b) => b.value - a.value);
+
+    for (const group of matching) {
+      result.push(...group.cards);
+    }
+  }
+
+  const used = new Set(result);
+  const kickers = sortCardsHighToLow((cards || []).filter(card => !used.has(card)));
+  return [...result, ...kickers];
+}
+
+function sortBestFiveForDisplay(cards, handName = "") {
+  const list = Array.isArray(cards) ? cards : [];
+  if (list.length <= 1) return list;
+
+  const name = String(handName || "").toLowerCase();
+
+  if (name.includes("straight")) return sortStraightCardsForDisplay(list);
+  if (name.includes("flush")) return sortCardsHighToLow(list);
+  if (name.includes("four")) return sortGroupedMadeHand(list, [4]);
+  if (name.includes("full house")) return sortGroupedMadeHand(list, [3, 2]);
+  if (name.includes("three")) return sortGroupedMadeHand(list, [3]);
+  if (name.includes("two pair")) return sortGroupedMadeHand(list, [2]);
+  if (name.includes("one pair") || name === "pair") return sortGroupedMadeHand(list, [2]);
+
+  return sortCardsHighToLow(list);
 }
 
 function makeCardHtml(card, extraClass = "") {
@@ -527,6 +642,7 @@ function renderState(state) {
 
   // ─── Community cards ───
   renderCommunity(state.community, previousState ? previousState.community : []);
+  renderShowdownTray(state);
 
   // ─── Your hand ───
   // Hide the hero hand bar during showdown so the post-hand panel can own the result view.
@@ -576,7 +692,7 @@ function renderYourHand(viewer) {
     return;
   }
   els.yourHandBar.classList.remove("hand-bar-hidden");
-  els.yourCards.innerHTML = viewer.cards.map(makeCardHtml).join("");
+  els.yourCards.innerHTML = sortHoleCardsForDisplay(viewer.cards).map(makeCardHtml).join("");
   els.handStrength.textContent = viewer.hand_name || "";
 }
 
@@ -942,13 +1058,14 @@ function buildBestFiveBreakdown(player, state) {
     return null;
   }
 
+  const orderedBest = sortBestFiveForDisplay(best, player.hand_name);
   const remainingHole = [...hole];
   const remainingBoard = [...board];
   const usedHole = [];
   const usedBoard = [];
   const missing = [];
 
-  for (const card of best) {
+  for (const card of orderedBest) {
     if (removeFirstCardMatch(remainingHole, card)) {
       usedHole.push(card);
     } else if (removeFirstCardMatch(remainingBoard, card)) {
@@ -963,7 +1080,7 @@ function buildBestFiveBreakdown(player, state) {
     return null;
   }
 
-  const leftOut = [...remainingHole, ...remainingBoard];
+  const leftOut = sortCardsHighToLow([...remainingHole, ...remainingBoard]);
   if (leftOut.length !== 2) {
     return null;
   }
@@ -1085,6 +1202,84 @@ function bindFoldedRevealButtons() {
 }
 
 
+
+
+function showdownTrayParticipants(state) {
+  const winners = Array.isArray(state.winners) ? state.winners : [];
+  const uncontestedWinnerIds = new Set(
+    winners
+      .filter(w => w && w.reason === "Everyone else folded")
+      .map(w => String(w.player_id || ""))
+  );
+
+  return (Array.isArray(state.players) ? state.players : [])
+    .filter(p => p && !p.folded)
+    .filter(p => Array.isArray(p.cards) && p.cards.length === 2)
+    .filter(p => {
+      const pid = String(p.player_id || p.id || "");
+      const isUncontestedWinner = uncontestedWinnerIds.has(pid);
+      const hiddenCards = p.cards.every(card => card === "🂠");
+      return !(isUncontestedWinner && hiddenCards);
+    })
+    .sort((a, b) => {
+      const aHero = a.is_you ? 0 : 1;
+      const bHero = b.is_you ? 0 : 1;
+      if (aHero !== bHero) return aHero - bHero;
+      return String(a.name || "").localeCompare(String(b.name || ""));
+    });
+}
+
+function renderShowdownTray(state) {
+  const tray = els.showdownTray;
+  if (!tray) return;
+
+  const showdownDisplay = state.phase === "showdown" || Boolean(state.showdown_mode);
+  const board = Array.isArray(state.community) ? state.community : [];
+  const contenders = showdownTrayParticipants(state);
+
+  if (!showdownDisplay || contenders.length === 0) {
+    tray.classList.add("hidden");
+    tray.innerHTML = "";
+    return;
+  }
+
+  const emptyBoardText = state.phase === "showdown" ? "No board dealt" : "Waiting for board…";
+  const boardHtml = board.length
+    ? board.map(card => makeCardHtml(card)).join("")
+    : `<div class="showdown-board-empty">${esc(emptyBoardText)}</div>`;
+
+  const contenderHtml = contenders.map(p => {
+    const labelBits = [
+      p.is_you ? '<span class="showdown-tag showdown-tag-you">YOU</span>' : '',
+      p.is_bot ? '<span class="showdown-tag showdown-tag-bot">BOT</span>' : '',
+      p.is_dealer ? '<span class="showdown-tag">D</span>' : '',
+      p.all_in ? '<span class="showdown-tag showdown-tag-allin">ALL-IN</span>' : '',
+    ].filter(Boolean).join("");
+
+    const handText = p.hand_detail || p.hand_name || "";
+
+    return `
+      <article class="showdown-contender${p.is_you ? " is-you" : ""}">
+        <div class="showdown-contender-cards">
+          ${sortHoleCardsForDisplay(p.cards).map(card => makeCardHtml(card)).join("")}
+        </div>
+        <div class="showdown-contender-name">${esc(p.name || "Player")}</div>
+        <div class="showdown-contender-tags">${labelBits}</div>
+        ${handText ? `<div class="showdown-contender-hand">${esc(handText)}</div>` : ""}
+      </article>
+    `;
+  }).join("");
+
+  tray.innerHTML = `
+    <div class="showdown-board-frame">
+      <div class="showdown-board-title">${board.length === 5 ? "SHOWDOWN BOARD" : "BOARD"}</div>
+      <div class="showdown-board-cards">${boardHtml}</div>
+    </div>
+    <div class="showdown-contenders">${contenderHtml}</div>
+  `;
+  tray.classList.remove("hidden");
+}
+
 function renderPostHandPanel(state) {
   if (!els.postHandPanel) return;
   const winners = Array.isArray(state.winners) ? state.winners : [];
@@ -1160,7 +1355,7 @@ function renderPostHandPanel(state) {
   const shownRows = sortedPlayers.map(p => {
     const isWinner = winnerNames.has(p.name);
     const detail = p.hand_detail || p.hand_name;
-    const cards = p.best_cards.map(card => makeCardHtml(card, "showdown-card-flip")).join("");
+    const cards = sortBestFiveForDisplay(p.best_cards, p.hand_name).map(card => makeCardHtml(card, "showdown-card-flip")).join("");
     const result = isWinner ? (winners.length > 1 ? "splits" : "wins") : "shows";
     const delta = handDeltas.get(p.name);
     const amount = formatHandDelta(delta);
@@ -1200,7 +1395,7 @@ function renderPostHandPanel(state) {
       : foldedRevealDetail(p);
     const result = isUncontestedWinner ? (isUncontestedRevealed ? "revealed winner" : "wins uncontested") : mode === "both" ? "revealed" : "mucked";
     const uncontestedActions = canRevealUncontested
-      ? '<div class="folded-reveal-actions"><button type="button" class="btn btn-tiny btn-deal" data-uncontested-reveal="both">Show hand</button></div>'
+      ? '<div class="folded-reveal-actions"><button type="button" class="btn btn-tiny btn-dim" data-uncontested-reveal="left">Show left</button><button type="button" class="btn btn-tiny btn-dim" data-uncontested-reveal="right">Show right</button><button type="button" class="btn btn-tiny btn-deal" data-uncontested-reveal="both">Show both</button></div>'
       : "";
     const revealActions = isUncontestedWinner ? uncontestedActions : renderFoldedRevealActions(p);
     const wouldHaveBreakdown = isUncontestedWinner ? "" : renderFoldedWouldHaveBreakdown(p, state);
@@ -1230,7 +1425,7 @@ function renderPostHandPanel(state) {
 
 function formatPlayerShowdownEntry(player, winnerNames) {
   if (!player.hand_name || !player.best_cards || player.best_cards.length === 0) return null;
-  const cardsStr = player.best_cards.map(c => {
+  const cardsStr = sortBestFiveForDisplay(player.best_cards, player.hand_name).map(c => {
     const isRed = c.includes("♥") || c.includes("♦");
     return `<span class="${isRed ? "card-red" : "card-white"}">${esc(c)}</span>`;
   }).join(" ");
