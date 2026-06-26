@@ -3758,3 +3758,126 @@ body.showdown-cinema #postHandPanel {
   z-index: 30;
 }
 
+
+/* ─────────────────────────────────────────────────────────────
+   Showdown cinema layout polish
+   CSS-only: keep the floating tray, dim the room, center the result panel.
+   ───────────────────────────────────────────────────────────── */
+
+body.showdown-cinema .game-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 22;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(circle at 50% 23%, rgba(255, 255, 255, 0.075), transparent 26rem),
+    radial-gradient(circle at 50% 58%, rgba(245, 212, 66, 0.045), transparent 34rem),
+    rgba(0, 0, 0, 0.34);
+  backdrop-filter: grayscale(0.18) brightness(0.78) blur(1px);
+  -webkit-backdrop-filter: grayscale(0.18) brightness(0.78) blur(1px);
+  animation: showdownLightsOut 420ms ease-out forwards;
+}
+
+@keyframes showdownLightsOut {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+body.showdown-cinema #showdownTray {
+  z-index: 32 !important;
+  top: clamp(56px, 8vh, 96px) !important;
+}
+
+body.showdown-cinema #postHandPanel {
+  z-index: 42 !important;
+}
+
+/* The room-wide lights-out layer now owns the cinematic dimming.
+   Avoid stacking a second full-screen backdrop behind the result modal. */
+body.showdown-cinema .post-hand-panel.post-hand-modal::before {
+  display: none !important;
+}
+
+@media (min-width: 601px) {
+  body.showdown-cinema .post-hand-panel.post-hand-modal {
+    left: 50% !important;
+    width: min(760px, calc(100vw - 32px)) !important;
+    bottom: clamp(88px, 10vh, 120px) !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  body.showdown-cinema .post-hand-panel.post-hand-modal {
+    width: min(820px, calc(100vw - 96px)) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  body.showdown-cinema #showdownTray {
+    top: clamp(44px, 7vh, 72px) !important;
+  }
+}
+
+@media (max-width: 600px) {
+  body.showdown-cinema #showdownTray {
+    top: 7% !important;
+  }
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   Showdown post-hand modal centering fix
+   fadeScaleIn animates transform, which temporarily drops translateX(-50%)
+   and makes the modal appear offset before snapping centered.
+   Keep the centering transform stable and fade opacity only.
+   ───────────────────────────────────────────────────────────── */
+
+body.showdown-cinema .post-hand-panel.post-hand-modal {
+  transform: translateX(-50%) !important;
+  animation: postHandCinemaFadeInOnly 0.18s ease-out both !important;
+}
+
+@keyframes postHandCinemaFadeInOnly {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   Betting controls disabled state
+   Low-stack/invalid betting buttons should look intentionally unavailable.
+   ───────────────────────────────────────────────────────────── */
+
+.action-bar .btn:disabled,
+.action-bar .btn[aria-disabled="true"] {
+  opacity: 0.42;
+  cursor: not-allowed;
+  filter: grayscale(0.55) brightness(0.72);
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.action-bar input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.45) brightness(0.72);
+}
+
+
+/* Hide intentionally empty post-hand detail text, e.g. obvious uncontested wins. */
+.post-hand-panel.post-hand-modal .post-hand-detail:empty {
+  display: none !important;
+}
+

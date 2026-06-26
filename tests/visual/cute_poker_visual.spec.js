@@ -471,8 +471,8 @@ test("fold-win winner stays hidden and modal says uncontested", async ({ page },
 
   const winnerRow = page.locator(".post-hand-row").filter({ hasText: "Dindybot" });
   await expect(winnerRow.locator(".post-hand-result")).toContainText("wins uncontested");
-  await expect(winnerRow.locator(".post-hand-detail")).toContainText("Hand not shown");
-  await expect(winnerRow.locator(".post-hand-detail")).toContainText("Everyone else folded");
+  await expect(winnerRow.locator(".post-hand-detail")).toHaveText("");
+  await expect(winnerRow.locator(".post-hand-detail")).toBeHidden();
   await expect(winnerRow.locator(".post-hand-cards .playing-card.card-back")).toHaveCount(2);
   await expect(winnerRow.locator(".post-hand-breakdown")).toHaveCount(0);
   await expect(winnerRow.locator("[data-folded-reveal]")).toHaveCount(0);

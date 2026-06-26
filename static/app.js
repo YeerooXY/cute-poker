@@ -585,6 +585,192 @@ function syncDealControls(state) {
   }
 }
 
+
+function numberOrZero(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function setActionButtonState(btn, enabled, label, title = "") {
+  if (!btn) return;
+  btn.disabled = !enabled;
+  btn.setAttribute("aria-disabled", enabled ? "false" : "true");
+  if (label != null) btn.textContent = label;
+  if (title) {
+    btn.title = title;
+  } else {
+    btn.removeAttribute("title");
+  }
+}
+
+function bettingActionModel(state, isMyTurn, showdownDisplay) {
+  const viewer = state && state.viewer ? state.viewer : {};
+  const phase = state && state.phase ? state.phase : "";
+  const activePhase = ["preflop", "flop", "turn", "river"].includes(phase);
+
+  const stack = Math.max(0, numberOrZero(viewer.stack));
+  const committed = Math.max(0, numberOrZero(viewer.committed));
+  const totalChips = committed + stack;
+  const toCall = Math.max(0, numberOrZero(viewer.to_call));
+  const currentBet = Math.max(0, numberOrZero(state && state.current_bet));
+  const fallbackMinRaise = Math.max(1, numberOrZero(state && state.big_blind));
+  const minRaise = Math.max(1, numberOrZero(state && state.min_raise) || fallbackMinRaise);
+  const pot = Math.max(0, numberOrZero(state && state.pot));
+  const minRaiseTo = currentBet + minRaise;
+
+  const canAct = Boolean(
+    isMyTurn
+    && activePhase
+    && !showdownDisplay
+    && state
+    && !state.paused
+    && stack > 0
+    && !viewer.folded
+    && !viewer.all_in
+  );
+
+  const canCheck = canAct && toCall <= 0;
+  const canCall = canAct && toCall > 0;
+  const liveOpponents = Array.isArray(state && state.players)
+    ? state.players.filter(p => {
+        if (!p || p.is_you || p.folded || p.is_spectator) return false;
+        return Array.isArray(p.cards) && p.cards.length > 0;
+      })
+    : [];
+  const raiseCanBeContested = liveOpponents.some(p =>
+    !p.all_in && numberOrZero(p.stack) > 0
+  );
+
+  const canMakeFullRaise = canAct && raiseCanBeContested && stack > toCall && totalChips >= minRaiseTo;
+  const canShortAllIn = canAct && raiseCanBeContested && stack > toCall && totalChips < minRaiseTo;
+  const canAllIn = canAct && raiseCanBeContested && (toCall <= 0 || stack > toCall);
+
+  const halfPotTarget = Math.max(minRaiseTo, currentBet + Math.floor(pot / 2));
+  const potTarget = Math.max(minRaiseTo, currentBet + pot);
+
+  const preset = (target) => {
+    const enabled = canMakeFullRaise && target <= totalChips;
+    let title = "";
+    if (canAct && !enabled) {
+      if (target > totalChips) {
+        title = `Not enough chips: needs ${target}, maximum is ${totalChips}`;
+      } else if (!canMakeFullRaise && canShortAllIn) {
+        title = `Only all-in is available: minimum raise is ${minRaiseTo}, maximum is ${totalChips}`;
+      } else if (!canMakeFullRaise) {
+        title = `Minimum raise is ${minRaiseTo}`;
+      }
+    }
+    return { target, enabled, title };
+  };
+
+  return {
+    canAct,
+    stack,
+    committed,
+    totalChips,
+    toCall,
+    currentBet,
+    minRaise,
+    minRaiseTo,
+    canCheck,
+    canCall,
+    canMakeFullRaise,
+    canShortAllIn,
+    canAllIn,
+    raiseCanBeContested,
+    halfPot: preset(halfPotTarget),
+    pot: preset(potTarget),
+  };
+}
+
+function syncBettingControls(state, isMyTurn, showdownDisplay) {
+  const model = bettingActionModel(state, isMyTurn, showdownDisplay);
+
+  setActionButtonState(
+    els.foldBtn,
+    model.canAct,
+    "Fold"
+  );
+
+  let checkCallLabel = "Check / Call";
+  let checkCallEnabled = false;
+  let checkCallTitle = "";
+
+  if (model.canCheck) {
+    checkCallLabel = "Check";
+    checkCallEnabled = true;
+  } else if (model.canCall) {
+    if (model.stack < model.toCall) {
+      checkCallLabel = `Call All-In ${model.stack}`;
+      checkCallTitle = `You only have ${model.stack}; this calls all-in against ${model.toCall}`;
+    } else {
+      checkCallLabel = `Call ${model.toCall}`;
+    }
+    checkCallEnabled = true;
+  }
+
+  setActionButtonState(els.checkCallBtn, checkCallEnabled, checkCallLabel, checkCallTitle);
+
+  setActionButtonState(
+    els.betHalfPotBtn,
+    model.halfPot.enabled,
+    model.halfPot.enabled ? `Half Pot ${model.halfPot.target}` : "Half Pot",
+    model.halfPot.title
+  );
+
+  setActionButtonState(
+    els.betPotBtn,
+    model.pot.enabled,
+    model.pot.enabled ? `Pot ${model.pot.target}` : "Pot",
+    model.pot.title
+  );
+
+  let allInLabel = "All-In";
+  let allInTitle = "";
+  if (model.canAllIn) {
+    allInLabel = `All-In ${model.totalChips}`;
+    if (model.canShortAllIn) {
+      allInTitle = `Short all-in: below minimum raise ${model.minRaiseTo}`;
+    }
+  } else if (model.canCall && !model.raiseCanBeContested) {
+    allInTitle = "Call closes action; no one can contest extra chips";
+  } else if (model.canCall && model.stack <= model.toCall) {
+    allInTitle = "Use Call All-In instead";
+  }
+
+  setActionButtonState(
+    els.betAllInBtn,
+    model.canAllIn,
+    allInLabel,
+    allInTitle
+  );
+
+  if (els.customBetInput) {
+    els.customBetInput.disabled = !model.canMakeFullRaise;
+    els.customBetInput.min = model.canMakeFullRaise ? String(model.minRaiseTo) : "";
+    els.customBetInput.max = model.canMakeFullRaise ? String(model.totalChips) : "";
+
+    if (model.canMakeFullRaise) {
+      els.customBetInput.placeholder = `Raise ${model.minRaiseTo}-${model.totalChips}`;
+    } else if (model.canShortAllIn) {
+      els.customBetInput.placeholder = `Only all-in ${model.totalChips}`;
+    } else if (model.canCall && !model.raiseCanBeContested) {
+      els.customBetInput.placeholder = "Call closes action";
+    } else if (model.canCall && model.stack <= model.toCall) {
+      els.customBetInput.placeholder = "Call all-in only";
+    } else {
+      els.customBetInput.placeholder = "Raise to...";
+    }
+  }
+
+  setActionButtonState(
+    els.customBetBtn,
+    model.canMakeFullRaise,
+    "Raise"
+  );
+}
+
+
 function renderState(state) {
   const previousState = lastState;
   lastState = state;
@@ -718,14 +904,8 @@ function renderState(state) {
   renderPostHandPanel(state);
   syncDealControls(state);
 
-  // ─── Action button labels ───
-  if (isMyTurn) {
-    els.checkCallBtn.textContent = state.viewer.to_call > 0 ? `Call ${state.viewer.to_call}` : "Check";
-    els.customBetInput.placeholder = `Min ${state.current_bet + state.min_raise}`;
-  } else {
-    els.checkCallBtn.textContent = "Check / Call";
-    els.customBetInput.placeholder = "Raise to...";
-  }
+  // ─── Action button labels / enabled state ───
+  syncBettingControls(state, isMyTurn, showdownDisplay);
 
   // Hide outs box (removed feature)
   if (els.outsBox) els.outsBox.classList.add("hidden");
@@ -1451,7 +1631,7 @@ function renderPostHandPanel(state) {
       ? (isUncontestedRevealed && Array.isArray(p.cards) && p.cards.length > 0 ? p.cards : ["🂠", "🂠"])
       : foldedCardsForModal(p);
     const detail = isUncontestedWinner
-      ? (isUncontestedRevealed ? "Winner revealed their hand after everyone folded" : "Hand not shown · Everyone else folded")
+      ? (isUncontestedRevealed ? "Winner revealed their hand" : "")
       : foldedRevealDetail(p);
     const result = isUncontestedWinner ? (isUncontestedRevealed ? "revealed winner" : "wins uncontested") : mode === "both" ? "revealed" : "mucked";
     const uncontestedActions = canRevealUncontested
