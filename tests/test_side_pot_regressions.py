@@ -236,3 +236,71 @@ def test_side_pot_breakdown_winner_amounts_match_winner_list() -> None:
     assert_awarded_exact_pot(room, 1625)
     assert from_breakdown == from_winners
     assert [tier["pot"] for tier in room.pot_breakdown] == [500, 375, 750]
+
+def test_textbook_three_way_side_pot_50_100_200_after_uncalled_return() -> None:
+    """Three-way all-in side-pot example: stacks 50 / 100 / 200.
+
+    Poker accounting:
+    - Player A can contest 50 from each player: main pot = 150.
+    - Player B can contest the next 50 from B and C: side pot = 100.
+    - Player C's extra 100 is uncalled and should already be returned before
+      showdown, so the showdown pot is 250, not 350.
+
+    This locks down the clean textbook case that is easiest to reason about.
+    """
+    server = PokerServer()
+
+    short_stack_best = make_player(
+        "p1", "ShortStackBest", seat=1,
+        invested=50,
+        cards=["AS", "AH"],
+    )
+    middle_stack_second_best = make_player(
+        "p2", "MiddleStackSecondBest", seat=2,
+        invested=100,
+        cards=["KS", "KH"],
+    )
+    big_stack_worst_hand = make_player(
+        "p3", "BigStackWorstHand", seat=3,
+        invested=100,
+        cards=["QS", "QH"],
+        stack=100,
+        all_in=False,
+    )
+
+    room = make_showdown_room(
+        short_stack_best,
+        middle_stack_second_best,
+        big_stack_worst_hand,
+        board=["2C", "5D", "9S", "7H", "3C"],
+        pot=250,
+    )
+
+    server.showdown(room)
+
+    amounts = winner_amounts(room)
+
+    assert_awarded_exact_pot(room, 250)
+
+    # A has the best hand but can only win the 150 main pot.
+    assert amounts["p1"] == 150
+
+    # B beats C and wins the 100 side pot.
+    assert amounts["p2"] == 100
+
+    # C's unmatched extra 100 was returned before showdown and is not awarded.
+    assert "p3" not in amounts
+    assert big_stack_worst_hand.stack == 100
+
+    assert [tier["pot"] for tier in room.pot_breakdown] == [150, 100]
+    assert [tier["type"] for tier in room.pot_breakdown] == ["main", "side"]
+    assert room.pot_breakdown[0]["eligible"] == ["p1", "p2", "p3"]
+    assert room.pot_breakdown[1]["eligible"] == ["p2", "p3"]
+
+    assert short_stack_best.stack == 150
+    assert middle_stack_second_best.stack == 100
+
+    assert room.hand_deltas["p1"] == 100
+    assert room.hand_deltas["p2"] == 0
+    assert room.hand_deltas["p3"] == -100
+
