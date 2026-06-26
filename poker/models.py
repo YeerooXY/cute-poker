@@ -22,6 +22,7 @@ class Player:
     connected: bool = True
 
     stack: int = 1000
+    hand_start_stack: int = 1000
     cards: list[str] = field(default_factory=list)
     folded: bool = False
     all_in: bool = False
@@ -62,6 +63,7 @@ class Room:
     winners: list[Winner] = field(default_factory=list)
     pot_breakdown: list = field(default_factory=list)  # Per-pot tier results for UI
     action_log: list = field(default_factory=list)  # Actions taken this hand (for analysis)
+    hand_deltas: dict[str, int] = field(default_factory=dict)  # Net result this hand by player_id
 
     phase: str = "lobby"  # lobby, preflop, flop, turn, river, showdown
     pot: int = 0

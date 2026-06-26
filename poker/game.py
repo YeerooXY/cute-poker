@@ -941,6 +941,24 @@ class PokerServer:
         if player.stack == 0:
             player.all_in = True
 
+    def finalize_hand_deltas(self, room: Room) -> None:
+        """Store each player's net result for the completed hand.
+
+        Net result is final stack minus stack at hand start.
+        This is safer than reconstructing from action logs because it naturally
+        includes blinds, antes, calls, raises, returned excess, side pots,
+        split pots, and odd chips.
+        """
+        winner_ids = {w.player_id for w in room.winners}
+        deltas: dict[str, int] = {}
+
+        for p in room.seated_players():
+            if p.cards or p.total_invested > 0 or p.player_id in winner_ids:
+                start_stack = int(getattr(p, "hand_start_stack", p.stack + p.total_invested))
+                deltas[p.player_id] = int(p.stack) - start_stack
+
+        room.hand_deltas = deltas
+
     async def start_hand(self, room: Room):
         eligible = [p for p in room.seated_players()
                     if p.stack > 0 and not p.sitting_out and not p.is_spectator]
@@ -957,8 +975,10 @@ class PokerServer:
         room.phase = "preflop"
         room.winners = []
         room.action_log = []
+        room.hand_deltas = {}
 
         for p in room.players.values():
+            p.hand_start_stack = p.stack
             p.cards = []
             p.folded = False
             p.all_in = False
@@ -1222,6 +1242,7 @@ class PokerServer:
         room.winners = [Winner(winner.player_id, winner.name, amount, "Everyone else folded")]
         room.phase = "showdown"
         room.action_seat = None
+        self.finalize_hand_deltas(room)
         save_hand_log(room)
 
     def _is_all_in_runout(self, room: Room) -> bool:
@@ -1457,6 +1478,8 @@ class PokerServer:
                 hand_detail=p.last_hand_detail,
             ))
 
+        self.finalize_hand_deltas(room)
+
         # Clean up temp attributes
         for p in contenders:
             if hasattr(p, '_showdown_score'):
@@ -1565,6 +1588,7 @@ class PokerServer:
                 "stack": p.stack,
                 "committed": p.committed,
                 "total_invested": p.total_invested,
+                "hand_delta": getattr(room, "hand_deltas", {}).get(p.player_id) if room.phase == "showdown" else None,
                 "folded": p.folded,
                 "all_in": p.all_in,
                 "is_you": p.token == viewer_token,
@@ -1714,6 +1738,11 @@ class PokerServer:
                 for w in room.winners
             ],
             "pot_breakdown": room.pot_breakdown,
+            "hand_deltas": {
+                p.name: getattr(room, "hand_deltas", {}).get(p.player_id, 0)
+                for p in room.seated_players()
+                if room.phase == "showdown" and p.player_id in getattr(room, "hand_deltas", {})
+            },
             "action_log": _sanitize_action_log(room.action_log),
             "viewer": {
                 "is_turn": is_viewer_turn,

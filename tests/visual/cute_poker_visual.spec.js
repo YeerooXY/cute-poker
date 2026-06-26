@@ -16,6 +16,29 @@ function showGameWithState(page, state) {
   }, state);
 }
 
+async function waitForVisualSettle(page) {
+  await page.evaluate(async () => {
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready.catch(() => {});
+    }
+
+    const finiteAnimations = document.getAnimations()
+      .filter(animation => {
+        const timing = animation.effect && animation.effect.getTiming
+          ? animation.effect.getTiming()
+          : null;
+        return timing && timing.iterations !== Infinity;
+      });
+
+    await Promise.all(finiteAnimations.map(animation =>
+      animation.finished.catch(() => {})
+    ));
+  });
+
+  // One extra frame cushion for layout/paint after animations finish.
+  await page.waitForTimeout(150);
+}
+
 const showdownState = {
   room_id: "VISUAL",
   paused: false,
@@ -112,7 +135,12 @@ const showdownState = {
       reason: "Best hand at showdown",
     },
   ],
-  action_log: [
+    hand_deltas: {
+    Nemo: 420,
+    Dindybot: -420,
+    Papperbot: 0,
+  },
+action_log: [
     { player: "Nemo", action: "small_blind", amount: 5, phase: "preflop", is_all_in: false },
     { player: "Dindybot", action: "big_blind", amount: 10, phase: "preflop", is_all_in: false },
     { player: "Papperbot", action: "check_call", amount: 10, phase: "preflop", is_all_in: false },
@@ -175,7 +203,12 @@ const actionLogEdgeState = {
       reason: "Best hand at showdown",
     },
   ],
-  action_log: [
+    hand_deltas: {
+    Dindybot: 638,
+    Papperbot: -628,
+    SmallBlind: -10,
+  },
+action_log: [
     { player: "SmallBlind", action: "small_blind", amount: 5, phase: "preflop", is_all_in: false },
     { player: "Dindybot", action: "big_blind", amount: 10, phase: "preflop", is_all_in: false },
     { player: "SmallBlind", action: "check_call", amount: 5, phase: "preflop", is_all_in: false },
@@ -189,8 +222,12 @@ test("showdown visual smoke renders panel, cards, chips, and glow", async ({ pag
   await showGameWithState(page, showdownState);
 
   await expect(page.locator("#postHandPanel")).toBeVisible();
+  await expect(page.locator("#postHandPanel")).toHaveClass(/post-hand-modal/);
+  await expect(page.locator("#yourHandBar")).toHaveClass(/hand-bar-hidden/);
+  await expect(page.locator(".playing-card .card-rank")).not.toHaveCount(0);
   await expect(page.locator("#postHandTitle")).toContainText("Nemo wins 840");
   await expect(page.locator(".post-hand-row.winner")).toHaveCount(1);
+  await expect(page.locator(".post-hand-row").first().locator(".post-hand-name")).toContainText("Nemo");
   await expect(page.locator(".table-felt")).toHaveClass(/showdown-table-glow/);
   await expect(page.locator(".player-seat.showdown-winner-glow")).toHaveCount(1);
   await expect(page.locator("#community .playing-card")).toHaveCount(5);
@@ -212,7 +249,7 @@ test("showdown visual smoke renders panel, cards, chips, and glow", async ({ pag
   expect(actionBarBox).toBeTruthy();
   expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(actionBarBox.y + 4);
 
-  await page.waitForTimeout(750);
+  await waitForVisualSettle(page);
 
   const screenshot = await page.screenshot({
     path: artifactPath(testInfo, `showdown-${testInfo.project.name}.png`),
@@ -240,7 +277,16 @@ test("action log visual smoke covers returned excess, showdown rows, and runout 
   await expect(page.locator(".action-row-raise")).toBeHidden();
   await expect(page.locator(".action-row-custom")).toBeHidden();
   await expect(page.locator(".showdown-hand.showdown-winner-hand")).toHaveCount(1);
+  await expect(page.locator(".post-hand-row").first().locator(".post-hand-name")).toContainText("Dindybot");
+  await expect(page.locator(".post-hand-row").first().locator(".post-hand-amount")).toContainText("+638");
+  await expect(page.locator(".post-hand-row").filter({ hasText: "Papperbot" }).locator(".post-hand-amount")).toContainText("-628");
+  await expect(page.locator(".post-hand-row").filter({ hasText: "SmallBlind" }).locator(".post-hand-amount")).toContainText("-10");
   await expect(page.locator("#postHandTitle")).toContainText("Dindybot wins 1246");
+  await expect(page.locator(".post-hand-row").first().locator(".post-hand-detail")).toContainText("King-high Flush");
+  await expect(page.locator("#yourHandBar")).toHaveClass(/hand-bar-hidden/);
+  await expect(page.locator(".playing-card .card-rank")).not.toHaveCount(0);
+
+  await waitForVisualSettle(page);
 
   const screenshot = await page.screenshot({
     path: artifactPath(testInfo, `action-log-edge-${testInfo.project.name}.png`),

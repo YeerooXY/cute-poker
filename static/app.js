@@ -33,11 +33,20 @@ let intentionalDisconnect = false;
 // ─── Helpers ───
 function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
+function parseCard(card) {
+  const text = String(card || "");
+  if (text === "🂠") return { rank: "🂠", suit: "" };
+  const suit = text.slice(-1);
+  const rank = text.slice(0, -1);
+  return { rank, suit };
+}
+
 function makeCardHtml(card, extraClass = "") {
   if (card === "🂠") return '<div class="playing-card card-back">🂠</div>';
-  const red = card.includes("♥") || card.includes("♦") ? " red" : "";
+  const { rank, suit } = parseCard(card);
+  const red = suit === "♥" || suit === "♦" ? " red" : "";
   const extra = extraClass ? ` ${extraClass}` : "";
-  return `<div class="playing-card${red}${extra}">${esc(card)}</div>`;
+  return `<div class="playing-card${red}${extra}"><span class="card-rank">${esc(rank)}</span><span class="card-suit">${esc(suit)}</span></div>`;
 }
 
 function safeGetItem(key) { try { return localStorage.getItem(key); } catch { return null; } }
@@ -79,10 +88,11 @@ function renderChipStackHtml(amount, extraClass = "") {
   const cls = extraClass ? ` chip-stack-animate ${extraClass}` : " chip-stack-animate";
   return `<div class="chip-stack${cls}">` + stacks.map(({ denom, count }) => {
     const visible = Math.min(count, 4);
-    const chips = Array.from({ length: visible }, (_, idx) =>
-      `<span class="chip-item chip-denom-${denom}" style="--chip-index:${idx}"><span class="chip-label">${denom}</span></span>`
-    ).join("");
-    const countLabel = count > 4 ? `<span class="chip-count">x${count}</span>` : "";
+    const chips = Array.from({ length: visible }, (_, idx) => {
+      const label = idx === visible - 1 ? `<span class="chip-label">${denom}</span>` : "";
+      return `<span class="chip-item chip-denom-${denom}" style="--chip-index:${idx}; --chip-count:${visible}">${label}</span>`;
+    }).join("");
+    const countLabel = count > 4 ? `<span class="chip-count">×${count}</span>` : "";
     return `<span class="denom-stack">${chips}${countLabel}</span>`;
   }).join("") + `</div>`;
 }
@@ -514,7 +524,8 @@ function renderState(state) {
   renderCommunity(state.community, previousState ? previousState.community : []);
 
   // ─── Your hand ───
-  renderYourHand(viewerData);
+  // Hide the hero hand bar during showdown so the post-hand panel can own the result view.
+  renderYourHand(state.phase === "showdown" ? null : viewerData);
 
   // ─── Player seats ───
   renderPlayers(state.players, previousState, state);
@@ -726,12 +737,191 @@ function formatPostHandTitle(winners) {
   return `${names} split ${total}`;
 }
 
+const HAND_STRENGTH_ORDER = {
+  "Royal Flush": 10,
+  "Straight Flush": 9,
+  "Four of a Kind": 8,
+  "Full House": 7,
+  "Flush": 6,
+  "Straight": 5,
+  "Three of a Kind": 4,
+  "Two Pair": 3,
+  "One Pair": 2,
+  "High Card": 1,
+};
+
+function sortShowdownPlayersByResult(players, winners) {
+  const winnerAmountByName = new Map((winners || []).map(w => [w.name, Number(w.amount) || 0]));
+  return [...players].sort((a, b) => {
+    const aWin = winnerAmountByName.get(a.name) || 0;
+    const bWin = winnerAmountByName.get(b.name) || 0;
+    if (aWin !== bWin) return bWin - aWin;
+
+    const aStrength = HAND_STRENGTH_ORDER[a.hand_name] || 0;
+    const bStrength = HAND_STRENGTH_ORDER[b.hand_name] || 0;
+    if (aStrength !== bStrength) return bStrength - aStrength;
+
+    return String(a.name).localeCompare(String(b.name));
+  });
+}
+
+
+function collectActionEntries(state) {
+  return state.action_log || state.actionLog || state.actions || state.history || state.hand_history || [];
+}
+
+function actionEntryText(entry) {
+  if (typeof entry === "string") return entry;
+  if (!entry) return "";
+  return [
+    entry.player,
+    entry.actor,
+    entry.name,
+    entry.action,
+    entry.text,
+    entry.message,
+    entry.amount != null ? entry.amount : "",
+  ].filter(Boolean).join(" ");
+}
+
+function directPlayerDelta(player) {
+  const candidates = [
+    player.hand_delta,
+    player.net_delta,
+    player.delta,
+    player.stack_delta,
+    player.result_delta,
+  ];
+  const value = candidates.find(v => Number.isFinite(Number(v)));
+  return value == null ? null : Number(value);
+}
+
+function parseContributionAmount(actionText) {
+  const patterns = [
+    /\bposts(?:\s+(?:sb|bb|small blind|big blind))?\s+(\d+)/i,
+    /\bcalls\s+(\d+)/i,
+    /\bbets\s+(\d+)/i,
+    /\bgoes\s+all-?in\s+for\s+(\d+)/i,
+    /\bis\s+all-?in\s+for\s+(\d+)/i,
+    /\ball-?in\s+for\s+(\d+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = actionText.match(pattern);
+    if (match) return Number(match[1]);
+  }
+
+  return null;
+}
+
+function computeActionContributions(state) {
+  const players = Array.isArray(state.players) ? state.players : [];
+  const entries = collectActionEntries(state);
+  const contributions = new Map(players.map(p => [p.name, 0]));
+  const streetContrib = new Map(players.map(p => [p.name, 0]));
+
+  for (const entry of entries) {
+    const text = actionEntryText(entry);
+    const lower = text.toLowerCase();
+
+    if (/\bflop\b|\bturn\b|\briver\b|\bshowdown\b/.test(lower)) {
+      streetContrib.clear();
+      players.forEach(p => streetContrib.set(p.name, 0));
+    }
+
+    for (const player of players) {
+      const name = String(player.name || "");
+      if (!name || !text.startsWith(name)) continue;
+
+      const actionText = text.slice(name.length).trim();
+
+      const raiseMatch = actionText.match(/\braises\s+to\s+(\d+)/i);
+      if (raiseMatch) {
+        const target = Number(raiseMatch[1]);
+        const alreadyThisStreet = streetContrib.get(name) || 0;
+        const added = Math.max(0, target - alreadyThisStreet);
+        contributions.set(name, (contributions.get(name) || 0) + added);
+        streetContrib.set(name, target);
+        continue;
+      }
+
+      const amount = parseContributionAmount(actionText);
+      if (amount != null && Number.isFinite(amount)) {
+        contributions.set(name, (contributions.get(name) || 0) + amount);
+        streetContrib.set(name, (streetContrib.get(name) || 0) + amount);
+      }
+    }
+  }
+
+  return contributions;
+}
+
+function computeHandDeltas(state, winners) {
+  const players = Array.isArray(state.players) ? state.players : [];
+  const deltas = new Map();
+
+  const explicit = state.hand_deltas || state.handDeltas || state.net_deltas || state.netDeltas || null;
+  if (explicit && typeof explicit === "object") {
+    for (const player of players) {
+      const value = explicit[player.name];
+      if (Number.isFinite(Number(value))) {
+        deltas.set(player.name, Number(value));
+      }
+    }
+  }
+
+  for (const player of players) {
+    const direct = directPlayerDelta(player);
+    if (direct != null) {
+      deltas.set(player.name, direct);
+    }
+  }
+
+  const contributions = computeActionContributions(state);
+  const wins = new Map(players.map(p => [p.name, 0]));
+  for (const winner of winners || []) {
+    wins.set(winner.name, (wins.get(winner.name) || 0) + (Number(winner.amount) || 0));
+  }
+
+  for (const player of players) {
+    if (deltas.has(player.name)) continue;
+
+    const invested = contributions.get(player.name) || 0;
+    const won = wins.get(player.name) || 0;
+
+    if (invested || won) {
+      deltas.set(player.name, won - invested);
+    }
+  }
+
+  return deltas;
+}
+
+function formatHandDelta(delta) {
+  if (!Number.isFinite(Number(delta))) return "";
+  const value = Number(delta);
+  if (value > 0) return `+${value}`;
+  if (value < 0) return `${value}`;
+  return "±0";
+}
+
+function handDeltaClass(delta) {
+  if (!Number.isFinite(Number(delta))) return "";
+  const value = Number(delta);
+  if (value > 0) return "gain";
+  if (value < 0) return "loss";
+  return "even";
+}
+
+
 function renderPostHandPanel(state) {
   if (!els.postHandPanel) return;
   const winners = Array.isArray(state.winners) ? state.winners : [];
   const visible = state.phase === "showdown" && winners.length > 0;
 
   els.postHandPanel.classList.toggle("hidden", !visible);
+  els.postHandPanel.classList.toggle("post-hand-modal", visible);
+
   if (!visible) {
     if (els.postHandTitle) els.postHandTitle.textContent = "";
     if (els.postHandPot) els.postHandPot.textContent = "";
@@ -744,30 +934,45 @@ function renderPostHandPanel(state) {
   }
   if (els.postHandTitle) els.postHandTitle.textContent = formatPostHandTitle(winners);
   if (els.postHandPot) els.postHandPot.textContent = `Final pot ${state.pot || 0}`;
-
   if (!els.postHandBody) return;
+
   const winnerNames = new Set(winners.map(w => w.name));
-  const revealedPlayers = (state.players || [])
+  const players = Array.isArray(state.players) ? state.players : [];
+
+  const revealedPlayers = players
     .filter(p => p.hand_name && p.best_cards && p.best_cards.length > 0 && !p.folded);
 
-  if (revealedPlayers.length === 0) {
+  const foldedPlayers = players
+    .filter(p => p.folded)
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+  const handDeltas = computeHandDeltas(state, winners);
+
+  if (revealedPlayers.length === 0 && foldedPlayers.length === 0) {
     els.postHandBody.innerHTML = winners.map(w => `
       <div class="post-hand-row winner">
-        <span class="post-hand-name">${esc(w.name)}</span>
-        <span class="post-hand-detail">${esc(w.reason || "wins")}</span>
-        <span class="post-hand-amount">+${esc(w.amount || 0)}</span>
+        <div class="post-hand-player">
+          <span class="post-hand-name">${esc(w.name)}</span>
+          <span class="post-hand-result">wins</span>
+        </div>
+        <div class="post-hand-cards"></div>
+        <div class="post-hand-detail">${esc(w.reason || "wins")}</div>
+        <div class="post-hand-amount gain">+${esc(w.amount || 0)}</div>
       </div>
     `).join("");
     return;
   }
 
-  els.postHandBody.innerHTML = revealedPlayers.map(p => {
+  const sortedPlayers = sortShowdownPlayersByResult(revealedPlayers, winners);
+
+  const shownRows = sortedPlayers.map(p => {
     const isWinner = winnerNames.has(p.name);
     const detail = p.hand_detail || p.hand_name;
     const cards = p.best_cards.map(card => makeCardHtml(card, "showdown-card-flip")).join("");
     const result = isWinner ? (winners.length > 1 ? "splits" : "wins") : "shows";
-    const won = winners.find(w => w.name === p.name);
-    const amount = won ? `+${won.amount}` : "";
+    const delta = handDeltas.get(p.name);
+    const amount = formatHandDelta(delta);
+    const amountClass = handDeltaClass(delta);
     return `
       <div class="post-hand-row${isWinner ? " winner post-hand-winner-glow" : ""}">
         <div class="post-hand-player">
@@ -776,10 +981,31 @@ function renderPostHandPanel(state) {
         </div>
         <div class="post-hand-cards">${cards}</div>
         <div class="post-hand-detail">${esc(detail)}</div>
-        <div class="post-hand-amount">${esc(amount)}</div>
+        <div class="post-hand-amount ${amountClass}" title="Net result this hand">${esc(amount)}</div>
       </div>
     `;
   }).join("");
+
+  const muckedRows = foldedPlayers.map(p => {
+    const delta = handDeltas.get(p.name);
+    const amount = formatHandDelta(delta);
+    const amountClass = handDeltaClass(delta);
+    return `
+      <div class="post-hand-row mucked">
+        <div class="post-hand-player">
+          <span class="post-hand-name">${esc(p.name)}</span>
+          <span class="post-hand-result">mucked</span>
+        </div>
+        <div class="post-hand-cards">
+          ${makeCardHtml("🂠")}${makeCardHtml("🂠")}
+        </div>
+        <div class="post-hand-detail">Folded hand hidden</div>
+        <div class="post-hand-amount ${amountClass}" title="Net result this hand">${esc(amount)}</div>
+      </div>
+    `;
+  }).join("");
+
+  els.postHandBody.innerHTML = `${shownRows}${muckedRows}`;
 }
 
 function formatPlayerShowdownEntry(player, winnerNames) {
