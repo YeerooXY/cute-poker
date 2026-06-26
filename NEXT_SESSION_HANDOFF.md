@@ -2,9 +2,9 @@
 
 ## Current State
 
-The latest work focused on poker action-log trust and showdown clarity.
+The latest work focused on poker action-log trust, showdown clarity, UI polish, and repeatable visual verification.
 
-Follow-up UI work completed this session:
+Follow-up UI work completed:
 - Added a real post-hand summary panel for showdown.
   - Shows single winner or split-pot headline.
   - Shows final pot.
@@ -22,11 +22,14 @@ Follow-up UI work completed this session:
   - Subtle table glow during showdown.
 - Added `tests/test_animation_helpers.js` for frontend animation trigger and chip-stack helper behavior.
 
-Browser verification note:
-- The local server starts at `http://127.0.0.1:8000`, but the in-app browser backend was unavailable in this Codex session (`agent.browsers.list()` returned `[]`).
-- Playwright/Puppeteer are not installed in this repo, so verification stayed on the existing pytest + Node/jsdom stack.
+Visual verification status:
+- Playwright is now installed as a dev dependency.
+- `playwright.config.js` runs Chromium desktop and mobile visual smoke tests against `python server.py` at `http://127.0.0.1:8000`.
+- `tests/visual/cute_poker_visual.spec.js` includes:
+  - A showdown visual smoke test for post-hand panel, cards, chips, and winner/table glow.
+  - An action-log edge-case visual smoke test for returned excess, showdown rows, hidden betting rows, and all-in runout separators.
 
-Implemented:
+Implemented action-log fixes:
 - Backend normalizes unmatched covering shoves after `return_uncalled_excess()`.
 - Dindybot-style case should now log an effective call when excess chips are returned.
   - Example target: `Dindybot calls 618`, not `Dindybot goes all-in 978`, if Dindybot keeps chips behind.
@@ -40,7 +43,8 @@ Implemented:
 - Winner rows are marked with `-- wins` or `-- splits`.
 - Added regression coverage for returned-excess log normalization.
 
-Verification already run:
+## Verification Already Run Before Latest ChatGPT Branch
+
 - `python -m pytest -q`
   - Result: `486 passed in 47.61s`
 - Node frontend suite:
@@ -57,17 +61,30 @@ Verification already run:
   - `node tests/test_action_log_ui.js`
     - Result: `13 passed`
 
-Previous verification:
-- `python -m pytest -q --durations=30`
-  - Result: `486 passed in 52.12s`
-- `node tests/test_action_log_frontend.js`
-  - Result: `22 passed`
-- `node tests/test_action_log_preservation.js`
-  - Result: `9 passed`
-- `node tests/test_bug_condition_exploration_frontend.js`
-  - Result: `9 passed`
-- `node tests/test_action_log_ui.js`
-  - Result: `13 passed`
+## Latest ChatGPT Branch
+
+Branch created from `logic-core-hardening`:
+
+`chatgpt/action-log-visual-coverage`
+
+Added on this branch:
+- Extended `tests/visual/cute_poker_visual.spec.js` with a second deterministic visual smoke test.
+- Updated this handoff to reflect that Playwright is now present and visual verification has started.
+
+The new Playwright test has not been run from ChatGPT. Run locally before merging.
+
+Recommended local verification:
+
+```powershell
+npm run test:visual
+python -m pytest -q
+node tests/test_animation_helpers.js
+node tests/test_post_hand_panel_ui.js
+node tests/test_action_log_frontend.js
+node tests/test_action_log_preservation.js
+node tests/test_bug_condition_exploration_frontend.js
+node tests/test_action_log_ui.js
+```
 
 ## Important Config Change
 
@@ -87,39 +104,32 @@ A fresh Codex session may be needed for that config to fully apply.
 
 ## Next TODO
 
-1. Relaunch Codex from:
-   `C:\Users\Yeeroo\Desktop\Work\Projects\cute_poker_modular`
+1. Pull or check out the latest branch:
 
-2. Browser-verify the latest action-log changes.
-   Focus on a hand where:
-   - Player bets/raises all-in.
-   - Covering player calls or tries to shove over.
-   - Uncalled excess chips are returned.
-   - Covering player has chips left after the hand.
+   `chatgpt/action-log-visual-coverage`
 
-   Expected:
-   - Log says `calls X`, not `goes all-in X`, when the covering player keeps chips behind.
+2. Run visual verification:
 
-3. Verify showdown rows in the action log:
+   `npm run test:visual`
+
+3. Inspect generated screenshots under Playwright test output.
+
+   Focus on:
+   - Returned-excess action-log case.
+   - `Dindybot calls 618`, not `Dindybot goes all-in ...`, when Dindybot keeps chips behind.
+   - Heads-up preflop SB facing BB logs `calls 5`, not `checks`.
+   - River separator appears whenever 5 community cards are dealt.
+   - Betting rows are hidden during showdown.
    - Each revealed player shows best 5-card hand.
    - Winner row has `-- wins`.
    - Split winner rows have `-- splits`.
 
-4. Verify the older suspicious cases:
-   - Heads-up preflop SB facing BB logs `calls 5`, not `checks`.
-   - River separator appears whenever 5 community cards are dealt.
-   - Betting rows are hidden during showdown.
+4. If screenshots look good, merge `chatgpt/action-log-visual-coverage` into `logic-core-hardening`.
 
-5. Next UI polish after verification:
-   - Build a proper post-hand panel instead of leaving only the compact action bar options. Done.
-   - Improve hero/player seat spacing around cards, badges, stack, and hand rank. Started with player-seat spacing.
-   - Add tasteful animations in this order:
-     1. Active player glow. Done.
-     2. Card deal/reveal animation. Done.
-     3. Pot count-up. Done.
-     4. Chip-to-pot movement. Done.
-     5. Showdown winner glow. Done.
-     6. Subtle table rim/background glow. Done.
+5. If screenshots show crowding, continue UI polish:
+   - Finish hero/player seat spacing around cards, badges, stack, and hand rank.
+   - Reduce mobile action-log obstruction further if needed.
+   - Make the post-hand panel visually richer only if it still looks too empty/dark.
 
 ## Files Recently Touched For This Work
 
@@ -127,6 +137,10 @@ A fresh Codex session may be needed for that config to fully apply.
 - `static/app.js`
 - `static/index.html`
 - `static/styles.css`
+- `playwright.config.js`
+- `package.json`
+- `package-lock.json`
+- `tests/visual/cute_poker_visual.spec.js`
 - `tests/test_action_log_unit.py`
 - `tests/test_action_log_frontend.js`
 - `tests/test_action_log_preservation.js`
@@ -134,5 +148,3 @@ A fresh Codex session may be needed for that config to fully apply.
 - `tests/test_animation_helpers.js`
 - `tests/test_post_hand_panel_ui.js`
 - `tests/test_ui_log_polish.py`
-
-There are also earlier uncommitted action-log/showdown changes across README, evaluator/models, frontend HTML/CSS/JS, and tests.
