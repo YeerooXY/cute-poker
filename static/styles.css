@@ -4104,3 +4104,30 @@ body.showdown-cinema .post-hand-panel.post-hand-modal .post-hand-detail:empty {
   }
 }
 
+
+/* ─────────────────────────────────────────────────────────────
+   Hand complete transition
+   Once the result stage appears, player card contenders in the top tray
+   fade/collapse so the Hand Complete panel owns the revealed hands.
+   ───────────────────────────────────────────────────────────── */
+
+body.hand-complete-cinema #showdownTray .showdown-contenders {
+  overflow: hidden;
+  pointer-events: none;
+  animation: showdownContendersExit 320ms ease-in both;
+}
+
+@keyframes showdownContendersExit {
+  from {
+    opacity: 1;
+    max-height: 220px;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-12px) scale(0.96);
+  }
+}
+

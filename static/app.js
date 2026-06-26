@@ -775,7 +775,9 @@ function renderState(state) {
   const previousState = lastState;
   lastState = state;
   const showdownDisplay = state.phase === "showdown" || Boolean(state.showdown_mode);
+  const handCompleteDisplay = state.phase === "showdown" && Array.isArray(state.winners) && state.winners.length > 0;
   document.body.classList.toggle("showdown-cinema", showdownDisplay);
+  document.body.classList.toggle("hand-complete-cinema", handCompleteDisplay);
 
   // ─── HUD ───
   els.roomId.textContent = state.room_id;
@@ -1090,11 +1092,65 @@ function formatWinnerEntry(winner) {
   return `${winner.name} wins ${winner.amount}`;
 }
 
-function formatPostHandTitle(winners) {
+function viewerNameFromState(state) {
+  if (state && state.viewer && state.viewer.name) return state.viewer.name;
+  const viewerPlayer = Array.isArray(state && state.players)
+    ? state.players.find(p => p && p.is_you)
+    : null;
+  return viewerPlayer && viewerPlayer.name ? viewerPlayer.name : "";
+}
+
+function winnerMatchesViewer(winner, state) {
+  if (!winner || !state) return false;
+
+  const viewer = state.viewer || {};
+  const viewerPlayer = Array.isArray(state.players)
+    ? state.players.find(p => p && p.is_you)
+    : null;
+
+  const viewerIds = [
+    viewer.player_id,
+    viewer.id,
+    viewer.seat_id,
+    viewerPlayer && viewerPlayer.player_id,
+    viewerPlayer && viewerPlayer.id,
+    viewerPlayer && viewerPlayer.seat_id,
+  ].filter(v => v != null).map(v => String(v));
+
+  const winnerIds = [
+    winner.player_id,
+    winner.id,
+    winner.seat_id,
+  ].filter(v => v != null).map(v => String(v));
+
+  if (viewerIds.length && winnerIds.some(id => viewerIds.includes(id))) return true;
+
+  const viewerName = viewerNameFromState(state);
+  return Boolean(viewerName && winner.name && String(winner.name) === String(viewerName));
+}
+
+function formatWinnerTitle(winner, state) {
+  const isViewer = winnerMatchesViewer(winner, state);
+  const subject = isViewer ? "You" : esc(winner.name);
+  const verb = isViewer ? "win" : "wins";
+
+  if (winner.hand_name && winner.reason !== "Everyone else folded") {
+    const detail = winner.hand_detail || winner.hand_name;
+    return `${subject} ${verb} ${winner.amount} with ${detail}`;
+  }
+
+  return `${subject} ${verb} ${winner.amount}`;
+}
+
+function formatPostHandTitle(winners, state = null) {
   if (!winners || winners.length === 0) return "Hand complete";
-  if (winners.length === 1) return formatWinnerEntry(winners[0]);
-  const names = winners.map(w => w.name).join(", ");
+  if (winners.length === 1) return formatWinnerTitle(winners[0], state);
+
   const total = winners.reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
+  const viewerWon = winners.some(w => winnerMatchesViewer(w, state));
+  if (viewerWon) return `You split ${total}`;
+
+  const names = winners.map(w => w.name).join(", ");
   return `${names} split ${total}`;
 }
 
@@ -1363,6 +1419,21 @@ function renderBestFiveBreakdownHtml(player, state) {
 }
 
 
+
+function cardRevealButtonLabel(card, fallback) {
+  if (!card || card === "BACK" || card === "🂠") return `Show ${fallback}`;
+  return `Show ${card}`;
+}
+
+function playerRevealCardLabels(player) {
+  const cards = Array.isArray(player && player.cards) ? player.cards : [];
+  return {
+    left: cardRevealButtonLabel(cards[0], "left"),
+    right: cardRevealButtonLabel(cards[1], "right"),
+  };
+}
+
+
 function foldedRevealMode(player) {
   return String(player.folded_reveal_mode || "hidden").toLowerCase();
 }
@@ -1379,6 +1450,57 @@ function foldedCardsForModal(player) {
   return ["🂠", "🂠"];
 }
 
+
+function uncontestedRevealMode(player) {
+  return String(player.uncontested_reveal_mode || "hidden").toLowerCase();
+}
+
+function uncontestedRevealIsShown(player) {
+  const mode = uncontestedRevealMode(player);
+  return mode === "left" || mode === "right" || mode === "both";
+}
+
+function uncontestedCardsForModal(player) {
+  const mode = uncontestedRevealMode(player);
+  const cards = Array.isArray(player.cards) ? player.cards : [];
+  const left = cards[0] && cards[0] !== "BACK" ? cards[0] : "🂠";
+  const right = cards[1] && cards[1] !== "BACK" ? cards[1] : "🂠";
+
+  if (mode === "left") return [left, "🂠"];
+  if (mode === "right") return ["🂠", right];
+  if (mode === "both") return [left, right];
+  return ["🂠", "🂠"];
+}
+
+function uncontestedRevealDetail(player) {
+  const mode = uncontestedRevealMode(player);
+  if (mode === "both") return "Winner revealed their hand";
+  if (mode === "left" || mode === "right") return "Winner showed one card";
+  return "";
+}
+
+function renderUncontestedRevealActions(player) {
+  if (!player.can_reveal_uncontested_hand) return "";
+
+  const mode = uncontestedRevealMode(player);
+  if (mode === "both") return "";
+
+  const labels = playerRevealCardLabels(player);
+  const buttons = [];
+
+  if (mode !== "left") {
+    buttons.push(`<button type="button" class="btn btn-tiny btn-dim" data-uncontested-reveal="left">${esc(labels.left)}</button>`);
+  }
+  if (mode !== "right") {
+    buttons.push(`<button type="button" class="btn btn-tiny btn-dim" data-uncontested-reveal="right">${esc(labels.right)}</button>`);
+  }
+
+  buttons.push('<button type="button" class="btn btn-tiny btn-deal" data-uncontested-reveal="both">Show both</button>');
+
+  return `<div class="folded-reveal-actions">${buttons.join("")}</div>`;
+}
+
+
 function foldedRevealDetail(player) {
   const mode = foldedRevealMode(player);
   if (mode === "both") {
@@ -1394,13 +1516,14 @@ function renderFoldedRevealActions(player) {
   if (!player.can_reveal_folded_hand) return "";
 
   const mode = foldedRevealMode(player);
+  const labels = playerRevealCardLabels(player);
   const buttons = [];
 
   if (mode !== "left") {
-    buttons.push('<button type="button" class="btn btn-tiny btn-dim folded-reveal-btn" data-folded-reveal="left">Show left</button>');
+    buttons.push(`<button type="button" class="btn btn-tiny btn-dim folded-reveal-btn" data-folded-reveal="left">${esc(labels.left)}</button>`);
   }
   if (mode !== "right") {
-    buttons.push('<button type="button" class="btn btn-tiny btn-dim folded-reveal-btn" data-folded-reveal="right">Show right</button>');
+    buttons.push(`<button type="button" class="btn btn-tiny btn-dim folded-reveal-btn" data-folded-reveal="right">${esc(labels.right)}</button>`);
   }
   buttons.push('<button type="button" class="btn btn-tiny btn-deal folded-reveal-btn" data-folded-reveal="both">Show both</button>');
 
@@ -1475,9 +1598,12 @@ function renderShowdownTray(state) {
 
   const showdownDisplay = state.phase === "showdown" || Boolean(state.showdown_mode);
   const board = Array.isArray(state.community) ? state.community : [];
-  const contenders = showdownTrayParticipants(state);
+  const winners = Array.isArray(state.winners) ? state.winners : [];
+  const uncontestedFoldWin = state.phase === "showdown"
+    && winners.some(w => w && w.reason === "Everyone else folded");
+  const contenders = uncontestedFoldWin ? [] : showdownTrayParticipants(state);
 
-  if (!showdownDisplay || contenders.length === 0) {
+  if (!showdownDisplay) {
     tray.classList.add("hidden");
     tray.innerHTML = "";
     return;
@@ -1515,7 +1641,7 @@ function renderShowdownTray(state) {
       <div class="showdown-board-title">${board.length === 5 ? "SHOWDOWN BOARD" : "BOARD"}</div>
       <div class="showdown-board-cards">${boardHtml}</div>
     </div>
-    <div class="showdown-contenders">${contenderHtml}</div>
+    ${contenderHtml ? `<div class="showdown-contenders">${contenderHtml}</div>` : ""}
   `;
   tray.classList.remove("hidden");
 }
@@ -1538,7 +1664,7 @@ function renderPostHandPanel(state) {
   if (els.postHandKicker) {
     els.postHandKicker.textContent = winners.length > 1 ? "Split pot" : "Hand complete";
   }
-  if (els.postHandTitle) els.postHandTitle.textContent = formatPostHandTitle(winners);
+  if (els.postHandTitle) els.postHandTitle.textContent = formatPostHandTitle(winners, state);
   if (els.postHandPot) els.postHandPot.textContent = `Final pot ${state.pot || 0}`;
   if (!els.postHandBody) return;
 
@@ -1623,24 +1749,22 @@ function renderPostHandPanel(state) {
     const winner = winnerByName.get(p.name);
     const isUncontestedWinner = Boolean(winner && winner.reason === "Everyone else folded" && !p.hand_name);
 
-    const uncontestedRevealMode = String(p.uncontested_reveal_mode || "hidden").toLowerCase();
-    const isUncontestedRevealed = isUncontestedWinner && uncontestedRevealMode === "both";
-    const canRevealUncontested = Boolean(isUncontestedWinner && p.can_reveal_uncontested_hand && !isUncontestedRevealed);
+    const isUncontestedShown = isUncontestedWinner && uncontestedRevealIsShown(p);
 
     const modalCards = isUncontestedWinner
-      ? (isUncontestedRevealed && Array.isArray(p.cards) && p.cards.length > 0 ? p.cards : ["🂠", "🂠"])
+      ? uncontestedCardsForModal(p)
       : foldedCardsForModal(p);
     const detail = isUncontestedWinner
-      ? (isUncontestedRevealed ? "Winner revealed their hand" : "")
+      ? uncontestedRevealDetail(p)
       : foldedRevealDetail(p);
-    const result = isUncontestedWinner ? (isUncontestedRevealed ? "revealed winner" : "wins uncontested") : mode === "both" ? "revealed" : "mucked";
-    const uncontestedActions = canRevealUncontested
-      ? '<div class="folded-reveal-actions"><button type="button" class="btn btn-tiny btn-dim" data-uncontested-reveal="left">Show left</button><button type="button" class="btn btn-tiny btn-dim" data-uncontested-reveal="right">Show right</button><button type="button" class="btn btn-tiny btn-deal" data-uncontested-reveal="both">Show both</button></div>'
-      : "";
-    const revealActions = isUncontestedWinner ? uncontestedActions : renderFoldedRevealActions(p);
+    const result = isUncontestedWinner ? (isUncontestedShown ? "shown winner" : "wins uncontested") : mode === "both" ? "revealed" : "mucked";
+    const revealActions = isUncontestedWinner ? renderUncontestedRevealActions(p) : renderFoldedRevealActions(p);
     const wouldHaveBreakdown = isUncontestedWinner ? "" : renderFoldedWouldHaveBreakdown(p, state);
     const baseRowClass = isUncontestedWinner ? " winner post-hand-winner-glow uncontested" : " mucked";
-    const rowExtraClass = mode === "both" ? " would-have" : (mode === "left" || mode === "right") ? " partial-revealed" : "";
+    const uncontestedMode = isUncontestedWinner ? uncontestedRevealMode(p) : "";
+    const rowExtraClass = isUncontestedWinner
+      ? (uncontestedMode === "both" ? " revealed" : (uncontestedMode === "left" || uncontestedMode === "right") ? " partial-revealed" : "")
+      : mode === "both" ? " would-have" : (mode === "left" || mode === "right") ? " partial-revealed" : "";
 
     return `
       <div class="post-hand-row${baseRowClass}${rowExtraClass}">

@@ -226,7 +226,7 @@ test("showdown visual smoke renders panel, cards, chips, and glow", async ({ pag
   await expect(page.locator("#postHandPanel")).toHaveClass(/post-hand-modal/);
   await expect(page.locator("#yourHandBar")).toHaveClass(/hand-bar-hidden/);
   await expect(page.locator(".playing-card .card-rank")).not.toHaveCount(0);
-  await expect(page.locator("#postHandTitle")).toContainText("Nemo wins 840");
+  await expect(page.locator("#postHandTitle")).toContainText("You win 840 with Ace-high Flush");
   await expect(page.locator(".post-hand-row.winner")).toHaveCount(1);
   await expect(page.locator(".post-hand-row").first().locator(".post-hand-name")).toContainText("Nemo");
   await expect(page.locator(".table-felt")).toHaveClass(/showdown-table-glow/);
