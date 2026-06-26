@@ -172,12 +172,33 @@ function getNewCardFlags(cards, previousCards) {
   return (cards || []).map((card, idx) => prev[idx] !== card);
 }
 
+function totalCommittedAmount(state) {
+  const players = Array.isArray(state && state.players) ? state.players : [];
+  return players.reduce((sum, player) => sum + Math.max(0, Number(player && player.committed) || 0), 0);
+}
+
+function displayedCenterPotAmount(state) {
+  if (!state) return 0;
+
+  const rawPot = Math.max(0, Number(state.pot) || 0);
+  const phase = String(state.phase || "").toLowerCase();
+
+  // During active betting, keep the center pot as the settled pot only.
+  // Current street commitments remain represented by the floating bet markers.
+  if (["preflop", "flop", "turn", "river"].includes(phase)) {
+    return Math.max(0, rawPot - totalCommittedAmount(state));
+  }
+
+  return rawPot;
+}
+
 function shouldAnimatePotCountUp(previousState, state) {
   if (!previousState || !state || state.phase === "showdown") return false;
   if (previousState.room_id !== state.room_id) return false;
   if (previousState.hands_played !== state.hands_played) return false;
-  const prevPot = Number(previousState.pot);
-  const nextPot = Number(state.pot);
+
+  const prevPot = displayedCenterPotAmount(previousState);
+  const nextPot = displayedCenterPotAmount(state);
   return Number.isFinite(prevPot) && Number.isFinite(nextPot) && nextPot > prevPot;
 }
 
@@ -197,19 +218,53 @@ function decomposeChips(amount) {
   return result;
 }
 
-function renderChipStackHtml(amount, extraClass = "") {
+function chipRenderModeFromClass(extraClass = "") {
+  const cls = String(extraClass || "");
+  if (cls.includes("seat-committed-chips")) return "bet-marker";
+  if (cls.includes("pot")) return "pot";
+  return "default";
+}
+
+function compactChipStacks(amount, maxStacks = 2) {
   const stacks = decomposeChips(amount);
-  if (stacks.length === 0) return "";
-  const cls = extraClass ? ` chip-stack-animate ${extraClass}` : " chip-stack-animate";
-  return `<div class="chip-stack${cls}">` + stacks.map(({ denom, count }) => {
-    const visible = Math.min(count, 4);
+  if (stacks.length <= maxStacks) return stacks;
+
+  const result = [];
+  if (stacks[0]) result.push(stacks[0]);
+
+  const tail = stacks[stacks.length - 1];
+  if (tail && tail.denom !== result[0].denom) {
+    result.push(tail);
+  }
+
+  return result.slice(0, maxStacks);
+}
+
+function renderChipStackHtml(amount, extraClass = "") {
+  const total = Math.max(0, Math.floor(Number(amount) || 0));
+  if (total <= 0) return "";
+
+  const mode = chipRenderModeFromClass(extraClass);
+  const stacks = mode === "default"
+    ? compactChipStacks(total, 2)
+    : compactChipStacks(total, mode === "pot" ? 2 : 1);
+
+  const wrapperClass = extraClass ? ` chip-stack-animate ${extraClass}` : " chip-stack-animate";
+  const visibleLimit = mode === "pot" ? 3 : 2;
+
+  const stacksHtml = stacks.map(({ denom, count }) => {
+    const visible = Math.min(count, visibleLimit);
     const chips = Array.from({ length: visible }, (_, idx) => {
-      const label = idx === visible - 1 ? `<span class="chip-label">${denom}</span>` : "";
+      const label = idx === visible - 1 && mode === "pot"
+        ? `<span class="chip-label">${denom}</span>`
+        : "";
       return `<span class="chip-item chip-denom-${denom}" style="--chip-index:${idx}; --chip-count:${visible}">${label}</span>`;
     }).join("");
-    const countLabel = count > 4 ? `<span class="chip-count">×${count}</span>` : "";
+    const countLabel = count > visible ? `<span class="chip-count">×${count}</span>` : "";
     return `<span class="denom-stack">${chips}${countLabel}</span>`;
-  }).join("") + `</div>`;
+  }).join("");
+
+  return `<div class="chip-stack chip-stack-${mode}${wrapperClass}">${stacksHtml}</div>`;
 }
 
 function setPotValue(amount, animate) {
@@ -353,6 +408,21 @@ const SEAT_POSITIONS = [
 //
 // Visual path: bottom → left side → top center → right side.
 const CANONICAL_VISUAL_SEAT_BY_OFFSET = [0, 1, 2, 3, 7, 4, 5, 6];
+
+// Bet/chip marker positions live between each visual seat and the pot.
+// These are intentionally separate from SEAT_POSITIONS so player identity
+// cards stay compact while committed chips sit "in front" of each player.
+const BET_POSITIONS = [
+  { top: "67%", left: "50%" }, // bottom hero
+  { top: "58%", left: "22%" }, // lower-left
+  { top: "39%", left: "19%" }, // left
+  { top: "22%", left: "34%" }, // upper-left
+  { top: "22%", left: "66%" }, // upper-right
+  { top: "39%", left: "81%" }, // right
+  { top: "58%", left: "78%" }, // lower-right
+  { top: "24%", left: "50%" }, // top
+];
+
 
 function stablePlayerKey(player) {
   if (!player) return "";
@@ -978,7 +1048,7 @@ function renderState(state) {
   els.roomId.textContent = state.room_id;
   els.phaseBadge.textContent = state.paused ? "PAUSED" : showdownDisplay ? "SHOWDOWN" : state.phase.toUpperCase();
   const animatePot = shouldAnimatePotCountUp(previousState, state);
-  setPotValue(state.pot, animatePot);
+  setPotValue(displayedCenterPotAmount(state), animatePot);
 
   // Pot label
   const potLabel = document.querySelector(".pot-label");
@@ -1006,7 +1076,7 @@ function renderState(state) {
   const isMyTurn = state.viewer && state.viewer.is_turn;
   if (isMyTurn) {
     els.turnInfo.textContent = state.viewer.to_call > 0
-      ? `⚡ YOUR TURN · Call ${state.viewer.to_call}` : "⚡ YOUR TURN";
+      ? `⚡ YOUR ACTION · Call ${state.viewer.to_call}` : "⚡ YOUR ACTION";
     els.turnInfo.className = "turn-indicator your-turn";
     els.actionBar.classList.add("my-turn");
   } else {
@@ -1133,6 +1203,31 @@ function renderYourHand(viewer) {
   els.handStrength.textContent = viewer.hand_name || "";
 }
 
+
+function renderSeatBetMarker(player, visualSeat) {
+  const committed = Math.max(0, numberOrZero(player && player.committed));
+  if (committed <= 0) return null;
+
+  const pos = BET_POSITIONS[visualSeat % BET_POSITIONS.length] || BET_POSITIONS[0];
+  const marker = document.createElement("div");
+
+  let cls = "seat-bet-marker";
+  if (player.is_you) cls += " is-you";
+  if (player.is_turn) cls += " active-turn";
+
+  marker.className = cls;
+  marker.style.top = pos.top;
+  marker.style.left = pos.left;
+  marker.style.transform = "translate(-50%, -50%)";
+  marker.innerHTML = `
+    <div class="seat-bet-chips">${renderChipStackHtml(committed, "seat-committed-chips")}</div>
+    <div class="seat-bet-label">Bet ${committed}</div>
+  `;
+
+  return marker;
+}
+
+
 // ─── Players around table ───
 function renderPlayers(players, previousState = null, state = null) {
   els.playerPositions.innerHTML = "";
@@ -1169,18 +1264,18 @@ function renderPlayers(players, previousState = null, state = null) {
     if (p.sitting_out) badges.push('<span class="seat-badge warn">SIT OUT</span>');
     if (p.is_spectator) badges.push('<span class="seat-badge">👁</span>');
 
-    // Cards (other players, not you)
+    // Cards in the table seat, including hero.
+    // The separate bottom hand bar can still exist, but the hero seat must
+    // also show the player's own hole cards so the bottom seat is readable.
     let cards = "";
-    if (p.cards && p.cards.length > 0 && !p.is_you) {
+    if (p.cards && p.cards.length > 0) {
       const previousPlayer = previousById.get(p.player_id || p.name);
       const newFlags = getNewCardFlags(p.cards, previousPlayer ? previousPlayer.cards : []);
-      cards = `<div class="seat-cards">${p.cards.map((card, cardIdx) =>
+      const displayedCards = p.is_you ? sortHoleCardsForDisplay(p.cards) : p.cards;
+      cards = `<div class="seat-cards">${displayedCards.map((card, cardIdx) =>
         makeCardHtml(card, newFlags[cardIdx] ? "new-card" : "")
       ).join("")}</div>`;
     }
-    const committedChips = p.committed > 0
-      ? `<div class="seat-chips">${renderChipStackHtml(p.committed, "seat-committed-chips")}</div>`
-      : "";
 
     seat.innerHTML = `
       <div class="seat-header">
@@ -1190,11 +1285,12 @@ function renderPlayers(players, previousState = null, state = null) {
       </div>
       <div class="seat-badges">${badges.join("")}</div>
       ${cards}
-      ${committedChips}
-      ${p.committed > 0 ? `<div class="seat-meta">Bet: ${p.committed}</div>` : ""}
       ${p.hand_name ? `<div class="seat-meta seat-hand-rank">${esc(p.hand_detail || p.hand_name)}</div>` : ""}
     `;
     els.playerPositions.appendChild(seat);
+
+    const betMarker = renderSeatBetMarker(p, visualSeat);
+    if (betMarker) els.playerPositions.appendChild(betMarker);
   });
 }
 

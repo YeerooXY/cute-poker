@@ -233,7 +233,7 @@ test("showdown visual smoke renders panel, cards, chips, and glow", async ({ pag
   await expect(page.locator(".player-seat.showdown-winner-glow")).toHaveCount(1);
   await expect(page.locator("#community .playing-card")).toHaveCount(5);
   await expect(page.locator("#potChips .chip-item")).not.toHaveCount(0);
-  await expect(page.locator(".seat-chips .chip-item")).not.toHaveCount(0);
+  await expect(page.locator(".seat-bet-marker .chip-item")).not.toHaveCount(0);
 
   if (page.viewportSize().width <= 768) {
     await expect(page.locator("#actionLogPanel")).toHaveClass(/collapsed/);
