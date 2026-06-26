@@ -346,7 +346,7 @@ const foldedRevealBothState = {
   ),
 };
 
-test("folded owner gets reveal controls and both-revealed hand gets would-have breakdown", async ({ page }) => {
+test("folded owner gets reveal controls and both-revealed hand gets would-have breakdown", async ({ page }, testInfo) => {
   await page.goto("/");
   await showGameWithState(page, foldedRevealOwnerHiddenState);
 
@@ -359,6 +359,13 @@ test("folded owner gets reveal controls and both-revealed hand gets would-have b
   await expect(hiddenRow.locator("[data-folded-reveal='muck']")).toHaveCount(1);
   await expect(hiddenRow.locator(".post-hand-breakdown")).toHaveCount(0);
 
+  await waitForVisualSettle(page);
+  const hiddenScreenshot = await page.screenshot({
+    path: artifactPath(testInfo, `folded-reveal-hidden-${testInfo.project.name}.png`),
+    fullPage: false,
+  });
+  expect(hiddenScreenshot.length).toBeGreaterThan(10_000);
+
   await showGameWithState(page, foldedRevealLeftState);
 
   const leftRow = page.locator(".post-hand-row").filter({ hasText: "SmallBlind" });
@@ -367,6 +374,13 @@ test("folded owner gets reveal controls and both-revealed hand gets would-have b
   await expect(leftRow.locator(".post-hand-cards")).toContainText("A");
   await expect(leftRow.locator(".post-hand-cards")).toContainText("♥");
   await expect(leftRow.locator(".post-hand-breakdown")).toHaveCount(0);
+
+  await waitForVisualSettle(page);
+  const leftScreenshot = await page.screenshot({
+    path: artifactPath(testInfo, `folded-reveal-left-${testInfo.project.name}.png`),
+    fullPage: false,
+  });
+  expect(leftScreenshot.length).toBeGreaterThan(10_000);
 
   await showGameWithState(page, foldedRevealBothState);
 
@@ -378,4 +392,97 @@ test("folded owner gets reveal controls and both-revealed hand gets would-have b
   await expect(revealedRow.locator(".post-hand-cards")).toContainText("♥");
   await expect(revealedRow.locator(".post-hand-breakdown")).toContainText("Best 5 from 7");
   await expect(revealedRow.locator("[data-folded-reveal]")).toHaveCount(0);
+
+  await waitForVisualSettle(page);
+  const bothScreenshot = await page.screenshot({
+    path: artifactPath(testInfo, `folded-reveal-both-${testInfo.project.name}.png`),
+    fullPage: false,
+  });
+  expect(bothScreenshot.length).toBeGreaterThan(10_000);
+});
+
+
+const foldWinHiddenState = {
+  ...actionLogEdgeState,
+  room_id: "FOLD-WIN-HIDDEN",
+  phase: "showdown",
+  pot: 15,
+  community: [],
+  winners: [
+    { player_id: "dindybot", name: "Dindybot", amount: 15, reason: "Everyone else folded" },
+  ],
+  hand_deltas: {
+    Nemo: -5,
+    Dindybot: 5,
+  },
+  action_log: [
+    { player: "Nemo", action: "small_blind", amount: 5, phase: "preflop" },
+    { player: "Dindybot", action: "big_blind", amount: 10, phase: "preflop" },
+    { player: "Nemo", action: "fold", amount: 0, phase: "preflop" },
+  ],
+  players: actionLogEdgeState.players
+    .filter(p => p.name === "Dindybot" || p.name === "SmallBlind")
+    .map(p => {
+      if (p.name === "Dindybot") {
+        return {
+          ...p,
+          id: "dindybot",
+          player_id: "dindybot",
+          is_you: false,
+          is_bot: true,
+          folded: false,
+          cards: ["🂠", "🂠"],
+          hand_name: "",
+          hand_detail: "",
+          best_cards: [],
+          total_invested: 10,
+          committed: 0,
+          stack: 1005,
+          hand_delta: 5,
+        };
+      }
+
+      return {
+        ...p,
+        id: "nemo",
+        player_id: "nemo",
+        name: "Nemo",
+        is_you: true,
+        is_bot: false,
+        folded: true,
+        cards: ["🂠", "🂠"],
+        hand_name: "",
+        hand_detail: "",
+        best_cards: [],
+        total_invested: 5,
+        committed: 0,
+        stack: 995,
+        hand_delta: -5,
+        can_reveal_folded_hand: false,
+      };
+    }),
+};
+
+test("fold-win winner stays hidden and modal says uncontested", async ({ page }, testInfo) => {
+  await page.goto("/");
+  await showGameWithState(page, foldWinHiddenState);
+
+  const botSeat = page.locator(".player-seat").filter({ hasText: "Dindybot" });
+  await expect(botSeat.locator(".seat-cards .playing-card.card-back")).toHaveCount(2);
+  await expect(botSeat.locator(".seat-hand-rank")).toHaveCount(0);
+
+  const winnerRow = page.locator(".post-hand-row").filter({ hasText: "Dindybot" });
+  await expect(winnerRow.locator(".post-hand-result")).toContainText("wins uncontested");
+  await expect(winnerRow.locator(".post-hand-detail")).toContainText("Hand not shown");
+  await expect(winnerRow.locator(".post-hand-detail")).toContainText("Everyone else folded");
+  await expect(winnerRow.locator(".post-hand-cards .playing-card.card-back")).toHaveCount(2);
+  await expect(winnerRow.locator(".post-hand-breakdown")).toHaveCount(0);
+  await expect(winnerRow.locator("[data-folded-reveal]")).toHaveCount(0);
+
+  await waitForVisualSettle(page);
+  const foldWinScreenshot = await page.screenshot({
+    path: artifactPath(testInfo, `fold-win-hidden-${testInfo.project.name}.png`),
+    fullPage: false,
+  });
+  expect(foldWinScreenshot.length).toBeGreaterThan(10_000);
 });
