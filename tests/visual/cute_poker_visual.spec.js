@@ -52,7 +52,7 @@ const showdownState = {
   hands_played: 7,
   current_bet: 0,
   min_raise: 10,
-  community: ["A♠", "K♥", "10♥", "7♣", "2♦"],
+  community: ["A♠", "K♥", "10♥", "7♥", "2♦"],
   messages: [],
   viewer: {
     is_turn: false,
@@ -111,7 +111,7 @@ const showdownState = {
       seat: 3,
       stack: 920,
       committed: 0,
-      cards: ["A♦", "A♣"],
+      cards: ["A♦", "K♣"],
       is_you: false,
       is_turn: false,
       is_dealer: false,
@@ -123,7 +123,7 @@ const showdownState = {
       is_spectator: false,
       hand_name: "One Pair",
       hand_detail: "Pair of Aces",
-      best_cards: ["A♦", "A♣", "K♥", "10♥", "7♣"],
+      best_cards: ["A♦", "A♣", "K♥", "10♥", "7♥"],
     },
   ],
   winners: [
@@ -154,7 +154,7 @@ const actionLogEdgeState = {
   room_id: "EDGE",
   pot: 1246,
   hands_played: 8,
-  community: ["A♠", "K♥", "10♥", "7♣", "2♦"],
+  community: ["A♠", "K♥", "10♥", "7♥", "2♦"],
   viewer: {
     ...showdownState.viewer,
     is_turn: false,
@@ -169,7 +169,7 @@ const actionLogEdgeState = {
       committed: 0,
       hand_name: "One Pair",
       hand_detail: "Pair of Aces",
-      best_cards: ["A♥", "A♠", "K♥", "10♥", "7♣"],
+      best_cards: ["A♥", "A♠", "K♥", "Q♣", "10♥"],
     },
     {
       ...showdownState.players[1],
@@ -191,7 +191,7 @@ const actionLogEdgeState = {
       all_in: true,
       hand_name: "Two Pair",
       hand_detail: "Aces and Kings",
-      best_cards: ["A♦", "A♣", "K♥", "K♣", "10♥"],
+      best_cards: ["A♦", "A♠", "K♥", "K♣", "10♥"],
     },
   ],
   winners: [
@@ -283,6 +283,7 @@ test("action log visual smoke covers returned excess, showdown rows, and runout 
   await expect(page.locator(".post-hand-row").filter({ hasText: "SmallBlind" }).locator(".post-hand-amount")).toContainText("-10");
   await expect(page.locator("#postHandTitle")).toContainText("Dindybot wins 1246");
   await expect(page.locator(".post-hand-row").first().locator(".post-hand-detail")).toContainText("King-high Flush");
+  await expect(page.locator(".post-hand-row").first().locator(".post-hand-breakdown")).toContainText("Best 5 from 7");
   await expect(page.locator("#yourHandBar")).toHaveClass(/hand-bar-hidden/);
   await expect(page.locator(".playing-card .card-rank")).not.toHaveCount(0);
 

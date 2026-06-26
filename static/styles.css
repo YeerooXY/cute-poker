@@ -3202,3 +3202,314 @@ html, body {
   }
 }
 
+
+/* ═══ Showdown best-five explanation ═══ */
+.post-hand-panel.post-hand-modal .post-hand-row {
+  grid-template-areas:
+    "player cards detail amount"
+    "breakdown breakdown breakdown breakdown";
+}
+
+.post-hand-breakdown {
+  grid-area: breakdown;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 2px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.breakdown-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.breakdown-group.muted {
+  opacity: 0.68;
+}
+
+.breakdown-label {
+  color: rgba(201, 230, 202, 0.78);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.breakdown-cards {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.breakdown-empty {
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.post-hand-breakdown .playing-card.mini-card {
+  width: 19px !important;
+  height: 27px !important;
+  min-width: 19px !important;
+  min-height: 27px !important;
+  font-size: 8px !important;
+  border-radius: 4px !important;
+  transform: none !important;
+  animation: none !important;
+}
+
+@media (max-width: 600px) {
+  .post-hand-panel.post-hand-modal .post-hand-row,
+  .post-hand-panel.post-hand-modal .post-hand-row:first-child {
+    grid-template-areas:
+      "player amount"
+      "cards cards"
+      "detail detail"
+      "breakdown breakdown" !important;
+  }
+
+  .post-hand-breakdown {
+    margin-top: 4px;
+    padding: 9px 10px;
+    gap: 8px 12px;
+  }
+
+  .breakdown-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .breakdown-label {
+    font-size: 12px;
+  }
+
+  .breakdown-cards {
+    gap: 4px;
+  }
+
+  .post-hand-breakdown .playing-card.mini-card {
+    width: 24px !important;
+    height: 34px !important;
+    min-width: 24px !important;
+    min-height: 34px !important;
+    font-size: 10px !important;
+  }
+}
+
+
+/* ═══ Compact best-five explanation override ═══ */
+.post-hand-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: center;
+}
+
+.breakdown-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  width: auto;
+}
+
+.breakdown-label {
+  font-size: 10px;
+}
+
+.post-hand-breakdown .playing-card.mini-card {
+  opacity: 0.92;
+}
+
+.breakdown-group.muted .playing-card.mini-card {
+  opacity: 0.58;
+}
+
+@media (max-width: 600px) {
+  .post-hand-breakdown {
+    margin-top: 6px !important;
+    padding: 10px 12px !important;
+    gap: 8px !important;
+  }
+
+  .breakdown-group {
+    width: 100%;
+    display: grid !important;
+    grid-template-columns: 72px minmax(0, 1fr);
+    align-items: center;
+    justify-content: start;
+  }
+
+  .breakdown-label {
+    font-size: 13px !important;
+  }
+
+  .breakdown-cards {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .post-hand-breakdown .playing-card.mini-card {
+    width: 25px !important;
+    height: 35px !important;
+    min-width: 25px !important;
+    min-height: 35px !important;
+    font-size: 10px !important;
+  }
+}
+
+
+/* ═══ Hole-board best-five explanation cleanup ═══ */
+.post-hand-breakdown {
+  gap: 6px 16px !important;
+  padding: 6px 8px !important;
+}
+
+.breakdown-group {
+  width: auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+}
+
+.breakdown-label {
+  color: rgba(201, 230, 202, 0.78) !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.25px !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+}
+
+.post-hand-breakdown .playing-card.mini-card {
+  opacity: 0.95 !important;
+}
+
+@media (max-width: 600px) {
+  .post-hand-breakdown {
+    margin-top: 6px !important;
+    padding: 10px 12px !important;
+    gap: 8px !important;
+  }
+
+  .breakdown-group {
+    display: grid !important;
+    grid-template-columns: 104px minmax(0, 1fr) !important;
+    width: 100% !important;
+  }
+
+  .breakdown-label {
+    font-size: 13px !important;
+  }
+
+  .breakdown-cards {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+    justify-content: flex-start !important;
+  }
+}
+
+
+/* ═══ Strict best-five from seven explanation ═══ */
+.post-hand-breakdown {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 6px 14px !important;
+  padding: 7px 9px !important;
+}
+
+.breakdown-summary {
+  color: rgba(245, 212, 66, 0.76);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.35px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.breakdown-group {
+  width: auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+}
+
+.breakdown-group.muted {
+  opacity: 0.62;
+}
+
+.breakdown-label {
+  color: rgba(201, 230, 202, 0.78) !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.25px !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+}
+
+.breakdown-cards {
+  display: inline-flex !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  gap: 3px !important;
+}
+
+.post-hand-breakdown .playing-card.mini-card {
+  width: 20px !important;
+  height: 28px !important;
+  min-width: 20px !important;
+  min-height: 28px !important;
+  font-size: 8px !important;
+  border-radius: 4px !important;
+  transform: none !important;
+  animation: none !important;
+}
+
+@media (max-width: 600px) {
+  .post-hand-breakdown {
+    margin-top: 6px !important;
+    padding: 10px 12px !important;
+    gap: 8px !important;
+  }
+
+  .breakdown-summary {
+    width: 100%;
+    font-size: 12px !important;
+  }
+
+  .breakdown-group {
+    display: grid !important;
+    grid-template-columns: 104px minmax(0, 1fr) !important;
+    width: 100% !important;
+  }
+
+  .breakdown-label {
+    font-size: 13px !important;
+  }
+
+  .breakdown-cards {
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+  }
+
+  .post-hand-breakdown .playing-card.mini-card {
+    width: 25px !important;
+    height: 35px !important;
+    min-width: 25px !important;
+    min-height: 35px !important;
+    font-size: 10px !important;
+  }
+}
+

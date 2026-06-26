@@ -914,6 +914,93 @@ function handDeltaClass(delta) {
 }
 
 
+
+function removeFirstCardMatch(cards, target) {
+  const idx = cards.indexOf(target);
+  if (idx === -1) return false;
+  cards.splice(idx, 1);
+  return true;
+}
+
+function publicCardList(cards) {
+  return (Array.isArray(cards) ? cards : [])
+    .filter(card => card && card !== "BACK" && card !== "🂠");
+}
+
+function buildBestFiveBreakdown(player, state) {
+  const best = publicCardList(player.best_cards);
+  const hole = publicCardList(player.cards);
+  const board = publicCardList(state.community);
+
+  // A real showdown explanation must be exactly: 7 available cards -> best 5.
+  if (best.length !== 5 || hole.length !== 2 || board.length !== 5) {
+    return null;
+  }
+
+  const remainingHole = [...hole];
+  const remainingBoard = [...board];
+  const usedHole = [];
+  const usedBoard = [];
+  const missing = [];
+
+  for (const card of best) {
+    if (removeFirstCardMatch(remainingHole, card)) {
+      usedHole.push(card);
+    } else if (removeFirstCardMatch(remainingBoard, card)) {
+      usedBoard.push(card);
+    } else {
+      missing.push(card);
+    }
+  }
+
+  // Do not render a misleading explanation if the mocked/frontend state is invalid.
+  if (missing.length > 0 || usedHole.length + usedBoard.length !== 5) {
+    return null;
+  }
+
+  const leftOut = [...remainingHole, ...remainingBoard];
+  if (leftOut.length !== 2) {
+    return null;
+  }
+
+  return {
+    usedHole,
+    usedBoard,
+    leftOut,
+  };
+}
+
+function renderBreakdownCardList(cards) {
+  if (!cards || cards.length === 0) {
+    return '<span class="breakdown-empty">none</span>';
+  }
+  return cards.map(card => makeCardHtml(card, "mini-card")).join("");
+}
+
+function renderBestFiveBreakdownHtml(player, state) {
+  const breakdown = buildBestFiveBreakdown(player, state);
+  if (!breakdown) return "";
+
+  return `
+    <div class="post-hand-breakdown" aria-label="Best five card source explanation">
+      <span class="breakdown-summary">Best 5 from 7</span>
+      <span class="breakdown-group">
+        <span class="breakdown-label">Hole used:</span>
+        <span class="breakdown-cards">${renderBreakdownCardList(breakdown.usedHole)}</span>
+      </span>
+      <span class="breakdown-group">
+        <span class="breakdown-label">Board used:</span>
+        <span class="breakdown-cards">${renderBreakdownCardList(breakdown.usedBoard)}</span>
+      </span>
+      <span class="breakdown-group muted">
+        <span class="breakdown-label">Left out:</span>
+        <span class="breakdown-cards">${renderBreakdownCardList(breakdown.leftOut)}</span>
+      </span>
+    </div>
+  `;
+}
+
+
 function renderPostHandPanel(state) {
   if (!els.postHandPanel) return;
   const winners = Array.isArray(state.winners) ? state.winners : [];
@@ -973,6 +1060,7 @@ function renderPostHandPanel(state) {
     const delta = handDeltas.get(p.name);
     const amount = formatHandDelta(delta);
     const amountClass = handDeltaClass(delta);
+    const breakdown = renderBestFiveBreakdownHtml(p, state);
     return `
       <div class="post-hand-row${isWinner ? " winner post-hand-winner-glow" : ""}">
         <div class="post-hand-player">
@@ -982,6 +1070,7 @@ function renderPostHandPanel(state) {
         <div class="post-hand-cards">${cards}</div>
         <div class="post-hand-detail">${esc(detail)}</div>
         <div class="post-hand-amount ${amountClass}" title="Net result this hand">${esc(amount)}</div>
+        ${breakdown}
       </div>
     `;
   }).join("");
