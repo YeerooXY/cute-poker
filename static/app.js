@@ -33,6 +33,14 @@ let selectedHistoryHandNumber = null;
 let selectedHistoryReviewKey = null;
 let defaultPanelsRoomId = null;
 
+const AUTO_DEAL_DELAY_SECONDS = 10;
+const AUTO_DEAL_STORAGE_KEY = "poker_auto_deal_enabled";
+let autoDealEnabled = localStorage.getItem(AUTO_DEAL_STORAGE_KEY) !== "false";
+let autoDealTimerId = null;
+let autoDealDeadlineMs = 0;
+let autoDealHandKey = "";
+let autoDealFiredKey = "";
+
 // ─── Helpers ───
 function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
@@ -764,6 +772,127 @@ function syncDealControls(state) {
 }
 
 
+
+function autoDealStateKey(state) {
+  if (!state) return "";
+  const winners = Array.isArray(state.winners)
+    ? state.winners.map(w => `${w.player_id || w.name || ""}:${w.amount || 0}`).join("|")
+    : "";
+  return [
+    state.room_id || "",
+    state.hand_number || state.hands_played || 0,
+    state.phase || "",
+    winners,
+  ].join(":");
+}
+
+function clearAutoDealTimer() {
+  if (autoDealTimerId) {
+    clearTimeout(autoDealTimerId);
+    autoDealTimerId = null;
+  }
+}
+
+function hideAutoDealCountdown() {
+  clearAutoDealTimer();
+  autoDealDeadlineMs = 0;
+  autoDealHandKey = "";
+  if (els.autoDealCountdown) {
+    els.autoDealCountdown.classList.add("hidden");
+    els.autoDealCountdown.textContent = "";
+  }
+}
+
+function setAutoDealToggleState(canShow) {
+  if (!els.autoDealToggle) return;
+
+  els.autoDealToggle.style.display = canShow ? "inline-flex" : "none";
+  els.autoDealToggle.classList.toggle("is-active", autoDealEnabled);
+  els.autoDealToggle.textContent = autoDealEnabled ? "Auto On" : "Auto Off";
+  els.autoDealToggle.title = autoDealEnabled
+    ? "Auto-deal next hand after showdown"
+    : "Auto-deal is disabled";
+}
+
+function syncAutoDeal(state) {
+  const canDeal = canViewerDeal(state);
+  const winners = Array.isArray(state && state.winners) ? state.winners : [];
+  const handComplete = Boolean(
+    state
+    && state.phase === "showdown"
+    && winners.length > 0
+    && !state.__history_review
+  );
+
+  setAutoDealToggleState(canDeal);
+
+  if (!autoDealEnabled || !canDeal || !handComplete || state.paused) {
+    hideAutoDealCountdown();
+    if (!handComplete) autoDealFiredKey = "";
+    return;
+  }
+
+  const key = autoDealStateKey(state);
+  if (!key) {
+    hideAutoDealCountdown();
+    return;
+  }
+
+  if (autoDealFiredKey === key) {
+    clearAutoDealTimer();
+    if (els.autoDealCountdown) {
+      els.autoDealCountdown.classList.remove("hidden");
+      els.autoDealCountdown.textContent = "Dealing next hand?";
+    }
+    return;
+  }
+
+  if (autoDealHandKey !== key) {
+    clearAutoDealTimer();
+    autoDealHandKey = key;
+    autoDealDeadlineMs = Date.now() + (AUTO_DEAL_DELAY_SECONDS * 1000);
+  }
+
+  const remainingMs = Math.max(0, autoDealDeadlineMs - Date.now());
+  const remainingSeconds = Math.ceil(remainingMs / 1000);
+
+  if (els.autoDealCountdown) {
+    els.autoDealCountdown.classList.remove("hidden");
+    els.autoDealCountdown.textContent = `Auto-deal in ${remainingSeconds}s`;
+  }
+
+  if (remainingMs <= 0) {
+    clearAutoDealTimer();
+    autoDealFiredKey = key;
+    if (els.autoDealCountdown) {
+      els.autoDealCountdown.textContent = "Dealing next hand?";
+    }
+    action("start_hand");
+    return;
+  }
+
+  clearAutoDealTimer();
+  autoDealTimerId = setTimeout(() => {
+    if (lastState) syncAutoDeal(lastState);
+  }, Math.min(250, remainingMs));
+}
+
+function initAutoDealToggle() {
+  if (!els.autoDealToggle) return;
+
+  els.autoDealToggle.addEventListener("click", () => {
+    autoDealEnabled = !autoDealEnabled;
+    localStorage.setItem(AUTO_DEAL_STORAGE_KEY, String(autoDealEnabled));
+    if (!autoDealEnabled) {
+      hideAutoDealCountdown();
+    }
+    if (lastState) syncAutoDeal(lastState);
+  });
+
+  setAutoDealToggleState(false);
+}
+
+
 function numberOrZero(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -1290,9 +1419,8 @@ function renderState(state) {
 
   // Hide outs box (removed feature)
   if (els.outsBox) els.outsBox.classList.add("hidden");
-  // Hide auto-deal countdown
-  if (els.autoDealCountdown) els.autoDealCountdown.classList.add("hidden");
-  if (els.autoDealToggle) els.autoDealToggle.style.display = "none";
+  // ??? Auto-deal countdown ???
+  syncAutoDeal(state);
 }
 
 // ─── Community cards ───
@@ -2903,6 +3031,7 @@ function initActionLogToggle() {
 // ═══════════════════════════════════════════════════════════════
 loadSavedPlayerName();
 initActionLogToggle();
+initAutoDealToggle();
 
 if (roomId && token) {
   reconnectLast();

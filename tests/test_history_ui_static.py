@@ -401,3 +401,21 @@ def test_roster_distinguishes_bots_players_and_styles_scrollbar():
     assert 'content: "PLAYER"' in css
     assert ".admin-player-list::-webkit-scrollbar" in css
     assert "scrollbar-color" in css
+
+
+def test_auto_deal_countdown_starts_next_hand_for_admin():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert "AUTO_DEAL_DELAY_SECONDS = 10" in app
+    assert "AUTO_DEAL_STORAGE_KEY" in app
+    assert "function syncAutoDeal(state)" in app
+    assert "function initAutoDealToggle()" in app
+    assert "Auto-deal in" in app
+    assert "Dealing next hand" in app
+    assert 'action("start_hand")' in app
+    assert "syncAutoDeal(state);" in app
+    assert "initAutoDealToggle();" in app
+    assert "Auto-deal countdown polish" in css
+    assert ".auto-deal-toggle.is-active" in css
+    assert ".auto-deal-countdown" in css

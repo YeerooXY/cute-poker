@@ -6545,3 +6545,34 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
 .admin-player-list::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, rgba(245,212,66,0.82), rgba(150,110,34,0.76));
 }
+
+
+/* ??? Auto-deal countdown polish ??? */
+.auto-deal-toggle {
+  min-width: 72px;
+}
+
+.auto-deal-toggle.is-active {
+  border-color: rgba(232,185,35,0.48) !important;
+  background: rgba(232,185,35,0.14) !important;
+  color: var(--gold-light) !important;
+}
+
+.auto-deal-countdown {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(232,185,35,0.28);
+  background: rgba(0,0,0,0.24);
+  color: var(--gold-light);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.auto-deal-countdown.hidden {
+  display: none !important;
+}
