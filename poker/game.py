@@ -7,6 +7,7 @@ import os
 import random
 import secrets
 import string
+import time as time_module
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Any
@@ -39,6 +40,7 @@ STARTING_STACK = 1000
 MAX_CHAT_MESSAGES = 50
 MAX_CHAT_TEXT_LEN = 240
 HAND_HISTORY_LIMIT = 20
+AUTO_DEAL_DEFAULT_DELAY_SECONDS = 10
 _SIMULATION_MODE = os.getenv("POKER_SIMULATION") == "1"
 
 # ─── Action log sanitization ──────────────────────────────────────────────────
@@ -160,6 +162,7 @@ class PokerServer:
         self._odds_cache: dict[str, dict] = {}  # room_id -> {(token, board_tuple): odds_result}
         self._bot_loop_active: dict[str, asyncio.Event] = {}  # room_id → Event (set when idle)
         self._pending_start_hand: dict[str, bool] = {}  # room_id → queued start_hand flag
+        self._auto_deal_tasks: dict[str, asyncio.Task] = {}
 
     async def handle(self, ws: WebSocket, event: str, payload: dict[str, Any]) -> HandleResult:
         if event == "create":
@@ -206,6 +209,9 @@ class PokerServer:
         # Clean up stale disconnected players
         self._evict_stale(room)
 
+        # Backend-owned auto-deal countdown
+        self._ensure_auto_deal(room)
+
         # Clear odds cache on new hand (preflop start with empty board)
         if room.phase == "preflop" and not room.community:
             self._odds_cache.pop(room.room_id, None)
@@ -249,6 +255,17 @@ class PokerServer:
             payload.get("allow_folded_reveals", True),
             default=True,
         )
+
+        room.auto_deal_enabled = _parse_bool_setting(
+            payload.get("auto_deal_enabled", True),
+            default=True,
+        )
+        auto_deal_delay = _parse_non_negative_int_amount(
+            payload.get("auto_deal_delay_seconds", AUTO_DEAL_DEFAULT_DELAY_SECONDS)
+        )
+        if auto_deal_delay is None or auto_deal_delay < 1:
+            auto_deal_delay = AUTO_DEAL_DEFAULT_DELAY_SECONDS
+        room.auto_deal_delay_seconds = auto_deal_delay
 
         player = self.add_new_player(room, ws, payload.get("name", "Player"), payload.get("avatar", "🎭"))
         room.creator_token = player.token
@@ -828,6 +845,101 @@ class PokerServer:
             self._bot_loop_active.pop(room_id, None)
             self._pending_start_hand.pop(room_id, None)
 
+
+    def _cancel_auto_deal_for_room_id(self, room_id: str) -> None:
+        task = self._auto_deal_tasks.pop(room_id, None)
+        if task and not task.done():
+            try:
+                current = asyncio.current_task()
+            except RuntimeError:
+                current = None
+            if task is not current:
+                task.cancel()
+
+        room = self.rooms.get(room_id)
+        if room:
+            room.auto_deal_started_at = 0.0
+            room.auto_deal_hand_number = 0
+
+    def _cancel_auto_deal(self, room: Room) -> None:
+        self._cancel_auto_deal_for_room_id(room.room_id)
+
+    def _auto_deal_can_run(self, room: Room) -> bool:
+        if not getattr(room, "auto_deal_enabled", True):
+            return False
+        if room.paused:
+            return False
+        if room.phase != "showdown" or not room.winners:
+            return False
+
+        eligible = [
+            p for p in room.seated_players()
+            if p.stack > 0 and not p.sitting_out and not p.is_spectator
+        ]
+        return len(eligible) >= 2
+
+    def auto_deal_remaining_seconds(self, room: Room) -> int:
+        if not getattr(room, "auto_deal_started_at", 0.0):
+            return 0
+
+        delay = max(1, int(getattr(room, "auto_deal_delay_seconds", AUTO_DEAL_DEFAULT_DELAY_SECONDS)))
+        elapsed = time_module.time() - float(room.auto_deal_started_at)
+        remaining = max(0.0, delay - elapsed)
+        return int(remaining + 0.999)
+
+    def _ensure_auto_deal(self, room: Room) -> None:
+        if not self._auto_deal_can_run(room):
+            self._cancel_auto_deal(room)
+            return
+
+        room_id = room.room_id
+        hand_number = room.hands_played
+        existing = self._auto_deal_tasks.get(room_id)
+
+        if (
+            existing
+            and not existing.done()
+            and room.auto_deal_hand_number == hand_number
+            and getattr(room, "auto_deal_started_at", 0.0) > 0
+        ):
+            return
+
+        self._cancel_auto_deal(room)
+        room.auto_deal_started_at = time_module.time()
+        room.auto_deal_hand_number = hand_number
+        self._auto_deal_tasks[room_id] = asyncio.create_task(
+            self._auto_deal_countdown(room_id, hand_number)
+        )
+
+    async def _auto_deal_countdown(self, room_id: str, hand_number: int) -> None:
+        try:
+            while True:
+                room = self.rooms.get(room_id)
+                if not room:
+                    return
+                if room.auto_deal_hand_number != hand_number:
+                    return
+                if not self._auto_deal_can_run(room):
+                    return
+
+                await self.broadcast(room)
+
+                remaining = self.auto_deal_remaining_seconds(room)
+                if remaining <= 0:
+                    break
+
+                await asyncio.sleep(min(1.0, float(remaining)))
+
+            room = self.rooms.get(room_id)
+            if (
+                room
+                and room.auto_deal_hand_number == hand_number
+                and self._auto_deal_can_run(room)
+            ):
+                await self.start_hand(room)
+        finally:
+            self._auto_deal_tasks.pop(room_id, None)
+
     async def player_action(self, room: Room, player: Player, action: str, payload: dict[str, Any]):
         print(f"[ACTION] {player.name} (seat {player.seat}) -> {action} | phase={room.phase} action_seat={room.action_seat} current_bet={room.current_bet} committed={player.committed} stack={player.stack}")
 
@@ -882,6 +994,7 @@ class PokerServer:
             room.pot = 0
             room.community = []
             room.winners = []
+            self._cancel_auto_deal(room)
             await self.broadcast(room)
             return
 
@@ -897,6 +1010,22 @@ class PokerServer:
                 await self.broadcast(room)
             else:
                 await self.send(player.ws, "error", {"message": "Only the room creator can pause."})
+            return
+
+        if action == "toggle_auto_deal":
+            if player.token != room.creator_token:
+                await self.send(player.ws, "error", {"message": "Only the room creator can change auto-deal."})
+                return
+
+            room.auto_deal_enabled = _parse_bool_setting(
+                payload.get("enabled", not getattr(room, "auto_deal_enabled", True)),
+                default=not getattr(room, "auto_deal_enabled", True),
+            )
+
+            if not room.auto_deal_enabled:
+                self._cancel_auto_deal(room)
+
+            await self.broadcast(room)
             return
 
         if action == "spectate":
@@ -1299,6 +1428,7 @@ class PokerServer:
                 await self.send(p.ws, "error", {"message": "Need at least two active players with chips."})
             return
 
+        self._cancel_auto_deal(room)
         self._odds_cache.pop(room.room_id, None)
         room.deck = new_deck()
         room.community = []
@@ -2437,6 +2567,15 @@ class PokerServer:
             "blind_level": room.current_blind_level,
             "blind_increase_hands": room.blind_increase_hands,
             "allow_folded_reveals": getattr(room, "allow_folded_reveals", True),
+            "auto_deal_enabled": getattr(room, "auto_deal_enabled", True),
+            "auto_deal_delay_seconds": getattr(room, "auto_deal_delay_seconds", AUTO_DEAL_DEFAULT_DELAY_SECONDS),
+            "auto_deal_active": (
+                room.phase == "showdown"
+                and bool(room.winners)
+                and getattr(room, "auto_deal_enabled", True)
+                and getattr(room, "auto_deal_started_at", 0.0) > 0
+            ),
+            "auto_deal_remaining_seconds": self.auto_deal_remaining_seconds(room),
             "community": display_cards(room.community),
             "players": players,
             "messages": [

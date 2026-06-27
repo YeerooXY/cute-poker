@@ -6,7 +6,7 @@ import time
 from types import SimpleNamespace
 
 from poker.game import PokerServer
-from poker.models import Room
+from poker.models import Room, Winner
 
 
 class DummyWs:
@@ -195,3 +195,61 @@ def test_admin_kick_rejects_self_current_admin_and_active_hand():
     }))
     assert "Kick players between hands only." in error_messages(creator_ws)
     assert guest.player_id in room.players
+
+
+def test_backend_auto_deal_state_is_visible_to_all_players():
+    server, room, creator, guest, _creator_ws, _guest_ws = make_room_with_two_humans()
+    room.phase = "showdown"
+    room.winners = [Winner(creator.player_id, creator.name, 10, "Everyone else folded")]
+    room.auto_deal_enabled = True
+    room.auto_deal_delay_seconds = 10
+    room.auto_deal_started_at = time.time()
+    room.auto_deal_hand_number = room.hands_played
+
+    creator_state = server.visible_state(room, creator.token)
+    guest_state = server.visible_state(room, guest.token)
+
+    assert creator_state["auto_deal_enabled"] is True
+    assert guest_state["auto_deal_enabled"] is True
+    assert creator_state["auto_deal_active"] is True
+    assert guest_state["auto_deal_active"] is True
+    assert creator_state["auto_deal_remaining_seconds"] <= 10
+    assert guest_state["auto_deal_remaining_seconds"] <= 10
+
+
+def test_admin_can_toggle_backend_auto_deal_but_guest_cannot():
+    server, room, creator, guest, creator_ws, guest_ws = make_room_with_two_humans()
+
+    run(server.player_action(room, guest, "toggle_auto_deal", {"enabled": False}))
+    assert "Only the room creator can change auto-deal." in error_messages(guest_ws)
+    assert room.auto_deal_enabled is True
+
+    run(server.player_action(room, creator, "toggle_auto_deal", {"enabled": False}))
+    assert room.auto_deal_enabled is False
+    assert events(creator_ws, "state")
+
+
+def test_backend_auto_deal_starts_next_hand_after_countdown():
+    async def scenario():
+        server, room, creator, guest, creator_ws, guest_ws = make_room_with_two_humans()
+        room.phase = "showdown"
+        room.winners = [Winner(creator.player_id, creator.name, 10, "Everyone else folded")]
+        room.pot = 10
+        room.auto_deal_enabled = True
+        room.auto_deal_delay_seconds = 1
+
+        await server.broadcast(room)
+        assert room.auto_deal_started_at > 0
+
+        for _ in range(20):
+            if room.phase == "preflop":
+                break
+            await asyncio.sleep(0.1)
+
+        assert room.phase == "preflop"
+        assert room.winners == []
+        assert room.auto_deal_started_at == 0.0
+        assert events(creator_ws, "state")
+        assert events(guest_ws, "state")
+
+    run(scenario())

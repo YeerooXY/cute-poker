@@ -33,13 +33,7 @@ let selectedHistoryHandNumber = null;
 let selectedHistoryReviewKey = null;
 let defaultPanelsRoomId = null;
 
-const AUTO_DEAL_DELAY_SECONDS = 10;
-const AUTO_DEAL_STORAGE_KEY = "poker_auto_deal_enabled";
-let autoDealEnabled = localStorage.getItem(AUTO_DEAL_STORAGE_KEY) !== "false";
-let autoDealTimerId = null;
-let autoDealDeadlineMs = 0;
-let autoDealHandKey = "";
-let autoDealFiredKey = "";
+let autoDealEnabled = true;
 
 // ─── Helpers ───
 function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
@@ -773,30 +767,7 @@ function syncDealControls(state) {
 
 
 
-function autoDealStateKey(state) {
-  if (!state) return "";
-  const winners = Array.isArray(state.winners)
-    ? state.winners.map(w => `${w.player_id || w.name || ""}:${w.amount || 0}`).join("|")
-    : "";
-  return [
-    state.room_id || "",
-    state.hand_number || state.hands_played || 0,
-    state.phase || "",
-    winners,
-  ].join(":");
-}
-
-function clearAutoDealTimer() {
-  if (autoDealTimerId) {
-    clearTimeout(autoDealTimerId);
-    autoDealTimerId = null;
-  }
-}
-
 function hideAutoDealCountdown() {
-  clearAutoDealTimer();
-  autoDealDeadlineMs = 0;
-  autoDealHandKey = "";
   if (els.autoDealCountdown) {
     els.autoDealCountdown.classList.add("hidden");
     els.autoDealCountdown.textContent = "";
@@ -854,7 +825,6 @@ function setAutoDealToggleState(canShow) {
 
 function syncAutoDeal(state) {
   const viewerIsAdmin = Boolean(state && state.viewer && state.viewer.is_admin);
-  const canAdminDeal = canViewerDeal(state);
   const winners = Array.isArray(state && state.winners) ? state.winners : [];
   const handComplete = Boolean(
     state
@@ -863,71 +833,33 @@ function syncAutoDeal(state) {
     && !state.__history_review
   );
 
+  autoDealEnabled = state && state.auto_deal_enabled !== false;
   setAutoDealToggleState(viewerIsAdmin);
 
-  if (!autoDealEnabled || !handComplete || state.paused) {
-    hideAutoDealCountdown();
-    if (!handComplete) autoDealFiredKey = "";
-    return;
-  }
-
-  const key = autoDealStateKey(state);
-  if (!key) {
+  const backendActive = Boolean(state && state.auto_deal_active);
+  if (!autoDealEnabled || !handComplete || !backendActive || state.paused) {
     hideAutoDealCountdown();
     return;
   }
 
-  if (autoDealFiredKey === key) {
-    clearAutoDealTimer();
-    showAutoDealCountdown(canAdminDeal ? "Dealing next hand..." : "Waiting for next hand...");
-    return;
-  }
-
-  if (autoDealHandKey !== key) {
-    clearAutoDealTimer();
-    autoDealHandKey = key;
-    autoDealDeadlineMs = Date.now() + AUTO_DEAL_DELAY_SECONDS * 1000;
-  }
-
-  const remainingMs = Math.max(0, autoDealDeadlineMs - Date.now());
-  const remainingSeconds = Math.ceil(remainingMs / 1000);
-
-  showAutoDealCountdown(`Auto-deal in ${remainingSeconds}s`);
-
-  if (remainingMs <= 0) {
-    clearAutoDealTimer();
-    autoDealFiredKey = key;
-
-    if (canAdminDeal) {
-      showAutoDealCountdown("Dealing next hand...");
-      action("start_hand");
-    } else {
-      showAutoDealCountdown("Waiting for next hand...");
-    }
-
-    return;
-  }
-
-  clearAutoDealTimer();
-  autoDealTimerId = setTimeout(() => {
-    if (lastState) syncAutoDeal(lastState);
-  }, Math.min(250, remainingMs));
+  const remainingSeconds = Math.max(0, Math.ceil(Number(state.auto_deal_remaining_seconds) || 0));
+  showAutoDealCountdown(
+    remainingSeconds > 0
+      ? `Auto-deal in ${remainingSeconds}s`
+      : "Dealing next hand..."
+  );
 }
 
 function initAutoDealToggle() {
   if (!els.autoDealToggle) return;
 
   els.autoDealToggle.addEventListener("click", () => {
-    autoDealEnabled = !autoDealEnabled;
-    localStorage.setItem(AUTO_DEAL_STORAGE_KEY, String(autoDealEnabled));
-    if (!autoDealEnabled) {
-      hideAutoDealCountdown();
-    }
-    if (lastState) syncAutoDeal(lastState);
+    action("toggle_auto_deal", { enabled: !autoDealEnabled });
   });
 
   setAutoDealToggleState(false);
 }
+
 
 
 function numberOrZero(value) {
