@@ -290,7 +290,7 @@ def test_admin_player_rows_are_name_and_actions_without_stack_transfer_to_self()
     assert "!isSelf" in app
     assert "viewerIsAdmin && player.is_you" in app
     assert "admin-player-seat" in app
-    assert "admin-player-stack" not in app
+    assert "admin-player-stack" in app
 
     assert "Cleaner admin player action rows" in css
     assert ".admin-player-stack" in css
@@ -362,9 +362,42 @@ def test_admin_self_row_has_no_action_buttons():
     css = read_static("styles.css")
 
     assert "const isSelf = Boolean(player.is_you)" in app
-    assert 'const mockHtml = isSelf ? ""' in app
-    assert 'const dmHtml = isSelf ? ""' in app
+    assert "const mockHtml = isSelf" in app
+    assert "const dmHtml = isSelf" in app
     assert "!isSelf" in app
-    assert "This is you" in app
+    assert "is-self" in app
     assert "Admin self row has no action buttons" in css
     assert ".admin-self-note" in css
+
+
+def test_table_roster_visible_for_all_with_admin_controls_gated():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert 'els.adminActions.classList.remove("hidden")' in app
+    assert 'els.adminActions.classList.toggle("is-table-admin", viewerIsAdmin)' in app
+    assert 'dockTitle.textContent = viewerIsAdmin ? "Admin" : "Table"' in app
+    assert 'dockSubtitle.textContent = viewerIsAdmin ? "Table roster" : "Players"' in app
+    assert "canKickTarget = viewerIsAdmin && !isCurrentAdmin && !isSelf" in app
+    assert "is-self" in app
+
+    assert "Messenger-style table roster panel" in css
+    assert ".admin-dock:not(.is-table-admin) .admin-dock-grid" in css
+    assert "width: 330px !important" in css
+    assert "grid-template-columns: minmax(0, 1fr) auto !important" in css
+    assert ".admin-player-row.is-self .admin-player-actions" in css
+
+
+def test_roster_distinguishes_bots_players_and_styles_scrollbar():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert 'labels.push("Player")' in app
+    assert 'player.is_bot ? " is-bot" : " is-human"' in app
+    assert "Roster human/bot distinction and scrollbar polish" in css
+    assert ".admin-player-row.is-human" in css
+    assert ".admin-player-row.is-bot" in css
+    assert 'content: "BOT"' in css
+    assert 'content: "PLAYER"' in css
+    assert ".admin-player-list::-webkit-scrollbar" in css
+    assert "scrollbar-color" in css

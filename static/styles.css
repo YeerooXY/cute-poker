@@ -6340,3 +6340,208 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
   align-items: center;
   padding: 2px 4px;
 }
+
+
+/* ??? Messenger-style table roster panel ??? */
+.admin-side-panel.admin-dock {
+  width: 330px !important;
+  height: 520px !important;
+  max-height: min(520px, calc(100vh - 28px)) !important;
+  overflow: hidden !important;
+}
+
+.admin-dock:not(.is-table-admin) .admin-dock-grid {
+  display: none !important;
+}
+
+.admin-dock:not(.is-table-admin) {
+  height: 430px !important;
+  max-height: min(430px, calc(100vh - 28px)) !important;
+}
+
+.admin-player-list {
+  display: grid !important;
+  grid-auto-rows: max-content !important;
+  align-content: start !important;
+  gap: 5px !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  padding-right: 4px !important;
+}
+
+.admin-player-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-rows: auto auto !important;
+  column-gap: 8px !important;
+  row-gap: 3px !important;
+  align-items: center !important;
+  min-height: 42px !important;
+  padding: 6px 8px !important;
+  border-radius: 10px !important;
+}
+
+.admin-player-main {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 7px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+
+.admin-player-name {
+  min-width: 0 !important;
+  max-width: 130px !important;
+  font-size: 12px !important;
+  line-height: 1.1 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.admin-player-seat,
+.admin-player-stack {
+  color: var(--text-dim) !important;
+  font-size: 9px !important;
+  font-weight: 850 !important;
+  white-space: nowrap !important;
+}
+
+.admin-player-stack {
+  display: inline-flex !important;
+  color: var(--gold-light) !important;
+}
+
+.admin-player-meta {
+  grid-column: 1 !important;
+  grid-row: 2 !important;
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 4px !important;
+  min-height: 16px !important;
+  overflow: hidden !important;
+}
+
+.admin-player-badge {
+  min-height: 15px !important;
+  height: 15px !important;
+  padding: 1px 5px !important;
+  font-size: 8.5px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.admin-player-actions {
+  grid-column: 2 !important;
+  grid-row: 1 / span 2 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 4px !important;
+  min-height: 0 !important;
+  max-width: 150px !important;
+}
+
+.admin-player-action-btn {
+  height: 20px !important;
+  min-height: 20px !important;
+  padding: 2px 7px !important;
+  border-radius: 999px !important;
+  font-size: 9px !important;
+  line-height: 1 !important;
+}
+
+.admin-player-row.is-self .admin-player-actions {
+  display: none !important;
+}
+
+.admin-dock-hint {
+  font-size: 9.5px !important;
+}
+
+@media (max-width: 760px) {
+  .admin-side-panel.admin-dock {
+    width: min(320px, calc(100vw - 16px)) !important;
+    height: 410px !important;
+    max-height: min(410px, calc(100vh - 92px)) !important;
+  }
+
+  .admin-dock:not(.is-table-admin) {
+    height: 360px !important;
+    max-height: min(360px, calc(100vh - 92px)) !important;
+  }
+}
+
+
+/* ??? Roster human/bot distinction and scrollbar polish ??? */
+.admin-player-row.is-human {
+  border-left: 3px solid rgba(99, 214, 128, 0.78) !important;
+}
+
+.admin-player-row.is-bot {
+  border-left: 3px solid rgba(123, 170, 255, 0.78) !important;
+  background:
+    linear-gradient(90deg, rgba(80, 120, 220, 0.11), transparent 34%),
+    rgba(0,0,0,0.22) !important;
+  opacity: 1 !important;
+}
+
+.admin-player-row.is-bot .admin-player-name::after {
+  content: "BOT";
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  color: rgba(190, 214, 255, 0.95);
+  background: rgba(80, 120, 220, 0.20);
+  border: 1px solid rgba(123, 170, 255, 0.28);
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: 0.4px;
+  vertical-align: middle;
+}
+
+.admin-player-row.is-human .admin-player-name::after {
+  content: "PLAYER";
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  color: rgba(182, 244, 194, 0.95);
+  background: rgba(74, 190, 100, 0.14);
+  border: 1px solid rgba(99, 214, 128, 0.24);
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: 0.4px;
+  vertical-align: middle;
+}
+
+.admin-player-list {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(232,185,35,0.48) rgba(0,0,0,0.22);
+}
+
+.admin-player-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.admin-player-list::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.22);
+  border-radius: 999px;
+}
+
+.admin-player-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(232,185,35,0.68), rgba(120,88,28,0.62));
+  border-radius: 999px;
+  border: 2px solid rgba(8,18,8,0.95);
+}
+
+.admin-player-list::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(245,212,66,0.82), rgba(150,110,34,0.76));
+}

@@ -777,7 +777,11 @@ function adminPlayerStatusLabels(player, viewerIsAdmin = false) {
   const isCurrentAdmin = Boolean(player.is_admin || (viewerIsAdmin && player.is_you));
   if (isCurrentAdmin) labels.push("Admin");
   if (player.is_you) labels.push("You");
-  if (player.is_bot) labels.push(player.bot_difficulty ? `Bot ${player.bot_difficulty}` : "Bot");
+  if (player.is_bot) {
+    labels.push(player.bot_difficulty ? `Bot ${player.bot_difficulty}` : "Bot");
+  } else {
+    labels.push("Player");
+  }
   if (player.is_spectator) labels.push("Spectator");
   if (player.sitting_out) labels.push("Sitting out");
   if (!player.connected && !player.is_bot) labels.push("Offline");
@@ -794,9 +798,13 @@ function renderAdminPlayerList(state) {
   const players = Array.isArray(state && state.players) ? state.players : [];
   const safeKickPhase = Boolean(state && ["lobby", "showdown"].includes(state.phase));
 
-  if (!viewerIsAdmin) {
-    els.adminPlayerList.innerHTML = "";
-    return;
+  if (els.adminActions) {
+    els.adminActions.classList.remove("hidden");
+    els.adminActions.classList.toggle("is-table-admin", viewerIsAdmin);
+    const dockTitle = els.adminActions.querySelector(".admin-dock-title");
+    const dockSubtitle = els.adminActions.querySelector(".admin-dock-subtitle");
+    if (dockTitle) dockTitle.textContent = viewerIsAdmin ? "Admin" : "Table";
+    if (dockSubtitle) dockSubtitle.textContent = viewerIsAdmin ? "Table roster" : "Players";
   }
 
   if (players.length === 0) {
@@ -811,15 +819,20 @@ function renderAdminPlayerList(state) {
       const id = esc(player.id || player.player_id || "");
       const name = esc(player.name || "Player");
       const seat = esc(player.seat || "?");
-      const isCurrentAdmin = Boolean(player.is_admin || (viewerIsAdmin && player.is_you));
+      const stack = numberOrZero(player.stack);
+      const isSelf = Boolean(player.is_you);
+      const isCurrentAdmin = Boolean(player.is_admin || (viewerIsAdmin && isSelf));
 
       const labels = adminPlayerStatusLabels(player, viewerIsAdmin)
         .map(label => `<span class="admin-player-badge">${esc(label)}</span>`)
         .join("");
 
-      const isSelf = Boolean(player.is_you);
-      const mockHtml = isSelf ? "" : `<button type="button" class="admin-player-action-btn muted" disabled title="Mock action coming soon">Mock</button>`;
-      const dmHtml = isSelf ? "" : `<button type="button" class="admin-player-action-btn muted" disabled title="Direct messages coming soon">DM</button>`;
+      const mockHtml = isSelf
+        ? ""
+        : `<button type="button" class="admin-player-action-btn muted" disabled title="Mock action coming soon">Mock</button>`;
+      const dmHtml = isSelf
+        ? ""
+        : `<button type="button" class="admin-player-action-btn muted" disabled title="Direct messages coming soon">DM</button>`;
 
       const canKickTarget = viewerIsAdmin && !isCurrentAdmin && !isSelf && Boolean(player.id || player.player_id);
       const kickHtml = canKickTarget && safeKickPhase
@@ -827,21 +840,18 @@ function renderAdminPlayerList(state) {
         : canKickTarget
           ? `<button type="button" class="admin-player-action-btn admin-kick-btn disabled" disabled title="Kick is available after the current hand">Kick after hand</button>`
           : "";
-      const selfNoteHtml = isSelf ? `<span class="admin-self-note">This is you</span>` : "";
+
+      const actionHtml = [mockHtml, dmHtml, kickHtml].filter(Boolean).join("");
 
       return `
-        <div class="admin-player-row${isCurrentAdmin ? " is-admin" : ""}${player.is_bot ? " is-bot" : ""}">
+        <div class="admin-player-row${isCurrentAdmin ? " is-admin" : ""}${player.is_bot ? " is-bot" : " is-human"}${isSelf ? " is-self" : ""}">
           <div class="admin-player-main">
             <span class="admin-player-name">${name}</span>
             <span class="admin-player-seat">Seat ${seat}</span>
+            <span class="admin-player-stack">${stack}</span>
           </div>
           <div class="admin-player-meta">${labels || '<span class="admin-player-badge muted">Player</span>'}</div>
-          <div class="admin-player-actions">
-            ${mockHtml}
-            ${dmHtml}
-            ${kickHtml}
-            ${selfNoteHtml}
-          </div>
+          <div class="admin-player-actions">${actionHtml}</div>
         </div>
       `;
     })
