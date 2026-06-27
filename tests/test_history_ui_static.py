@@ -184,10 +184,10 @@ def test_table_seats_are_clustered_around_bigger_felt():
     css = read_static("styles.css")
 
     assert 'const SEAT_POSITIONS = [' in app
-    assert '{ top: "82%", left: "50%" }' in app
-    assert '{ top: "48%", left: "20%" }' in app
-    assert '{ top: "48%", left: "80%" }' in app
-    assert '{ top: "17%", left: "50%" }' in app
+    assert '{ top: "80%", left: "50%" }' in app
+    assert '{ top: "49%", left: "24%" }' in app
+    assert '{ top: "49%", left: "76%" }' in app
+    assert '{ top: "18%", left: "50%" }' in app
 
     assert "Table seating layout polish: players sit around the felt" in css
     assert "width: min(940px" in css
@@ -582,6 +582,16 @@ def test_table_center_cluster_polish_css_exists():
     assert "border-radius: 48% / 38%" in css
     assert "transform: scale(0.82)" in css
 
+def test_center_pot_chips_use_displayed_amount_and_hide_empty_state():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert "const centerPotAmount = displayedCenterPotAmount(state);" in app
+    assert "renderChipStackHtml(centerPotAmount" in app
+    assert 'els.potChips.classList.toggle("is-empty", centerPotAmount <= 0);' in app
+    assert ".pot-chips.is-empty" in css
+    assert "min-height: 0" in css
+
 def test_bet_markers_are_clamped_to_felt_geometry():
     app = read_static("app.js")
 
@@ -690,3 +700,17 @@ def test_buy_in_count_can_rebuy_and_busted_labels_are_used_in_frontend():
     assert "viewerData.can_rebuy" in app
     assert '"buy_in_count": max(1, int(getattr(p, "buy_in_count", 1)))' in game
     assert '"can_rebuy": viewer_can_rebuy if viewer else False' in game
+
+def test_stack_zero_live_all_in_players_are_not_labeled_busted_frontend():
+    app = read_static("app.js")
+    game = (ROOT / "poker" / "game.py").read_text(encoding="utf-8")
+
+    assert "function playerIsLiveInCurrentHand(player, state = lastState)" in app
+    assert "player.is_live_in_hand" in app
+    assert "function playerIsBusted(player, state = lastState)" in app
+    assert "&& !playerIsLiveInCurrentHand(player, state)" in app
+    assert "playerIsBusted(player)" in app
+    assert "playerIsBusted(p, state)" in app
+    assert '"is_live_in_hand": is_live_in_hand' in game
+    assert "and not is_live_in_hand" in game
+    assert "and not self.player_is_live_in_current_hand(room, viewer)" in game

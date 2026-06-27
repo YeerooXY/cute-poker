@@ -7204,3 +7204,92 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
     font-size: 9px !important;
   }
 }
+
+/* Crowded table and pot cluster polish */
+.pot-area {
+  flex-direction: column;
+  gap: 1px !important;
+  margin-bottom: 6px !important;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.pot-amount {
+  line-height: 1;
+}
+
+.pot-chips.is-empty {
+  min-height: 0 !important;
+  height: 0;
+  margin: 0 !important;
+  overflow: hidden;
+}
+
+#potChips:not(.is-empty),
+.pot-chips:not(.is-empty) {
+  margin-top: 4px;
+}
+
+.pot-chips:not(.is-empty) .chip-stack-pot {
+  transform: scale(0.86);
+  transform-origin: center top;
+}
+
+@media (max-width: 1100px) {
+  .player-seat {
+    max-width: 136px !important;
+  }
+}
+
+@media (max-width: 760px), (max-height: 720px) {
+  .player-seat {
+    min-width: 92px !important;
+    max-width: 120px !important;
+    padding: 5px 6px !important;
+  }
+
+  .seat-name {
+    max-width: 62px;
+  }
+
+  .seat-badges {
+    gap: 2px !important;
+  }
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.mucked .post-hand-cards .playing-card,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:not(.winner) .post-hand-cards .playing-card {
+  width: 21px !important;
+  height: 30px !important;
+  min-width: 21px !important;
+  font-size: 8px !important;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards {
+  max-width: 148px;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards .playing-card,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards .playing-card {
+  width: 25px !important;
+  height: 35px !important;
+  min-width: 25px !important;
+  font-size: 9px !important;
+}
+
+@media (max-height: 720px), (max-width: 600px) {
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards,
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards {
+    max-width: 126px;
+  }
+
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards .playing-card,
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards .playing-card {
+    width: 22px !important;
+    height: 31px !important;
+    min-width: 22px !important;
+    font-size: 8px !important;
+  }
+}

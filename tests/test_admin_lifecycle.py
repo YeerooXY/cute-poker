@@ -5,8 +5,9 @@ import json
 import time
 from types import SimpleNamespace
 
+from poker.bot import BotConfig
 from poker.game import PokerServer, STARTING_STACK
-from poker.models import Room, Winner
+from poker.models import Player, Room, Winner
 
 
 class DummyWs:
@@ -518,6 +519,55 @@ def test_busted_player_can_rebuy_between_hands_and_buy_in_count_increments():
     viewer = next(p for p in after["players"] if p["is_you"])
     assert viewer["buy_in_count"] == 2
     assert after["viewer"]["can_rebuy"] is False
+
+
+def test_live_all_in_stack_zero_is_not_rebuyable_or_busted_in_visible_state():
+    server, room, creator, guest, _creator_ws, _guest_ws = make_room_with_two_humans()
+    room.phase = "preflop"
+    room.action_seat = guest.seat
+    room.current_bet = 100
+    creator.stack = 0
+    creator.cards = ["AS", "AH"]
+    creator.all_in = True
+    creator.folded = False
+    creator.committed = 1000
+    creator.total_invested = 1000
+
+    state = server.visible_state(room, creator.token)
+    viewer = next(p for p in state["players"] if p["is_you"])
+
+    assert state["viewer"]["can_rebuy"] is False
+    assert viewer["can_rebuy"] is False
+    assert viewer["is_live_in_hand"] is True
+    assert viewer["all_in"] is True
+
+
+def test_busted_bot_rebuys_before_next_hand_and_increments_buy_in_count():
+    server, room, creator, guest, _creator_ws, _guest_ws = make_room_with_two_humans()
+    bot = Player(
+        player_id="BOT1",
+        token="bot-token",
+        name="Bot One",
+        seat=3,
+        ws=None,
+        connected=True,
+        stack=0,
+        buy_in_count=1,
+    )
+    room.players[bot.player_id] = bot
+    server.bots[bot.player_id] = BotConfig(style="balanced", name=bot.name, avatar="B", difficulty="easy")
+    room.phase = "showdown"
+    room.winners = [Winner(player_id=creator.player_id, name=creator.name, amount=10, reason="wins")]
+
+    run(server.start_hand(room))
+
+    assert bot.buy_in_count == 2
+    assert bot.stack > 0
+    assert bot.sitting_out is False
+    assert bot.cards
+    state = server.visible_state(room, creator.token)
+    bot_view = next(p for p in state["players"] if p["id"] == bot.player_id)
+    assert bot_view["buy_in_count"] == 2
 
 
 def test_rebuy_is_rejected_during_active_hand():

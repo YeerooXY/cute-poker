@@ -418,14 +418,14 @@ document.addEventListener("DOMContentLoaded", () => {
 // ─── Seat positions (8 max) ───
 // Position 0 is viewer-relative bottom/hero seat.
 const SEAT_POSITIONS = [
-  { top: "82%", left: "50%" }, // bottom hero
-  { top: "68%", left: "29%" }, // lower-left
-  { top: "48%", left: "20%" }, // left
-  { top: "27%", left: "31%" }, // upper-left
-  { top: "27%", left: "69%" }, // upper-right
-  { top: "48%", left: "80%" }, // right
-  { top: "68%", left: "71%" }, // lower-right
-  { top: "17%", left: "50%" }, // top
+  { top: "80%", left: "50%" }, // bottom hero
+  { top: "67%", left: "31%" }, // lower-left
+  { top: "49%", left: "24%" }, // left
+  { top: "29%", left: "34%" }, // upper-left
+  { top: "29%", left: "66%" }, // upper-right
+  { top: "49%", left: "76%" }, // right
+  { top: "67%", left: "69%" }, // lower-right
+  { top: "18%", left: "50%" }, // top
 ];
 
 // Canonical server-seat offsets mapped to visual table positions.
@@ -960,6 +960,24 @@ function numberOrZero(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function playerIsLiveInCurrentHand(player, state = lastState) {
+  if (!player) return false;
+  if (player.is_live_in_hand != null) return Boolean(player.is_live_in_hand);
+
+  const phase = String(state && state.phase || "").toLowerCase();
+  const activePhase = ["preflop", "flop", "turn", "river"].includes(phase);
+  return activePhase && Array.isArray(player.cards) && player.cards.length > 0 && !player.folded;
+}
+
+function playerIsBusted(player, state = lastState) {
+  return Boolean(
+    player
+    && numberOrZero(player.stack) <= 0
+    && !player.is_spectator
+    && !playerIsLiveInCurrentHand(player, state)
+  );
+}
+
 
 function adminPlayerStatusLabels(player, viewerIsAdmin = false) {
   const labels = [];
@@ -974,7 +992,7 @@ function adminPlayerStatusLabels(player, viewerIsAdmin = false) {
     labels.push("Player");
   }
   if (player.is_spectator) labels.push("Spectator");
-  if (numberOrZero(player.stack) <= 0 && !player.is_spectator) labels.push("Busted");
+  if (playerIsBusted(player)) labels.push("Busted");
   if (player.sitting_out) labels.push("Sitting out");
   if (numberOrZero(player.buy_in_count) > 1) labels.push(`Buy-ins ${numberOrZero(player.buy_in_count)}`);
   if (!player.connected && !player.is_bot) labels.push("Offline");
@@ -1013,7 +1031,7 @@ function renderAdminPlayerList(state) {
       const name = esc(player.name || "Player");
       const seat = esc(player.seat || "?");
       const stack = numberOrZero(player.stack);
-      const stackText = stack <= 0 && !player.is_spectator ? "BUST" : String(stack);
+      const stackText = playerIsBusted(player, state) ? "BUST" : String(stack);
       const isSelf = Boolean(player.is_you);
       const isCurrentAdmin = Boolean(player.is_admin || (viewerIsAdmin && isSelf));
 
@@ -1432,7 +1450,8 @@ function renderState(state) {
   els.roomId.textContent = state.room_id;
   els.phaseBadge.textContent = state.paused ? "PAUSED" : showdownDisplay ? "SHOWDOWN" : state.phase.toUpperCase();
   const animatePot = shouldAnimatePotCountUp(previousState, state);
-  setPotValue(displayedCenterPotAmount(state), animatePot);
+  const centerPotAmount = displayedCenterPotAmount(state);
+  setPotValue(centerPotAmount, animatePot);
 
   // Pot label
   const potLabel = document.querySelector(".pot-label");
@@ -1453,7 +1472,8 @@ function renderState(state) {
   }
 
   if (els.potChips) {
-    els.potChips.innerHTML = renderChipStackHtml(state.pot, animatePot ? "chip-to-pot-in" : "");
+    els.potChips.innerHTML = renderChipStackHtml(centerPotAmount, animatePot && centerPotAmount > 0 ? "chip-to-pot-in" : "");
+    els.potChips.classList.toggle("is-empty", centerPotAmount <= 0);
   }
 
   // ─── Turn indicator ───
@@ -1765,7 +1785,7 @@ function renderPlayers(players, previousState = null, state = null) {
     if (p.is_bot) badges.push('<span class="seat-badge">🤖</span>');
     if (p.all_in) badges.push('<span class="seat-badge">ALL-IN</span>');
     if (p.folded) badges.push('<span class="seat-badge warn">FOLD</span>');
-    if (numberOrZero(p.stack) <= 0 && !p.is_spectator) badges.push('<span class="seat-badge warn">BUST</span>');
+    if (playerIsBusted(p, state)) badges.push('<span class="seat-badge warn">BUST</span>');
     if (!p.connected && !p.is_bot) badges.push('<span class="seat-badge warn">DC</span>');
     if (p.sitting_out) badges.push('<span class="seat-badge warn">SIT OUT</span>');
     if (numberOrZero(p.buy_in_count) > 1) badges.push(`<span class="seat-badge">Buy-in ${numberOrZero(p.buy_in_count)}</span>`);
@@ -1792,7 +1812,7 @@ function renderPlayers(players, previousState = null, state = null) {
       <div class="seat-header">
         <span class="seat-avatar">${p.avatar || "🎭"}</span>
         <span class="seat-name">${esc(p.name)}</span>
-        <span class="seat-stack">💰${p.stack}</span>
+        <span class="seat-stack">${playerIsBusted(p, state) ? "BUST" : `💰${p.stack}`}</span>
       </div>
       <div class="seat-badges">${badges.join("")}</div>
       ${bankHtml}

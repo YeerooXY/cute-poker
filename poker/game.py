@@ -1228,17 +1228,7 @@ class PokerServer:
                     p.hand_start_stack = STARTING_STACK
                     p.buy_in_count = 1
                     p.sitting_out = False
-                    p.cards = []
-                    p.folded = False
-                    p.folded_reveal_mode = "hidden"
-                    p.uncontested_reveal_mode = "hidden"
-                    p.all_in = False
-                    p.committed = 0
-                    p.total_invested = 0
-                    p.acted = False
-                    p.last_hand_name = ""
-                    p.last_best_cards = []
-                    p.last_hand_detail = ""
+                    self._reset_player_current_hand_state(p)
             room.phase = "lobby"
             room.pot = 0
             room.community = []
@@ -1264,15 +1254,8 @@ class PokerServer:
             player.stack = STARTING_STACK
             player.hand_start_stack = STARTING_STACK
             player.buy_in_count = max(1, int(getattr(player, "buy_in_count", 1))) + 1
-            player.cards = []
-            player.folded = False
-            player.folded_reveal_mode = "hidden"
-            player.uncontested_reveal_mode = "hidden"
-            player.all_in = False
-            player.committed = 0
-            player.total_invested = 0
-            player.acted = False
             player.sitting_out = False
+            self._reset_player_current_hand_state(player)
             player.timebank_seconds = max(0, int(getattr(room, "starting_timebank_seconds", STARTING_TIMEBANK_DEFAULT_SECONDS)))
 
             _append_room_message(
@@ -1731,7 +1714,52 @@ class PokerServer:
 
         room.hand_deltas = deltas
 
+    def player_is_live_in_current_hand(self, room: Room, player: Player) -> bool:
+        return (
+            room.phase in ["preflop", "flop", "turn", "river"]
+            and bool(player.cards)
+            and not player.folded
+        )
+
+    def _reset_player_current_hand_state(self, player: Player) -> None:
+        player.cards = []
+        player.folded = False
+        player.folded_reveal_mode = "hidden"
+        player.uncontested_reveal_mode = "hidden"
+        player.all_in = False
+        player.committed = 0
+        player.total_invested = 0
+        player.acted = False
+        player.last_hand_name = ""
+        player.last_best_cards = []
+        player.last_hand_detail = ""
+
+    def _rebuy_busted_bots_between_hands(self, room: Room) -> int:
+        if room.phase not in ["lobby", "showdown"]:
+            return 0
+
+        rebought = 0
+        for p in room.seated_players():
+            if p.player_id not in self.bots or p.is_spectator or p.stack > 0:
+                continue
+
+            p.stack = STARTING_STACK
+            p.hand_start_stack = STARTING_STACK
+            p.buy_in_count = max(1, int(getattr(p, "buy_in_count", 1))) + 1
+            p.sitting_out = False
+            p.timebank_seconds = 0
+            self._reset_player_current_hand_state(p)
+            rebought += 1
+
+        if rebought:
+            label = "bot" if rebought == 1 else "bots"
+            _append_room_message(room, "Admin", f"{rebought} busted {label} rebought for the next hand.")
+
+        return rebought
+
     async def start_hand(self, room: Room):
+        self._rebuy_busted_bots_between_hands(room)
+
         eligible = [p for p in room.seated_players()
                     if p.stack > 0 and not p.sitting_out and not p.is_spectator]
         if len(eligible) < 2:
@@ -1754,17 +1782,7 @@ class PokerServer:
 
         for p in room.players.values():
             p.hand_start_stack = p.stack
-            p.cards = []
-            p.folded = False
-            p.folded_reveal_mode = "hidden"
-            p.uncontested_reveal_mode = "hidden"
-            p.all_in = False
-            p.committed = 0
-            p.total_invested = 0
-            p.acted = False
-            p.last_hand_name = ""
-            p.last_best_cards = []
-            p.last_hand_detail = ""
+            self._reset_player_current_hand_state(p)
 
         active = [p for p in room.seated_players()
                   if p.stack > 0 and not p.sitting_out and not p.is_spectator]
@@ -2746,6 +2764,7 @@ class PokerServer:
                     cards = p.cards if show_cards else ["BACK"] * len(p.cards)
 
             to_call = max(0, room.current_bet - p.committed)
+            is_live_in_hand = self.player_is_live_in_current_hand(room, p)
 
             player_dict = {
                 "id": p.player_id,
@@ -2761,6 +2780,7 @@ class PokerServer:
                 "can_rebuy": (
                     p.token == viewer_token
                     and p.stack <= 0
+                    and not is_live_in_hand
                     and not p.is_spectator
                     and room.phase in ("lobby", "showdown")
                 ),
@@ -2776,6 +2796,7 @@ class PokerServer:
                 "would_have_hand_detail": would_have_hand_detail,
                 "would_have_best_cards": display_cards(would_have_best_cards) if would_have_best_cards else [],
                 "all_in": p.all_in,
+                "is_live_in_hand": is_live_in_hand,
                 "is_you": p.token == viewer_token,
                 "is_dealer": p.seat == room.dealer_seat,
                 "is_sb": p.seat == room.sb_seat,
@@ -2851,6 +2872,7 @@ class PokerServer:
             is_admin = viewer.token == room.creator_token
             viewer_can_rebuy = (
                 viewer.stack <= 0
+                and not self.player_is_live_in_current_hand(room, viewer)
                 and not viewer.is_spectator
                 and room.phase in ("lobby", "showdown")
             )
