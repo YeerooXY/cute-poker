@@ -72,9 +72,23 @@ def total_stacks(room):
 
 # ─── Tests ───
 
+def deterministic_hu_winner_deck():
+    """Deck ordered so start_hand pop() deals Aces to A, Kings to B, then a dry board.
+
+    start_hand deals by popping from the end:
+    A card 1, B card 1, A card 2, B card 2, then board cards.
+    """
+    reserved = ["AS", "KS", "AH", "KH", "2C", "5D", "9S", "JH", "3C"]
+    deck = [card for card in new_deck() if card not in reserved]
+    deck.extend(["3C", "JH", "9S", "5D", "2C", "KH", "AH", "KS", "AS"])
+    return deck
+
+
 @pytest.mark.asyncio
-async def test_hu_allin_one_winner():
-    """Heads-up all-in: one winner takes entire pot."""
+async def test_hu_allin_one_winner(monkeypatch):
+    """Heads-up all-in: one deterministic winner takes entire pot."""
+    monkeypatch.setattr(game_module, "new_deck", deterministic_hu_winner_deck)
+
     server = make_server()
     room, players = make_room(server, [("A", 1000), ("B", 1000)])
     total_before = total_stacks(room)
