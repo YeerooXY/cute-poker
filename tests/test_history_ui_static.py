@@ -610,8 +610,12 @@ def test_showdown_compact_mode_has_responsive_scrollable_body():
     css = read_static("styles.css")
 
     assert "const visibleResultRowCount = revealedPlayers.length + foldedPlayers.length;" in app
-    assert "visibleResultRowCount >= 6" in app
+    assert "const densePostHandRows = visibleResultRowCount >= 3;" in app
+    assert "const manyPlayerPostHandRows = visibleResultRowCount >= 5;" in app
     assert "window.innerHeight <= 720" in app
+    assert 'els.postHandPanel.classList.toggle("post-hand-small", visibleResultRowCount > 0 && visibleResultRowCount <= 2);' in app
+    assert 'els.postHandPanel.classList.toggle("post-hand-dense", densePostHandRows);' in app
+    assert 'els.postHandPanel.classList.toggle("post-hand-many-players", manyPlayerPostHandRows);' in app
     assert 'els.postHandPanel.classList.toggle("post-hand-compact", compactPostHandRows);' in app
 
     assert "Responsive showdown dense-result mode" in css
@@ -624,6 +628,25 @@ def test_showdown_compact_mode_has_responsive_scrollable_body():
     assert "@media (max-width: 600px)" in css
     assert "grid-template-columns: minmax(86px, 1fr) minmax(76px, auto) auto" in css
     assert ".post-hand-panel.post-hand-modal.post-hand-compact .post-hand-actions" in css
+
+def test_adaptive_post_hand_density_modes_keep_small_showdowns_rich():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert "post-hand-small" in app
+    assert "post-hand-dense" in app
+    assert "post-hand-many-players" in app
+    assert "const showBestFiveBreakdown = !els.postHandPanel.classList.contains(\"post-hand-dense\")" in app
+    assert "p.is_you && !els.postHandPanel.classList.contains(\"post-hand-many-players\")" in app
+    assert "const breakdown = showBestFiveBreakdown ? renderBestFiveBreakdownHtml(p, state) : \"\";" in app
+
+    assert "Adaptive showdown result density" in css
+    assert ".post-hand-panel.post-hand-modal.post-hand-small .post-hand-breakdown" in css
+    assert ".post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row:not(.winner)" in css
+    assert ".post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row:not(.winner) .post-hand-breakdown" in css
+    assert ".post-hand-panel.post-hand-modal.post-hand-many-players .post-hand-row.mucked" in css
+    assert ".post-hand-panel.post-hand-modal.post-hand-many-players .post-hand-row.mucked .post-hand-cards" in css
+    assert "display: none !important" in css
 
 def test_compact_post_hand_winner_rows_have_stable_card_layout():
     css = read_static("styles.css")
@@ -785,3 +808,43 @@ def test_timebank_turn_badge_is_outside_felt():
     assert "bottom: clamp(-38px, -3.2vw, -28px)" in css
     assert "transform: translateX(-50%)" in css
     assert ".table-felt .turn-indicator:empty" in css
+    assert "Hide redundant under-table bank badge" in css
+    assert ".table-felt .turn-indicator:not(.your-turn):not(.thinking)" in css
+    assert "display: none !important" in css
+
+def test_showdown_winner_matching_uses_player_identity_not_names_only():
+    app = read_static("app.js")
+
+    assert "function playerKey(player)" in app
+    assert "function winnerKey(winner)" in app
+    assert "function winnerMatchesPlayer(winner, player)" in app
+    assert "function winnerForPlayer(player, winners = [])" in app
+    assert "function winnerAmountForPlayer(player, winners = [])" in app
+    assert "winner.player_id" in app
+    assert "player.player_id" in app
+    assert "winnerForPlayer(p, winners)" in app
+    assert "winnerAmountForPlayer(p, winners)" in app
+    assert "winnerNames" not in app
+    assert "winnerByName" not in app
+    assert "winnerAmountByName" not in app
+
+def test_showdown_winner_amount_uses_winners_list_with_net_secondary():
+    app = read_static("app.js")
+
+    assert 'const winAmount = winnerAmountForPlayer(p, winners);' in app
+    assert 'const amount = isWinner ? `+${winAmount}` : formatHandDelta(delta);' in app
+    assert 'const amountClass = isWinner ? "gain winner-amount" : handDeltaClass(delta);' in app
+    assert "post-hand-net" in app
+    assert 'title="${isWinner ? "Winner share" : "Net result this hand"}"' in app
+
+def test_showdown_winner_showcase_css_prevents_card_clipping():
+    css = read_static("styles.css")
+
+    assert "Old-style showdown winner showcase rows" in css
+    assert ".post-hand-panel.post-hand-modal .post-hand-row.winner" in css
+    assert "grid-template-columns: minmax(118px, 0.85fr) minmax(170px, auto) minmax(0, 1fr) minmax(72px, auto)" in css
+    assert ".post-hand-panel.post-hand-modal .post-hand-row.winner .post-hand-cards" in css
+    assert "overflow: visible" in css
+    assert ".post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-breakdown" in css
+    assert "display: none !important" in css
+    assert ".post-hand-net" in css
