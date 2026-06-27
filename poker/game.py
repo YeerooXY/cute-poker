@@ -83,6 +83,44 @@ def _append_room_message(room: Room, name: str, text: Any) -> bool:
 
     return True
 
+def _parse_non_negative_int_amount(value: Any) -> Optional[int]:
+    """Parse a client-provided chip amount without accepting weird values."""
+    if isinstance(value, bool):
+        return None
+
+    if isinstance(value, float) and not value.is_integer():
+        return None
+
+    if isinstance(value, str) and not value.strip().isdigit():
+        return None
+
+    try:
+        amount = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+    if amount < 0:
+        return None
+
+    return amount
+
+def _parse_bool_setting(value: Any, default: bool = False) -> bool:
+    """Parse client-provided boolean settings without Python truthiness surprises."""
+    if isinstance(value, bool):
+        return value
+
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "y", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "n", "off", ""}:
+            return False
+
+    if value in (0, 1):
+        return bool(value)
+
+    return default
+
 @dataclass
 class HandleResult:
     room_id: Optional[str] = None
@@ -171,23 +209,26 @@ class PokerServer:
         room = Room(room_id=room_id)
         self.rooms[room_id] = room
 
-        # Apply room settings from payload (optional)
-        blind_increase = int(payload.get("blind_increase_hands", 0))
-        if blind_increase > 0:
+        # Apply room settings from payload (optional, safely parsed)
+        blind_increase = _parse_non_negative_int_amount(
+            payload.get("blind_increase_hands", 0)
+        )
+        if blind_increase and blind_increase > 0:
             room.blind_increase_hands = blind_increase
 
-        ante = int(payload.get("ante", 0))
-        if ante >= 0:
+        ante = _parse_non_negative_int_amount(payload.get("ante", 0))
+        if ante is not None:
             room.ante = ante
 
-        ante_mode = str(payload.get("ante_mode", "classic")).lower()
+        ante_mode = str(payload.get("ante_mode", "classic")).strip().lower()
         if ante_mode in ("classic", "bba"):
             room.ante_mode = ante_mode
 
-        auto_ante = payload.get("auto_ante", False)
-        room.auto_ante = bool(auto_ante)
-
-        room.allow_folded_reveals = bool(payload.get("allow_folded_reveals", True))
+        room.auto_ante = _parse_bool_setting(payload.get("auto_ante", False))
+        room.allow_folded_reveals = _parse_bool_setting(
+            payload.get("allow_folded_reveals", True),
+            default=True,
+        )
 
         player = self.add_new_player(room, ws, payload.get("name", "Player"), payload.get("avatar", "🎭"))
         room.creator_token = player.token
@@ -918,7 +959,10 @@ class PokerServer:
         elif action == "bet_raise":
             # "amount" from the client is the TOTAL the player wants to commit
             # (i.e. "raise to X" semantics)
-            raise_to = int(payload.get("amount", 0))
+            raise_to = _parse_non_negative_int_amount(payload.get("amount", 0))
+            if raise_to is None:
+                await self.send(player.ws, "error", {"message": "Invalid raise amount."})
+                return
 
             # Player's maximum possible total = what they've already committed + their stack
             max_total = player.committed + player.stack
