@@ -235,3 +235,15 @@ def test_admin_panel_is_bottom_left_management_dock():
     assert "bottom: 12px !important" in css
     assert "right: auto !important" in css
     assert ".admin-dock-bot-row" in css
+
+
+def test_admin_dock_uses_plain_text_controls_not_emoji():
+    html = read_static("index.html")
+
+    assert ">Reset<" in html
+    assert ">Pause<" in html
+    assert ">+ Bot<" in html
+    assert ">- Bot<" in html
+    assert "??" not in html
+    assert "? Reset" not in html
+    assert "? Pause" not in html
