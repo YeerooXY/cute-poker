@@ -1178,7 +1178,7 @@ function renderState(state) {
   renderChat(state.messages);
 
   // ─── Action Log ───
-  renderActionLog(state);
+  renderActionLog(cinemaState);
   renderPostHandPanel(state);
   renderHandHistory(state);
   syncDealControls(state);
@@ -2637,7 +2637,7 @@ function renderStreetSeparator(phase, community) {
 function renderActionLog(state) {
   // Update hand number
   if (els.actionLogHandNum) {
-    els.actionLogHandNum.textContent = state.hands_played || 0;
+    els.actionLogHandNum.textContent = state.hand_number || state.hands_played || 0;
   }
 
   // Clear the body

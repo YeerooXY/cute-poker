@@ -169,3 +169,11 @@ def test_right_rail_stacks_action_log_and_chat():
     assert "body.action-log-open .chat-panel" in css
     assert "top: calc(48vh + 58px)" in css
     assert "width: var(--right-rail-width)" in css
+
+
+def test_history_review_drives_action_log_from_selected_hand():
+    app = read_static("app.js")
+
+    assert "const cinemaState = historyReviewDisplayState || state" in app
+    assert "renderActionLog(cinemaState)" in app
+    assert "state.hand_number || state.hands_played || 0" in app
