@@ -287,7 +287,7 @@ def test_admin_player_rows_are_name_and_actions_without_stack_transfer_to_self()
     assert "Kick" in app
     assert "Mock action coming soon" in app
     assert "Direct messages coming soon" in app
-    assert "!player.is_you" in app
+    assert "!isSelf" in app
     assert "viewerIsAdmin && player.is_you" in app
     assert "admin-player-seat" in app
     assert "admin-player-stack" not in app
@@ -312,7 +312,7 @@ def test_admin_can_kick_specific_non_self_players_between_hands():
 
     assert "data-admin-kick-id" in app
     assert 'action("kick_player", { target_player_id: targetId })' in app
-    assert "canKickTarget = viewerIsAdmin && !isCurrentAdmin && !player.is_you" in app
+    assert "canKickTarget = viewerIsAdmin && !isCurrentAdmin && !isSelf" in app
     assert "Kick" in app
 
     assert "Admin kick player action" in css
@@ -355,3 +355,16 @@ def test_admin_dock_rows_stay_compact_inside_fixed_panel():
     assert "grid-auto-rows: max-content !important" in css
     assert "align-self: start !important" in css
     assert "height: 21px !important" in css
+
+
+def test_admin_self_row_has_no_action_buttons():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert "const isSelf = Boolean(player.is_you)" in app
+    assert 'const mockHtml = isSelf ? ""' in app
+    assert 'const dmHtml = isSelf ? ""' in app
+    assert "!isSelf" in app
+    assert "This is you" in app
+    assert "Admin self row has no action buttons" in css
+    assert ".admin-self-note" in css

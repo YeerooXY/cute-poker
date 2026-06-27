@@ -6328,3 +6328,15 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
     max-height: 340px !important;
   }
 }
+
+
+/* ??? Admin self row has no action buttons ??? */
+.admin-self-note {
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 850;
+  min-height: 21px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 4px;
+}

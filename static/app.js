@@ -817,15 +817,17 @@ function renderAdminPlayerList(state) {
         .map(label => `<span class="admin-player-badge">${esc(label)}</span>`)
         .join("");
 
-      const mockHtml = `<button type="button" class="admin-player-action-btn muted" disabled title="Mock action coming soon">Mock</button>`;
-      const dmHtml = `<button type="button" class="admin-player-action-btn muted" disabled title="Direct messages coming soon">DM</button>`;
+      const isSelf = Boolean(player.is_you);
+      const mockHtml = isSelf ? "" : `<button type="button" class="admin-player-action-btn muted" disabled title="Mock action coming soon">Mock</button>`;
+      const dmHtml = isSelf ? "" : `<button type="button" class="admin-player-action-btn muted" disabled title="Direct messages coming soon">DM</button>`;
 
-      const canKickTarget = viewerIsAdmin && !isCurrentAdmin && !player.is_you && Boolean(player.id || player.player_id);
+      const canKickTarget = viewerIsAdmin && !isCurrentAdmin && !isSelf && Boolean(player.id || player.player_id);
       const kickHtml = canKickTarget && safeKickPhase
         ? `<button type="button" class="admin-player-action-btn admin-kick-btn" data-admin-kick-id="${id}" title="Remove this player from the table">Kick</button>`
         : canKickTarget
           ? `<button type="button" class="admin-player-action-btn admin-kick-btn disabled" disabled title="Kick is available after the current hand">Kick after hand</button>`
-          : `<span class="admin-manage-placeholder">${isCurrentAdmin ? "Leader" : ""}</span>`;
+          : "";
+      const selfNoteHtml = isSelf ? `<span class="admin-self-note">This is you</span>` : "";
 
       return `
         <div class="admin-player-row${isCurrentAdmin ? " is-admin" : ""}${player.is_bot ? " is-bot" : ""}">
@@ -838,6 +840,7 @@ function renderAdminPlayerList(state) {
             ${mockHtml}
             ${dmHtml}
             ${kickHtml}
+            ${selfNoteHtml}
           </div>
         </div>
       `;
