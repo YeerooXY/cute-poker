@@ -6206,3 +6206,16 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
   align-items: center;
   padding: 3px 2px;
 }
+
+
+/* ??? Admin kick player action ??? */
+.admin-kick-btn {
+  border-color: rgba(255, 110, 90, 0.36);
+  background: rgba(180, 45, 35, 0.14);
+  color: #ffb0a4;
+}
+
+.admin-kick-btn:hover {
+  background: rgba(180, 45, 35, 0.24);
+  border-color: rgba(255, 110, 90, 0.58);
+}

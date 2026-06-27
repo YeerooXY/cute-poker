@@ -956,6 +956,39 @@ class PokerServer:
             await self.broadcast(room)
             return
 
+        if action == "kick_player":
+            if player.token != room.creator_token:
+                await self.send(player.ws, "error", {"message": "Only the room creator can remove players."})
+                return
+
+            if room.phase not in ["lobby", "showdown"]:
+                await self.send(player.ws, "error", {"message": "Kick players between hands only."})
+                return
+
+            target_player_id = str(payload.get("target_player_id", "")).strip()
+            target = room.players.get(target_player_id)
+            if not target:
+                await self.send(player.ws, "error", {"message": "Target player not found."})
+                return
+
+            if target.player_id == player.player_id:
+                await self.send(player.ws, "error", {"message": "You cannot kick yourself."})
+                return
+
+            if target.token == room.creator_token:
+                await self.send(player.ws, "error", {"message": "The current table admin cannot be kicked."})
+                return
+
+            if target.ws is not None:
+                await self.send(target.ws, "left", {"reason": "You were removed from the table by the admin."})
+
+            room.players.pop(target.player_id, None)
+            self.bots.pop(target.player_id, None)
+            self.assign_new_creator_if_needed(room)
+            _append_room_message(room, "Admin", f"{player.name} removed {target.name} from the table.")
+            await self.broadcast(room)
+            return
+
         if action == "reveal_folded_hand":
             await self.reveal_folded_hand(room, player, payload)
             return

@@ -296,3 +296,23 @@ def test_admin_player_rows_are_name_and_actions_without_stack_transfer_to_self()
     assert "display: none !important" in css
     assert ".admin-player-action-btn" in css
     assert ".admin-manage-btn" in css
+
+
+def test_admin_can_kick_specific_non_self_players_between_hands():
+    game = (ROOT / "poker" / "game.py").read_text(encoding="utf-8")
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert 'if action == "kick_player":' in game
+    assert 'Kick players between hands only.' in game
+    assert 'You cannot kick yourself.' in game
+    assert 'room.players.pop(target.player_id, None)' in game
+    assert 'self.bots.pop(target.player_id, None)' in game
+
+    assert "data-admin-kick-id" in app
+    assert 'action("kick_player", { target_player_id: targetId })' in app
+    assert "canKick = viewerIsAdmin && !isCurrentAdmin && !player.is_you" in app
+    assert "Kick" in app
+
+    assert "Admin kick player action" in css
+    assert ".admin-kick-btn" in css

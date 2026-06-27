@@ -819,6 +819,11 @@ function renderAdminPlayerList(state) {
       const mockHtml = `<button type="button" class="admin-player-action-btn muted" disabled title="Mock action coming soon">Mock</button>`;
       const dmHtml = `<button type="button" class="admin-player-action-btn muted" disabled title="Direct messages coming soon">DM</button>`;
 
+      const canKick = viewerIsAdmin && !isCurrentAdmin && !player.is_you && Boolean(player.id || player.player_id);
+      const kickHtml = canKick
+        ? `<button type="button" class="admin-player-action-btn admin-kick-btn" data-admin-kick-id="${id}" title="Remove this player between hands">Kick</button>`
+        : "";
+
       const canManage = viewerIsAdmin && !isCurrentAdmin && !player.is_you && !player.is_bot && Boolean(player.id || player.player_id);
       const manageHtml = canManage
         ? `<button type="button" class="admin-player-action-btn admin-manage-btn" data-admin-transfer-id="${id}" title="Make this human player table admin">Manage</button>`
@@ -836,6 +841,7 @@ function renderAdminPlayerList(state) {
           <div class="admin-player-actions">
             ${mockHtml}
             ${dmHtml}
+            ${kickHtml}
             ${manageHtml}
           </div>
         </div>
@@ -849,6 +855,15 @@ function renderAdminPlayerList(state) {
       event.stopPropagation();
       const targetId = btn.dataset.adminTransferId || "";
       if (targetId) action("transfer_admin", { target_player_id: targetId });
+    };
+  });
+
+  els.adminPlayerList.querySelectorAll("[data-admin-kick-id]").forEach(btn => {
+    btn.onclick = event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const targetId = btn.dataset.adminKickId || "";
+      if (targetId) action("kick_player", { target_player_id: targetId });
     };
   });
 }
