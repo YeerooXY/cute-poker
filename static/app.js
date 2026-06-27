@@ -29,6 +29,8 @@ let selectedAvatar = localStorage.getItem("poker_avatar") || "🎭";
 let reconnectAttempts = 0;
 let reconnectTimer = null;
 let intentionalDisconnect = false;
+let selectedHistoryHandNumber = null;
+let selectedHistoryReviewKey = null;
 
 // ─── Helpers ───
 function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
@@ -1336,6 +1338,163 @@ function completedHandHistoryFromState(state) {
 }
 
 
+function historyHandKey(hand) {
+  if (!hand || typeof hand !== "object") return "";
+  if (hand.hand_number != null) return String(hand.hand_number);
+  return `${hand.room_id || "hand"}:${hand.pot || 0}:${(Array.isArray(hand.community) ? hand.community : []).join("|")}`;
+}
+
+function fullHandHistoryDetailsFromState(state) {
+  if (!state || typeof state !== "object") return [];
+
+  const rawDetails = Array.isArray(state.hand_history_details)
+    ? state.hand_history_details
+    : Array.isArray(state.handHistoryDetails)
+      ? state.handHistoryDetails
+      : [];
+
+  const details = rawDetails.filter(hand => hand && typeof hand === "object");
+
+  const latest = state.latest_hand_result || state.latestHandResult || null;
+  if (latest && typeof latest === "object" && latest.completed !== false) {
+    const latestKey = historyHandKey(latest);
+    const alreadyIncluded = details.some(hand => historyHandKey(hand) === latestKey);
+    if (!alreadyIncluded) details.push(latest);
+  }
+
+  return details;
+}
+
+function findHistoryDetail(hand, details) {
+  const key = historyHandKey(hand);
+  if (!key) return null;
+  return (Array.isArray(details) ? details : []).find(detail => historyHandKey(detail) === key) || null;
+}
+
+function historyPlayerDelta(hand, player) {
+  const deltas = hand && hand.hand_deltas && typeof hand.hand_deltas === "object" ? hand.hand_deltas : {};
+  const keys = [player && player.name, player && player.player_id, player && player.id].filter(Boolean);
+  for (const key of keys) {
+    if (Number.isFinite(Number(deltas[key]))) return Number(deltas[key]);
+  }
+
+  const direct = directPlayerDelta(player || {});
+  return direct == null ? null : direct;
+}
+
+function renderHistoryCardList(cards) {
+  const list = Array.isArray(cards) ? cards : [];
+  if (list.length === 0) return '<span class="hand-history-muted">No cards</span>';
+  return list.map(card => makeCardHtml(card, "mini-card")).join("");
+}
+
+function renderHistoryPlayerRows(hand) {
+  const players = Array.isArray(hand && hand.players) ? hand.players : [];
+  if (players.length === 0) {
+    return '<div class="hand-history-muted">No player details available for this hand.</div>';
+  }
+
+  return players.map(player => {
+    const delta = historyPlayerDelta(hand, player);
+    const deltaText = delta == null ? "" : formatHandDelta(delta);
+    const deltaClass = delta == null ? "" : handDeltaClass(delta);
+    const handText = player.hand_detail || player.hand_name || "";
+    const status = [
+      player.folded ? "folded" : "",
+      player.all_in ? "all-in" : "",
+      player.is_bot ? "bot" : "",
+    ].filter(Boolean).join(" ? ");
+
+    return `
+      <div class="hand-history-player-row">
+        <div class="hand-history-player-main">
+          <span class="hand-history-player-name">${esc(player.name || "Player")}</span>
+          ${deltaText ? `<span class="hand-history-delta ${esc(deltaClass)}">${esc(deltaText)}</span>` : ""}
+        </div>
+        <div class="hand-history-detail-cards">${renderHistoryCardList(player.cards)}</div>
+        ${handText ? `<div class="hand-history-player-hand">${esc(handText)}</div>` : ""}
+        ${status ? `<div class="hand-history-muted">${esc(status)}</div>` : ""}
+      </div>
+    `;
+  }).join("");
+}
+
+function renderHistoryPotBreakdown(hand) {
+  const rows = Array.isArray(hand && hand.pot_breakdown) ? hand.pot_breakdown : [];
+  if (rows.length === 0) return "";
+
+  return `
+    <div class="hand-history-detail-section">
+      <div class="hand-history-detail-heading">Pots</div>
+      ${rows.map(row => {
+        const amount = Number(row && row.amount) || 0;
+        const winners = Array.isArray(row && row.winners) ? row.winners.join(", ") : "";
+        return `<div class="hand-history-pot-row">Pot ${amount}${winners ? ` -> ${esc(winners)}` : ""}</div>`;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderHistoryActionLog(hand) {
+  const entries = Array.isArray(hand && hand.action_log) ? hand.action_log : [];
+  if (entries.length === 0) return "";
+
+  return `
+    <div class="hand-history-detail-section">
+      <div class="hand-history-detail-heading">Action log</div>
+      <div class="hand-history-action-list">
+        ${entries.map(entry => {
+          const text = actionEntryText(entry);
+          return text ? `<div class="hand-history-action-entry">${esc(text)}</div>` : "";
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderHistoryDetail(hand) {
+  if (!hand || typeof hand !== "object" || !Array.isArray(hand.players)) {
+    return '<div class="hand-history-detail"><div class="hand-history-muted">Full details unavailable for this hand.</div></div>';
+  }
+
+  const winnerText = summarizeHistoryWinners(hand.winners);
+  const pot = Number(hand.pot) || 0;
+
+  return `
+    <div class="hand-history-detail">
+      <div class="hand-history-detail-summary">
+        <span>${esc(winnerText)}</span>
+        <span>Final pot ${pot}</span>
+      </div>
+      <div class="hand-history-detail-section">
+        <div class="hand-history-detail-heading">Players</div>
+        ${renderHistoryPlayerRows(hand)}
+      </div>
+      ${renderHistoryPotBreakdown(hand)}
+      ${renderHistoryActionLog(hand)}
+    </div>
+  `;
+}
+
+function bindHandHistoryRows() {
+  if (!els.handHistoryBody) return;
+
+  els.handHistoryBody.querySelectorAll("[data-history-hand-key]").forEach(row => {
+    row.onclick = () => {
+      selectedHistoryHandNumber = row.dataset.historyHandKey || "";
+      if (lastState) renderHandHistory(lastState);
+    };
+
+    row.onkeydown = event => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        row.click();
+      }
+    };
+  });
+}
+
+
 function summarizeHistoryWinners(winners) {
   if (!Array.isArray(winners) || winners.length === 0) {
     return "No winners recorded";
@@ -1344,9 +1503,159 @@ function summarizeHistoryWinners(winners) {
   return winners.map(winner => {
     const name = esc(winner && winner.name ? winner.name : "Player");
     const amount = Number(winner && winner.amount) || 0;
-    const hand = winner && winner.hand_name ? ` ? ${esc(winner.hand_name)}` : "";
+    const hand = winner && (winner.hand_detail || winner.hand_name)
+      ? ` with ${esc(winner.hand_detail || winner.hand_name)}`
+      : "";
     return `${name} +${amount}${hand}`;
   }).join(" / ");
+}
+
+function hasCurrentHandComplete(state) {
+  const winners = Array.isArray(state && state.winners) ? state.winners : [];
+  return Boolean(state && state.phase === "showdown" && winners.length > 0);
+}
+
+function isHiddenHistoryCard(card) {
+  return !card || card === "BACK" || card === "🂠" || card === "??";
+}
+
+function inferRevealModeFromHistoryCards(cards) {
+  const list = Array.isArray(cards) ? cards : [];
+  if (list.length < 2) return "hidden";
+
+  const leftShown = !isHiddenHistoryCard(list[0]);
+  const rightShown = !isHiddenHistoryCard(list[1]);
+
+  if (leftShown && rightShown) return "both";
+  if (leftShown) return "left";
+  if (rightShown) return "right";
+  return "hidden";
+}
+
+function historyWinnerIds(hand) {
+  return new Set(
+    (Array.isArray(hand && hand.winners) ? hand.winners : [])
+      .filter(w => w && w.reason === "Everyone else folded")
+      .map(w => String(w.player_id || w.id || ""))
+  );
+}
+
+function normalizeHistoryReviewPlayer(player, hand) {
+  const normalized = {
+    ...player,
+    can_reveal_folded_hand: false,
+    can_reveal_uncontested_hand: false,
+    is_you: false,
+  };
+
+  const pid = String(normalized.player_id || normalized.id || "");
+  const uncontestedWinnerIds = historyWinnerIds(hand);
+  const inferredMode = inferRevealModeFromHistoryCards(normalized.cards);
+
+  if (normalized.folded && (!normalized.folded_reveal_mode || normalized.folded_reveal_mode === "hidden")) {
+    normalized.folded_reveal_mode = inferredMode;
+  }
+
+  if (
+    !normalized.folded
+    && uncontestedWinnerIds.has(pid)
+    && (!normalized.uncontested_reveal_mode || normalized.uncontested_reveal_mode === "hidden")
+  ) {
+    normalized.uncontested_reveal_mode = inferredMode;
+  }
+
+  return normalized;
+}
+
+
+function selectedHistoryReviewFromState(state) {
+  if (!selectedHistoryReviewKey || hasCurrentHandComplete(state)) return null;
+
+  const details = typeof fullHandHistoryDetailsFromState === "function"
+    ? fullHandHistoryDetailsFromState(state)
+    : completedHandHistoryFromState(state);
+
+  const hand = (details || []).find(detail => historyHandKey(detail) === String(selectedHistoryReviewKey));
+  if (!hand) return null;
+
+  return {
+    ...hand,
+    phase: "showdown",
+    showdown_mode: true,
+    __history_review: true,
+    players: (Array.isArray(hand.players) ? hand.players : []).map(player =>
+      normalizeHistoryReviewPlayer(player, hand)
+    ),
+  };
+}
+
+function ensureHistoryReviewCloseButton() {
+  if (!els.postHandPanel) return null;
+
+  let btn = document.getElementById("historyReviewCloseBtn");
+  if (!btn) {
+    btn = document.createElement("button");
+    btn.id = "historyReviewCloseBtn";
+    btn.type = "button";
+    btn.className = "history-review-close-btn hidden";
+    btn.textContent = "X";
+    els.postHandPanel.appendChild(btn);
+  }
+
+  btn.onclick = closeHistoryReview;
+  return btn;
+}
+
+function syncHistoryReviewChrome(visible) {
+  document.body.classList.toggle("history-review-open", Boolean(visible));
+
+  const btn = ensureHistoryReviewCloseButton();
+  if (btn) {
+    btn.classList.toggle("hidden", !visible);
+  }
+}
+
+
+function closeHistoryReview() {
+  selectedHistoryReviewKey = null;
+  syncHistoryReviewChrome(false);
+  if (lastState) renderPostHandPanel(lastState);
+}
+
+function openHistoryReview(key) {
+  if (!key) return;
+  selectedHistoryReviewKey = String(key);
+  if (els.handHistoryPanel) els.handHistoryPanel.classList.add("hidden");
+  if (lastState) renderPostHandPanel(lastState);
+}
+
+function bindHandHistoryReviewButtons() {
+  if (!els.handHistoryBody) return;
+
+  els.handHistoryBody.querySelectorAll("[data-history-review-key]").forEach(btn => {
+    btn.onclick = event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (btn.disabled) return;
+      openHistoryReview(btn.dataset.historyReviewKey || "");
+    };
+  });
+}
+
+
+function renderHistoryReviewBoard(state) {
+  const board = Array.isArray(state && state.community) ? state.community : [];
+  if (!board.length) return "";
+
+  return `
+    <div class="history-review-board-strip">
+      <div class="history-review-board-title">Board</div>
+      <div class="history-review-board-cards">
+        ${board.map(card => makeCardHtml(card)).join("")}
+      </div>
+    </div>
+  `;
 }
 
 function renderHistoryBoard(cards) {
@@ -1360,6 +1669,7 @@ function renderHistoryBoard(cards) {
 function renderHandHistory(state) {
   const history = completedHandHistoryFromState(state);
   const count = history.length;
+  const currentCompleteVisible = hasCurrentHandComplete(state);
 
   if (els.handHistoryCount) {
     els.handHistoryCount.textContent = String(count);
@@ -1381,32 +1691,48 @@ function renderHandHistory(state) {
 
   els.handHistoryBody.innerHTML = [...history].reverse().map(hand => {
     const handNumber = hand && hand.hand_number != null ? hand.hand_number : "?";
+    const key = historyHandKey(hand);
     const pot = Number(hand && hand.pot) || 0;
     const community = hand && Array.isArray(hand.community) ? hand.community : [];
     const winners = hand && Array.isArray(hand.winners) ? hand.winners : [];
     const winnerText = summarizeHistoryWinners(winners);
+    const disabled = currentCompleteVisible ? " disabled" : "";
+    const title = currentCompleteVisible
+      ? "Finish the current hand-complete screen first"
+      : "Open hand-complete review";
 
     return `
-      <article class="hand-history-row">
+      <article class="hand-history-row compact">
         <div class="hand-history-row-top">
           <span class="hand-history-hand-num">Hand #${esc(handNumber)}</span>
           <span class="hand-history-pot">Pot ${pot}</span>
         </div>
         <div class="hand-history-board">${renderHistoryBoard(community)}</div>
-        <div class="hand-history-winners">${winnerText}</div>
+        <div class="hand-history-row-bottom">
+          <div class="hand-history-winners">${winnerText}</div>
+          <button type="button" class="hand-history-review-btn" data-history-review-key="${esc(key)}"${disabled} title="${esc(title)}">View &gt;</button>
+        </div>
       </article>
     `;
   }).join("");
+
+  bindHandHistoryReviewButtons();
 }
-
-
 
 els.createBtn.onclick = createRoom;
 els.joinBtn.onclick = joinRoom;
 els.reconnectBtn.onclick = reconnectLast;
 els.leaveBtn.onclick = leaveGame;
 els.startBtn.onclick = () => action("start_hand");
-if (els.postHandDealBtn) els.postHandDealBtn.onclick = () => action("start_hand");
+if (els.postHandDealBtn) {
+  els.postHandDealBtn.onclick = () => {
+    if (selectedHistoryReviewKey) {
+      closeHistoryReview();
+      return;
+    }
+    action("start_hand");
+  };
+}
 els.foldBtn.onclick = () => action("fold");
 els.checkCallBtn.onclick = () => action("check_call");
 els.betHalfPotBtn.onclick = () => {
@@ -1448,6 +1774,13 @@ if (els.handHistoryClose) {
     if (els.handHistoryPanel) els.handHistoryPanel.classList.add("hidden");
   };
 }
+
+// History review Escape key
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && selectedHistoryReviewKey) {
+    closeHistoryReview();
+  }
+});
 
 // Chat
 els.chatToggle.onclick = () => els.chatPanel.classList.toggle("hidden");
@@ -1841,8 +2174,8 @@ function foldedRevealMode(player) {
 function foldedCardsForModal(player) {
   const mode = foldedRevealMode(player);
   const cards = Array.isArray(player.cards) ? player.cards : [];
-  const left = cards[0] && cards[0] !== "BACK" ? cards[0] : "🂠";
-  const right = cards[1] && cards[1] !== "BACK" ? cards[1] : "🂠";
+  const left = !isHiddenHistoryCard(cards[0]) ? cards[0] : "🂠";
+  const right = !isHiddenHistoryCard(cards[1]) ? cards[1] : "🂠";
 
   if (mode === "left") return [left, "🂠"];
   if (mode === "right") return ["🂠", right];
@@ -1863,8 +2196,8 @@ function uncontestedRevealIsShown(player) {
 function uncontestedCardsForModal(player) {
   const mode = uncontestedRevealMode(player);
   const cards = Array.isArray(player.cards) ? player.cards : [];
-  const left = cards[0] && cards[0] !== "BACK" ? cards[0] : "🂠";
-  const right = cards[1] && cards[1] !== "BACK" ? cards[1] : "🂠";
+  const left = !isHiddenHistoryCard(cards[0]) ? cards[0] : "🂠";
+  const right = !isHiddenHistoryCard(cards[1]) ? cards[1] : "🂠";
 
   if (mode === "left") return [left, "🂠"];
   if (mode === "right") return ["🂠", right];
@@ -2048,8 +2381,21 @@ function renderShowdownTray(state) {
 
 function renderPostHandPanel(state) {
   if (!els.postHandPanel) return;
+
+  const currentHandCompleteVisible = hasCurrentHandComplete(state);
+  if (currentHandCompleteVisible) {
+    selectedHistoryReviewKey = null;
+  }
+
+  const historyReviewState = currentHandCompleteVisible ? null : selectedHistoryReviewFromState(state);
+  const historyReviewMode = Boolean(historyReviewState);
+  if (historyReviewMode) {
+    state = historyReviewState;
+  }
+
   const winners = Array.isArray(state.winners) ? state.winners : [];
-  const visible = state.phase === "showdown" && winners.length > 0;
+  const visible = historyReviewMode || (state.phase === "showdown" && winners.length > 0);
+  syncHistoryReviewChrome(visible && historyReviewMode);
 
   els.postHandPanel.classList.toggle("hidden", !visible);
   els.postHandPanel.classList.toggle("post-hand-modal", visible);
@@ -2062,10 +2408,17 @@ function renderPostHandPanel(state) {
   }
 
   if (els.postHandKicker) {
-    els.postHandKicker.textContent = winners.length > 1 ? "Split pot" : "Hand complete";
+    els.postHandKicker.textContent = historyReviewMode
+      ? `History review - Hand #${state.hand_number || "?"}`
+      : (winners.length > 1 ? "Split pot" : "Hand complete");
   }
   if (els.postHandTitle) els.postHandTitle.textContent = formatPostHandTitle(winners, state);
   if (els.postHandPot) els.postHandPot.textContent = `Final pot ${state.pot || 0}`;
+
+  if (els.postHandDealBtn) {
+    els.postHandDealBtn.textContent = historyReviewMode ? "Close review" : "Deal next hand";
+    els.postHandDealBtn.disabled = false;
+  }
   if (!els.postHandBody) return;
 
   const winnerNames = new Set(winners.map(w => w.name));
@@ -2102,7 +2455,8 @@ function renderPostHandPanel(state) {
     });
 
   if (revealedPlayers.length === 0 && foldedPlayers.length === 0) {
-    els.postHandBody.innerHTML = winners.map(w => `
+    const historyReviewBoard = historyReviewMode ? renderHistoryReviewBoard(state) : "";
+    els.postHandBody.innerHTML = historyReviewBoard + winners.map(w => `
       <div class="post-hand-row winner">
         <div class="post-hand-player">
           <span class="post-hand-name">${esc(w.name)}</span>
@@ -2183,7 +2537,8 @@ function renderPostHandPanel(state) {
     `;
   }).join("");
 
-  els.postHandBody.innerHTML = `${shownRows}${muckedRows}`;
+  const historyReviewBoard = historyReviewMode ? renderHistoryReviewBoard(state) : "";
+  els.postHandBody.innerHTML = `${historyReviewBoard}${shownRows}${muckedRows}`;
   bindFoldedRevealButtons();
 }
 

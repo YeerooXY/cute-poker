@@ -38,6 +38,7 @@ MAX_SEATS = 8
 STARTING_STACK = 1000
 MAX_CHAT_MESSAGES = 50
 MAX_CHAT_TEXT_LEN = 240
+HAND_HISTORY_LIMIT = 20
 _SIMULATION_MODE = os.getenv("POKER_SIMULATION") == "1"
 
 # ─── Action log sanitization ──────────────────────────────────────────────────
@@ -120,6 +121,25 @@ def _parse_bool_setting(value: Any, default: bool = False) -> bool:
         return bool(value)
 
     return default
+
+def _live_opponent_tokens(room: Room, player: Player) -> tuple[str, ...]:
+    """Return the exact live opponent identities used by odds calculations."""
+    return tuple(sorted(
+        other.token
+        for other in room.players.values()
+        if other.cards and not other.folded and other.token != player.token
+    ))
+
+
+def _odds_cache_key(room: Room, player: Player, num_opp: int) -> tuple[Any, ...]:
+    """Cache odds by actual visible poker state, not just board/opponent count."""
+    return (
+        player.token,
+        tuple(player.cards),
+        tuple(room.community),
+        num_opp,
+        _live_opponent_tokens(room, player),
+    )
 
 @dataclass
 class HandleResult:
@@ -378,6 +398,7 @@ class PokerServer:
                 break
         if pid_to_remove:
             del room.players[pid_to_remove]
+            self.assign_new_creator_if_needed(room)
 
         # If room is empty, delete it
         if not room.players:
@@ -417,6 +438,26 @@ class PokerServer:
         room.players[player.player_id] = player
         return player
 
+    def assign_new_creator_if_needed(self, room: Room) -> None:
+        """Transfer room creator/admin if the current creator token no longer belongs to a human player."""
+        if room.creator_token and self.player_by_token(room, room.creator_token):
+            return
+
+        # Prefer connected human players. Bots should never become room admins.
+        for p in room.seated_players():
+            if p.player_id not in self.bots and p.connected:
+                room.creator_token = p.token
+                return
+
+        # Fallback to any remaining human, even if currently disconnected.
+        for p in room.seated_players():
+            if p.player_id not in self.bots:
+                room.creator_token = p.token
+                return
+
+        room.creator_token = ""
+
+
     def get_room_and_player(self, payload: dict[str, Any]) -> tuple[Optional[Room], Optional[Player]]:
         room_id = str(payload.get("room_id", "")).strip().upper()
         token = str(payload.get("token", "")).strip()
@@ -450,6 +491,8 @@ class PokerServer:
                 to_remove.append(pid)
         for pid in to_remove:
             del room.players[pid]
+        if to_remove:
+            self.assign_new_creator_if_needed(room)
 
     def _evict_stale(self, room: Room):
         """Remove players disconnected for more than 120 seconds (if not in active hand)."""
@@ -471,6 +514,8 @@ class PokerServer:
         for pid in to_remove:
             print(f"[EVICT] Removing stale player {room.players[pid].name} from room {room.room_id}")
             del room.players[pid]
+        if to_remove:
+            self.assign_new_creator_if_needed(room)
         # If room is now empty, remove it
         if not room.players:
             self.rooms.pop(room.room_id, None)
@@ -1125,6 +1170,7 @@ class PokerServer:
             mode = "both"
 
         player.folded_reveal_mode = mode
+        self.refresh_latest_completed_hand(room)
         await self.broadcast(room)
 
     async def reveal_uncontested_hand(self, room: Room, player: Player, payload: dict[str, Any]):
@@ -1162,6 +1208,7 @@ class PokerServer:
         elif current != mode:
             player.uncontested_reveal_mode = "both"
 
+        self.refresh_latest_completed_hand(room)
         await self.broadcast(room)
 
     def commit_chips(self, room: Room, player: Player, amount: int):
@@ -1199,6 +1246,7 @@ class PokerServer:
                 await self.send(p.ws, "error", {"message": "Need at least two active players with chips."})
             return
 
+        self._odds_cache.pop(room.room_id, None)
         room.deck = new_deck()
         room.community = []
         room.pot = 0
@@ -1491,6 +1539,7 @@ class PokerServer:
         room.phase = "showdown"
         room.action_seat = None
         self.finalize_hand_deltas(room)
+        self.record_completed_hand(room)
         save_hand_log(room)
 
     def _is_all_in_runout(self, room: Room) -> bool:
@@ -1743,6 +1792,7 @@ class PokerServer:
 
         room.phase = "showdown"
         room.action_seat = None
+        self.record_completed_hand(room)
 
     def next_occupied_seat(self, room: Room, after_seat: Optional[int]) -> Optional[int]:
         occupied = [
@@ -1894,6 +1944,10 @@ class PokerServer:
                 "folded": p.folded,
                 "all_in": p.all_in,
                 "cards": display_cards(public_cards),
+                "folded_reveal_mode": getattr(p, "folded_reveal_mode", "hidden") if p.folded else "",
+                "uncontested_reveal_mode": getattr(p, "uncontested_reveal_mode", "hidden"),
+                "can_reveal_folded_hand": False,
+                "can_reveal_uncontested_hand": False,
                 "hand_name": p.last_hand_name if show_hand_detail else "",
                 "hand_detail": p.last_hand_detail if show_hand_detail else "",
                 "best_cards": display_cards(p.last_best_cards) if show_hand_detail else [],
@@ -1927,6 +1981,57 @@ class PokerServer:
             },
             "action_log": _sanitize_action_log(room.action_log),
         }
+
+
+    def record_completed_hand(self, room: Room) -> dict[str, Any]:
+        """Store a safe public completed-hand snapshot for later history/replay UI."""
+        snapshot = self.public_hand_result(room)
+
+        history = getattr(room, "hand_history", None)
+        if history is None:
+            room.hand_history = []
+            history = room.hand_history
+
+        history.append(snapshot)
+        if len(history) > HAND_HISTORY_LIMIT:
+            del history[:-HAND_HISTORY_LIMIT]
+
+        return snapshot
+
+    def full_hand_history(self, room: Room) -> list[dict[str, Any]]:
+        """Return full safe public snapshots for recent completed hands."""
+        return list(getattr(room, "hand_history", [])[-HAND_HISTORY_LIMIT:])
+
+    def refresh_latest_completed_hand(self, room: Room) -> dict[str, Any] | None:
+        """Refresh the latest safe hand-history snapshot after post-hand reveal changes."""
+        history = getattr(room, "hand_history", None)
+        if not history:
+            return None
+
+        snapshot = self.public_hand_result(room)
+        history[-1] = snapshot
+        return snapshot
+
+    def compact_hand_history(self, room: Room) -> list[dict[str, Any]]:
+        """Return compact metadata for the recent hand-history list."""
+        compact: list[dict[str, Any]] = []
+        for hand in getattr(room, "hand_history", [])[-HAND_HISTORY_LIMIT:]:
+            compact.append({
+                "hand_number": hand.get("hand_number", 0),
+                "pot": hand.get("pot", 0),
+                "community": list(hand.get("community", [])),
+                "winners": [
+                    {
+                        "player_id": winner.get("player_id", ""),
+                        "name": winner.get("name", ""),
+                        "amount": winner.get("amount", 0),
+                        "reason": winner.get("reason", ""),
+                        "hand_name": winner.get("hand_name", ""),
+                    }
+                    for winner in hand.get("winners", [])
+                ],
+            })
+        return compact
 
 
     def visible_state(self, room: Room, viewer_token: str) -> dict[str, Any]:
@@ -2117,7 +2222,7 @@ class PokerServer:
                     ])
                     if num_opp > 0:
                         # Check cache first
-                        cache_key = (p.token, tuple(room.community), num_opp)
+                        cache_key = _odds_cache_key(room, p, num_opp)
                         room_cache = self._odds_cache.setdefault(room.room_id, {})
                         eq_result = room_cache.get(cache_key)
                         if eq_result is None:
@@ -2162,7 +2267,7 @@ class PokerServer:
                               if p.cards and not p.folded and p.token != viewer.token])
                 if num_opp > 0:
                     # Check cache first
-                    cache_key = (viewer.token, tuple(room.community), num_opp)
+                    cache_key = _odds_cache_key(room, viewer, num_opp)
                     room_cache = self._odds_cache.setdefault(room.room_id, {})
                     odds = room_cache.get(cache_key)
                     if odds is None:
@@ -2234,6 +2339,13 @@ class PokerServer:
                 for w in room.winners
             ],
             "pot_breakdown": room.pot_breakdown,
+            "hand_history": self.compact_hand_history(room),
+            "hand_history_details": self.full_hand_history(room),
+            "latest_hand_result": (
+                getattr(room, "hand_history", [])[-1]
+                if getattr(room, "hand_history", [])
+                else None
+            ),
             "hand_deltas": {
                 p.name: getattr(room, "hand_deltas", {}).get(p.player_id, 0)
                 for p in room.seated_players()

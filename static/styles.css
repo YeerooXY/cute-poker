@@ -5038,3 +5038,310 @@ body.hand-complete-cinema .pot-hand {
     max-height: 45vh;
   }
 }
+
+
+.hand-history-row {
+  cursor: pointer;
+}
+
+.hand-history-row.is-selected {
+  border-color: rgba(232,185,35,0.38);
+  background: rgba(232,185,35,0.06);
+}
+
+.hand-history-detail {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+
+.hand-history-detail-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--gold-light);
+  font-size: 11px;
+  font-weight: 750;
+  margin-bottom: 8px;
+}
+
+.hand-history-detail-section {
+  margin-top: 8px;
+}
+
+.hand-history-detail-heading {
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-size: 10px;
+  font-weight: 850;
+  margin-bottom: 5px;
+}
+
+.hand-history-player-row {
+  padding: 6px 0;
+  border-top: 1px solid rgba(255,255,255,0.045);
+}
+
+.hand-history-player-row:first-of-type {
+  border-top: 0;
+}
+
+.hand-history-player-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.hand-history-player-name {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.hand-history-delta {
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.hand-history-delta.gain {
+  color: #66bb6a;
+}
+
+.hand-history-delta.loss {
+  color: #ef5350;
+}
+
+.hand-history-delta.even {
+  color: var(--text-dim);
+}
+
+.hand-history-detail-cards {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.hand-history-detail-cards .playing-card {
+  width: 22px;
+  height: 30px;
+  border-radius: 5px;
+  font-size: 10px;
+}
+
+.hand-history-detail-cards .card-rank {
+  font-size: 10px;
+}
+
+.hand-history-detail-cards .card-suit {
+  font-size: 9px;
+}
+
+.hand-history-player-hand {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.hand-history-muted {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.hand-history-pot-row,
+.hand-history-action-entry {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 3px 0;
+  border-top: 1px solid rgba(255,255,255,0.035);
+}
+
+.hand-history-action-list {
+  max-height: 150px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+
+.hand-history-row.compact {
+  cursor: default;
+}
+
+.hand-history-row-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hand-history-row-bottom .hand-history-winners {
+  flex: 1;
+  min-width: 0;
+}
+
+.hand-history-review-btn {
+  border: 1px solid rgba(232,185,35,0.28);
+  background: rgba(232,185,35,0.10);
+  color: var(--gold-light);
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.hand-history-review-btn:hover:not(:disabled) {
+  background: rgba(232,185,35,0.18);
+  border-color: rgba(232,185,35,0.45);
+}
+
+.hand-history-review-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+
+body.history-review-open::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 930;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(0, 0, 0, 0.10), rgba(0, 0, 0, 0.72) 68%),
+    rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(3px);
+  pointer-events: auto;
+}
+
+body.history-review-open #postHandPanel.post-hand-modal {
+  position: fixed;
+  left: 50%;
+  top: 55%;
+  transform: translate(-50%, -50%);
+  width: min(1120px, calc(100vw - 64px));
+  max-height: min(78vh, 820px);
+  overflow-y: auto;
+  z-index: 950;
+  box-shadow: 0 32px 120px rgba(0,0,0,0.62);
+}
+
+body.history-review-open #postHandPanel .post-hand-row {
+  min-height: 76px;
+}
+
+.history-review-close-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 960;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(0,0,0,0.65);
+  color: var(--text);
+  border-radius: 999px;
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.history-review-close-btn:hover {
+  border-color: rgba(232,185,35,0.55);
+  color: var(--gold-light);
+  background: rgba(232,185,35,0.12);
+}
+
+.history-review-close-btn.hidden {
+  display: none;
+}
+
+body.history-review-open .post-hand-actions,
+body.history-review-open #postHandDealBtn {
+  position: sticky;
+  bottom: 0;
+}
+
+
+.history-review-board-strip {
+  margin: 10px 0 16px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 14px;
+  background: rgba(0,0,0,0.38);
+  box-shadow: inset 0 0 28px rgba(255,255,255,0.025);
+}
+
+.history-review-board-title {
+  text-align: center;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-size: 11px;
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+
+.history-review-board-cards {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+body.history-review-open #postHandPot,
+body.history-review-open .post-hand-pot {
+  margin-right: 52px;
+}
+
+body.history-review-open .history-review-close-btn {
+  top: 12px;
+  right: 12px;
+}
+
+
+/* History review should feel like the real hand-complete screen, not a tiny debug drawer. */
+body.history-review-open #postHandPanel.post-hand-modal {
+  top: 52%;
+  width: min(1280px, calc(100vw - 56px));
+  max-height: calc(100vh - 72px);
+  padding: 28px 30px 30px;
+}
+
+body.history-review-open #postHandBody {
+  max-height: none;
+  overflow-y: visible;
+  padding-right: 10px;
+}
+
+body.history-review-open #postHandPanel .post-hand-row {
+  min-height: 112px;
+  padding: 16px 22px;
+  gap: 16px;
+}
+
+body.history-review-open #postHandPanel .post-hand-cards {
+  gap: 8px;
+  justify-content: center;
+}
+
+body.history-review-open #postHandPanel .post-hand-breakdown {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+}
+
+body.history-review-open .history-review-board-strip {
+  margin: 14px 0 20px;
+  padding: 18px 18px 20px;
+}
+
+body.history-review-open .history-review-board-cards {
+  gap: 10px;
+}
+
+body.history-review-open .history-review-board-cards .playing-card {
+  width: 46px;
+  height: 64px;
+}

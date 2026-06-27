@@ -127,7 +127,8 @@ async def test_chat_message_in_state(message_text):
         assert len(messages) > 0, "Messages array should not be empty after sending a chat"
         last_msg = messages[-1]
         assert last_msg["name"] == creator.name, f"Message sender should be '{creator.name}'"
-        assert last_msg["text"] == message_text.strip()[:240], "Message text should match what was sent (stripped)"
+        expected_text = " ".join(message_text.split())[:240].strip()
+        assert last_msg["text"] == expected_text, "Message text should match sanitized chat text"
 
 
 # ─── Test 2: Player Visibility ───
