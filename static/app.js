@@ -1043,11 +1043,17 @@ function renderState(state) {
   const previousState = lastState;
   lastState = state;
   openDefaultPanelsForRoom(state);
-  const showdownDisplay = state.phase === "showdown" || Boolean(state.showdown_mode);
-  const handCompleteDisplay = state.phase === "showdown" && Array.isArray(state.winners) && state.winners.length > 0;
+
+  const historyReviewDisplayState = selectedHistoryReviewFromState(state);
+  const cinemaState = historyReviewDisplayState || state;
+  const historyReviewDisplay = Boolean(historyReviewDisplayState);
+  const showdownDisplay = cinemaState.phase === "showdown" || Boolean(cinemaState.showdown_mode);
+  const handCompleteDisplay = showdownDisplay && Array.isArray(cinemaState.winners) && cinemaState.winners.length > 0;
+
   document.body.classList.toggle("showdown-cinema", showdownDisplay);
   document.body.classList.toggle("hand-complete-cinema", handCompleteDisplay);
-  syncRefreshAnimationSuppression(state);
+  document.body.classList.toggle("history-review-cinema", historyReviewDisplay);
+  syncRefreshAnimationSuppression(cinemaState);
 
   // ─── HUD ───
   els.roomId.textContent = state.room_id;
@@ -1159,7 +1165,7 @@ function renderState(state) {
 
   // ─── Community cards ───
   renderCommunity(state.community, previousState ? previousState.community : []);
-  renderShowdownTray(state);
+  renderShowdownTray(cinemaState);
 
   // ─── Your hand ───
   // Hide the hero hand bar during showdown so the post-hand panel can own the result view.
@@ -1618,17 +1624,23 @@ function syncHistoryReviewChrome(visible) {
 }
 
 
+function rerenderStatePreservingHistoryScroll() {
+  const scrollTop = els.handHistoryBody ? els.handHistoryBody.scrollTop : 0;
+  if (lastState) renderState(lastState);
+  if (els.handHistoryBody) els.handHistoryBody.scrollTop = scrollTop;
+}
+
 function closeHistoryReview() {
   selectedHistoryReviewKey = null;
   syncHistoryReviewChrome(false);
-  if (lastState) renderPostHandPanel(lastState);
+  rerenderStatePreservingHistoryScroll();
 }
 
 function openHistoryReview(key) {
   if (!key) return;
   selectedHistoryReviewKey = String(key);
-  if (els.handHistoryPanel) els.handHistoryPanel.classList.add("hidden");
-  if (lastState) renderPostHandPanel(lastState);
+  if (els.handHistoryPanel) els.handHistoryPanel.classList.remove("hidden");
+  rerenderStatePreservingHistoryScroll();
 }
 
 function bindHandHistoryReviewButtons() {
@@ -1714,8 +1726,11 @@ function renderHandHistory(state) {
 
   if (!els.handHistoryBody) return;
 
+  const previousHistoryScrollTop = els.handHistoryBody.scrollTop;
+
   if (count === 0) {
     els.handHistoryBody.innerHTML = '<div class="hand-history-empty">No completed hands yet.</div>';
+    els.handHistoryBody.scrollTop = previousHistoryScrollTop;
     return;
   }
 
@@ -1747,6 +1762,7 @@ function renderHandHistory(state) {
   }).join("");
 
   bindHandHistoryReviewButtons();
+  els.handHistoryBody.scrollTop = previousHistoryScrollTop;
 }
 
 els.createBtn.onclick = createRoom;
@@ -2495,7 +2511,7 @@ function renderPostHandPanel(state) {
     });
 
   if (revealedPlayers.length === 0 && foldedPlayers.length === 0) {
-    const historyReviewBoard = historyReviewMode ? renderHistoryReviewBoard(state) : "";
+    const historyReviewBoard = "";
     els.postHandBody.innerHTML = historyReviewBoard + winners.map(w => `
       <div class="post-hand-row winner">
         <div class="post-hand-player">
@@ -2577,7 +2593,7 @@ function renderPostHandPanel(state) {
     `;
   }).join("");
 
-  const historyReviewBoard = historyReviewMode ? renderHistoryReviewBoard(state) : "";
+  const historyReviewBoard = "";
   els.postHandBody.innerHTML = `${historyReviewBoard}${shownRows}${muckedRows}`;
   bindFoldedRevealButtons();
 }

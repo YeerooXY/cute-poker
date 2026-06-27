@@ -93,11 +93,11 @@ def test_history_review_modal_renders_saved_board_and_keeps_close_clear_of_pot_b
     app = read_static("app.js")
     css = read_static("styles.css")
 
-    assert "function renderHistoryReviewBoard(state)" in app
-    assert "history-review-board-strip" in app
-    assert "renderHistoryReviewBoard(state)" in app
+    assert "historyReviewDisplayState" in app
+    assert "const cinemaState = historyReviewDisplayState || state" in app
+    assert "renderShowdownTray(cinemaState)" in app
+    assert 'const historyReviewBoard = "";' in app
     assert ".history-review-board-strip" in css
-    assert "history-review-board-cards" in css
     assert "margin-right" in css
 
 
@@ -133,6 +133,10 @@ def test_history_review_modal_uses_hand_complete_sized_layout_without_snap():
     assert "const historyReviewVisible = visible && historyReviewMode" in app
     assert 'classList.toggle("history-review-modal", historyReviewVisible)' in app
     assert "syncHistoryReviewChrome(historyReviewVisible)" in app
+    assert "rerenderStatePreservingHistoryScroll" in app
+    assert 'els.handHistoryPanel.classList.remove("hidden")' in app
+    assert "previousHistoryScrollTop" in app
+    assert "history-review-cinema" in app
     assert 'classList.toggle("hidden", !visible)' in app
 
     block = app.split("const historyReviewVisible = visible && historyReviewMode", 1)[1]
@@ -141,12 +145,13 @@ def test_history_review_modal_uses_hand_complete_sized_layout_without_snap():
 
     assert "History review matched hand-complete sizing" in css
     assert "History review snap prevention" in css
-    assert "History review compact hand-complete footprint override" in css
-    assert "#postHandPanel.post-hand-modal.history-review-modal" in css
-    assert "width: min(760px" in css
+    assert "History review uses live hand-complete cinema layout" in css
+    assert "body.history-review-open.history-review-cinema #postHandPanel.post-hand-modal.history-review-modal" in css
+    assert "width: min(980px" in css
     assert "transform: translateX(-50%)" in css
-    assert "max-height: min(58vh, 460px)" in css
-    assert "historyReviewFadeInOnly" in css
+    assert "max-height: min(72vh, 680px)" in css
+    assert "postHandResultStageGrow" in css
+    assert "body.history-review-open.history-review-cinema #showdownTray" in css
 
 
 def test_static_assets_are_cache_busted():
@@ -154,3 +159,13 @@ def test_static_assets_are_cache_busted():
 
     assert "/static/styles.css?v=" in html
     assert "/static/app.js?v=" in html
+
+
+def test_right_rail_stacks_action_log_and_chat():
+    css = read_static("styles.css")
+
+    assert "--right-rail-width: 220px" in css
+    assert "Right rail: smaller action log with chat underneath" in css
+    assert "body.action-log-open .chat-panel" in css
+    assert "top: calc(48vh + 58px)" in css
+    assert "width: var(--right-rail-width)" in css

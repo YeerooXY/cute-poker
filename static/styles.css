@@ -5430,3 +5430,127 @@ body.history-review-open #postHandPanel.history-review-modal .post-hand-pot {
     max-height: calc(100vh - 395px) !important;
   }
 }
+
+
+/* ??? History review uses live hand-complete cinema layout ??? */
+body.history-review-open.history-review-cinema::before {
+  display: none !important;
+}
+
+body.history-review-open.history-review-cinema #showdownTray {
+  z-index: 32 !important;
+  top: clamp(56px, 8vh, 96px) !important;
+}
+
+body.history-review-open.history-review-cinema #postHandPanel.post-hand-modal.history-review-modal {
+  left: 50% !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: clamp(28px, 5vh, 78px) !important;
+  transform: translateX(-50%) !important;
+  width: min(980px, calc(100vw - 36px)) !important;
+  max-width: none !important;
+  max-height: min(72vh, 680px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: clamp(14px, 1.8vw, 22px) !important;
+  gap: clamp(10px, 1.5vw, 16px) !important;
+  border-radius: 18px !important;
+  animation: postHandResultStageGrow 240ms ease-out both !important;
+}
+
+body.history-review-open.history-review-cinema #postHandPanel.history-review-modal #postHandBody {
+  max-height: min(50vh, 470px) !important;
+  overflow-y: auto !important;
+  padding: 6px !important;
+}
+
+body.history-review-open.history-review-cinema #postHandPanel.history-review-modal .history-review-board-strip {
+  display: none !important;
+}
+
+body.history-review-open.history-review-cinema #postHandPanel.history-review-modal .post-hand-actions,
+body.history-review-open.history-review-cinema #postHandDealBtn {
+  display: none !important;
+}
+
+body.history-review-open.history-review-cinema #postHandPanel.history-review-modal .history-review-close-btn {
+  top: 14px !important;
+  right: 14px !important;
+}
+
+body.history-review-open.history-review-cinema #postHandPanel.history-review-modal #postHandPot,
+body.history-review-open.history-review-cinema #postHandPanel.history-review-modal .post-hand-pot {
+  margin-right: 52px !important;
+}
+
+@media (max-width: 760px) {
+  body.history-review-open.history-review-cinema #showdownTray {
+    top: clamp(44px, 7vh, 72px) !important;
+  }
+
+  body.history-review-open.history-review-cinema #postHandPanel.post-hand-modal.history-review-modal {
+    bottom: clamp(44px, 8vh, 92px) !important;
+    width: calc(100vw - 20px) !important;
+    max-height: calc(100vh - 220px) !important;
+    padding: 12px !important;
+  }
+
+  body.history-review-open.history-review-cinema #postHandPanel.history-review-modal #postHandBody {
+    max-height: calc(100vh - 395px) !important;
+  }
+}
+
+
+/* ??? Right rail: smaller action log with chat underneath ??? */
+@media (min-width: 980px) {
+  :root {
+    --right-rail-width: 220px;
+    --right-rail-gap: 18px;
+  }
+
+  .action-log-panel {
+    right: 10px !important;
+    top: 40px !important;
+    bottom: auto !important;
+    width: var(--right-rail-width) !important;
+    height: 48vh !important;
+    max-height: 420px !important;
+    border-left: 1px solid rgba(255,255,255,0.08) !important;
+    border-radius: 12px !important;
+    overflow: hidden !important;
+  }
+
+  .action-log-toggle {
+    right: calc(var(--right-rail-width) + 10px) !important;
+  }
+
+  .action-log-toggle.panel-collapsed {
+    right: 0 !important;
+  }
+
+  body.action-log-open .chat-panel {
+    right: 10px !important;
+    top: calc(48vh + 58px) !important;
+    bottom: 10px !important;
+    width: var(--right-rail-width) !important;
+    max-height: none !important;
+  }
+
+  body.action-log-open .chat-panel .chat-messages {
+    max-height: none !important;
+  }
+
+  body.action-log-open .action-bar {
+    right: calc(var(--right-rail-width) + 28px) !important;
+  }
+
+  body.action-log-open .admin-side-panel {
+    right: calc(var(--right-rail-width) + 24px) !important;
+  }
+
+  body.action-log-open .poker-table {
+    padding-right: 20px !important;
+  }
+}
