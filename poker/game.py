@@ -2428,28 +2428,143 @@ class PokerServer:
             return list(player.cards)
         return backs
 
+
+    def hand_deltas_by_player_id(self, room: Room) -> dict[str, int]:
+        """Return completed-hand net deltas keyed by stable player_id."""
+        return {
+            str(player_id): int(delta)
+            for player_id, delta in getattr(room, "hand_deltas", {}).items()
+        }
+
+    def hand_deltas_by_name(self, room: Room) -> dict[str, int]:
+        """Legacy name-keyed deltas kept for older frontend/history consumers.
+
+        This is intentionally compatibility-only. Duplicate names can collapse here,
+        so new code should use hand_deltas_by_player_id or player_results.
+        """
+        deltas_by_id = self.hand_deltas_by_player_id(room)
+        return {
+            p.name: deltas_by_id[p.player_id]
+            for p in room.seated_players()
+            if p.player_id in deltas_by_id
+        }
+
+    def normalized_pot_breakdown(self, room: Room) -> list[dict[str, Any]]:
+        """Return pot tiers with stable IDs and player_id-based winner data."""
+        normalized: list[dict[str, Any]] = []
+
+        for index, tier in enumerate(getattr(room, "pot_breakdown", []) or []):
+            pot_id = int(tier.get("pot_id", tier.get("id", index)))
+            amount = int(tier.get("amount", tier.get("pot", 0)))
+            eligible_player_ids = [
+                str(player_id)
+                for player_id in tier.get("eligible_player_ids", tier.get("eligible", []))
+            ]
+
+            winners = []
+            for winner in tier.get("winners", []) or []:
+                player_id = str(winner.get("player_id", ""))
+                player = room.players.get(player_id)
+                hand_name = winner.get("hand_name") or getattr(player, "last_hand_name", "")
+                hand_detail = winner.get("hand_detail") or getattr(player, "last_hand_detail", "")
+                best_cards = winner.get("best_cards") or getattr(player, "last_best_cards", [])
+
+                winners.append({
+                    "player_id": player_id,
+                    "name": winner.get("name") or getattr(player, "name", ""),
+                    "amount": int(winner.get("amount", 0)),
+                    "hand_name": hand_name,
+                    "hand_detail": hand_detail,
+                    "best_cards": display_cards(best_cards) if best_cards else [],
+                })
+
+            label = "Main Pot" if pot_id == 0 else f"Side Pot {pot_id}"
+            tier_type = "main" if pot_id == 0 else "side"
+
+            normalized.append({
+                "id": pot_id,
+                "pot_id": pot_id,
+                "label": label,
+                "type": tier.get("type", tier_type),
+                "amount": amount,
+                "pot": amount,
+                "eligible_player_ids": eligible_player_ids,
+                "eligible": eligible_player_ids,
+                "winners": winners,
+            })
+
+        return normalized
+
+    def winner_amounts_by_player_id(self, room: Room) -> dict[str, int]:
+        amounts: dict[str, int] = {}
+        for winner in getattr(room, "winners", []) or []:
+            amounts[winner.player_id] = amounts.get(winner.player_id, 0) + int(winner.amount)
+        return amounts
+
+    def pot_ids_won_by_player_id(self, room: Room) -> dict[str, list[int]]:
+        pot_ids: dict[str, list[int]] = {}
+        for tier in self.normalized_pot_breakdown(room):
+            pot_id = int(tier.get("pot_id", 0))
+            for winner in tier.get("winners", []) or []:
+                player_id = str(winner.get("player_id", ""))
+                if player_id:
+                    pot_ids.setdefault(player_id, []).append(pot_id)
+        return pot_ids
+
+    def player_results_from_public_players(
+        self,
+        room: Room,
+        public_players: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Build stable per-player completed-hand result rows.
+
+        These rows separate gross winnings from net stack delta and avoid all
+        duplicate-name matching problems by using player_id as the primary key.
+        """
+        won_amounts = self.winner_amounts_by_player_id(room)
+        deltas_by_id = self.hand_deltas_by_player_id(room)
+        pot_ids_by_id = self.pot_ids_won_by_player_id(room)
+
+        results = []
+        for player_info in public_players:
+            player_id = str(player_info.get("player_id") or player_info.get("id") or "")
+            if not player_id:
+                continue
+
+            cards = list(player_info.get("cards", []))
+            folded = bool(player_info.get("folded", False))
+            folded_mode = str(player_info.get("folded_reveal_mode", ""))
+            hidden_cards = bool(cards) and all(card == "BACK" for card in cards)
+            mucked = folded and (folded_mode in ("hidden", "muck", "") or hidden_cards)
+
+            won_amount = int(won_amounts.get(player_id, 0))
+            net_delta = int(deltas_by_id.get(player_id, 0))
+
+            results.append({
+                "player_id": player_id,
+                "name": player_info.get("name", ""),
+                "cards": cards,
+                "best_cards": list(player_info.get("best_cards", [])),
+                "hand_name": player_info.get("hand_name", ""),
+                "hand_detail": player_info.get("hand_detail", ""),
+                "won_amount": won_amount,
+                "net_delta": net_delta,
+                "folded": folded,
+                "mucked": mucked,
+                "is_winner": won_amount > 0,
+                "pot_ids_won": list(pot_ids_by_id.get(player_id, [])),
+            })
+
+        return results
+
+
     def public_hand_result(self, room: Room) -> dict[str, Any]:
         """Build a sanitized public snapshot for history/replay/share-result UI.
 
         This intentionally excludes reconnect tokens, WebSocket data, raw private
         hole-card fields, bot debug data, and any unrevealed cards.
         """
-        sanitized_pots = []
-        for tier in getattr(room, "pot_breakdown", []):
-            sanitized_pots.append({
-                "type": tier.get("type", ""),
-                "pot": int(tier.get("pot", 0)),
-                "eligible": list(tier.get("eligible", [])),
-                "winners": [
-                    {
-                        "player_id": winner.get("player_id", ""),
-                        "name": winner.get("name", ""),
-                        "amount": int(winner.get("amount", 0)),
-                        "hand_name": winner.get("hand_name", ""),
-                    }
-                    for winner in tier.get("winners", [])
-                ],
-            })
+        sanitized_pots = self.normalized_pot_breakdown(room)
 
         players = []
         real_showdown = any(w.reason != "Everyone else folded" for w in room.winners)
@@ -2542,6 +2657,10 @@ class PokerServer:
                 "best_cards": display_cards(best_cards) if best_cards else [],
             })
 
+        player_results = self.player_results_from_public_players(room, players)
+        hand_deltas_by_player_id = self.hand_deltas_by_player_id(room)
+        hand_deltas_by_name = self.hand_deltas_by_name(room)
+
         return {
             "room_id": room.room_id,
             "hand_number": room.hands_played,
@@ -2563,11 +2682,9 @@ class PokerServer:
                 for w in room.winners
             ],
             "pot_breakdown": sanitized_pots,
-            "hand_deltas": {
-                p.name: getattr(room, "hand_deltas", {}).get(p.player_id, 0)
-                for p in room.seated_players()
-                if p.player_id in getattr(room, "hand_deltas", {})
-            },
+            "player_results": player_results,
+            "hand_deltas": hand_deltas_by_name,
+            "hand_deltas_by_player_id": hand_deltas_by_player_id,
             "action_log": _sanitize_action_log(room.action_log),
         }
 
@@ -2779,6 +2896,7 @@ class PokerServer:
 
             player_dict = {
                 "id": p.player_id,
+                "player_id": p.player_id,
                 "name": p.name,
                 "avatar": p.avatar,
                 "seat": p.seat,
@@ -2940,6 +3058,11 @@ class PokerServer:
             else 0
         )
 
+        normalized_pots = self.normalized_pot_breakdown(room)
+        player_results = self.player_results_from_public_players(room, players)
+        hand_deltas_by_player_id = self.hand_deltas_by_player_id(room) if room.phase == "showdown" else {}
+        hand_deltas_by_name = self.hand_deltas_by_name(room) if room.phase == "showdown" else {}
+
         return {
             "room_id": room.room_id,
             "phase": room.phase,
@@ -2995,7 +3118,8 @@ class PokerServer:
                 }
                 for w in room.winners
             ],
-            "pot_breakdown": room.pot_breakdown,
+            "pot_breakdown": normalized_pots,
+            "player_results": player_results,
             "hand_history": self.compact_hand_history(room),
             "hand_history_details": self.full_hand_history(room),
             "latest_hand_result": (
@@ -3003,11 +3127,8 @@ class PokerServer:
                 if getattr(room, "hand_history", [])
                 else None
             ),
-            "hand_deltas": {
-                p.name: getattr(room, "hand_deltas", {}).get(p.player_id, 0)
-                for p in room.seated_players()
-                if room.phase == "showdown" and p.player_id in getattr(room, "hand_deltas", {})
-            },
+            "hand_deltas": hand_deltas_by_name,
+            "hand_deltas_by_player_id": hand_deltas_by_player_id,
             "action_log": _sanitize_action_log(room.action_log),
             "viewer": {
                 "is_turn": is_viewer_turn,
