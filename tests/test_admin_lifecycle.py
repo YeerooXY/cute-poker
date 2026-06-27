@@ -688,3 +688,44 @@ def test_next_action_does_not_skip_live_sitting_out_player():
 
     # From the previous actor, the live sitting-out-next-hand player must still receive action.
     assert server.next_action_seat_after(room, third.seat) == guest.seat
+
+def test_return_uncalled_excess_refunds_only_current_street_unmatched_chips():
+    server, room, short, cover, folder, _short_ws, _cover_ws, _folder_ws = make_room_with_three_humans()
+
+    room.phase = "turn"
+    room.current_bet = 20
+
+    short.cards = ["AS", "AH"]
+    short.stack = 0
+    short.committed = 0
+    short.total_invested = 125
+    short.all_in = True
+    short.folded = False
+
+    cover.cards = ["KS", "KH"]
+    cover.stack = 845
+    cover.committed = 20
+    cover.total_invested = 155
+    cover.all_in = False
+    cover.folded = False
+
+    folder.cards = ["QS", "QH"]
+    folder.stack = 855
+    folder.committed = 10
+    folder.total_invested = 145
+    folder.all_in = False
+    folder.folded = True
+
+    room.pot = short.total_invested + cover.total_invested + folder.total_invested
+    before_total = room.pot + sum(p.stack for p in [short, cover, folder])
+
+    server.return_uncalled_excess(room)
+
+    assert cover.stack == 855
+    assert cover.committed == 10
+    assert cover.total_invested == 145
+    assert room.pot == 415
+    assert room.current_bet == 10
+
+    after_total = room.pot + sum(p.stack for p in [short, cover, folder])
+    assert after_total == before_total

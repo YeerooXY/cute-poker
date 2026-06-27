@@ -1981,38 +1981,50 @@ class PokerServer:
         return len(self.players_who_can_bet(room)) < 2
 
     def return_uncalled_excess(self, room: Room) -> None:
-        """Return unmatched chips to covering player when no one can match their bet.
+        """Return only unmatched *current-street* chips.
 
-        Logic:
-        - Build contenders from seated players with cards who are not folded.
-        - Find the non-folded contender with the highest total_invested.
-        - Find the second-highest total_invested among non-folded contenders.
-        - If highest.total_invested > second_highest.total_invested, the difference is uncalled excess.
-        - Return that excess to the highest investor.
-        - Folded players' chips stay in the pot and are never returned.
+        Important side-pot rule:
+        folded players' already-matched chips stay in the pot as dead money.
+        So this must not compare total_invested between non-folded contenders,
+        because that can wrongly refund side-pot chips that were matched on
+        earlier streets by a player who later folded.
+
+        Refund source is the current street's committed amount only.
         """
         contenders = [p for p in room.seated_players() if p.cards and not p.folded]
         if len(contenders) < 2:
             return
 
-        # Find highest and second-highest total_invested among non-folded contenders
-        sorted_by_invested = sorted(contenders, key=lambda p: p.total_invested)
-        highest_player = sorted_by_invested[-1]
-        second_highest_invested = sorted_by_invested[-2].total_invested
+        highest_committed = max((p.committed for p in contenders), default=0)
+        if highest_committed <= 0:
+            return
 
-        excess = highest_player.total_invested - second_highest_invested
+        highest_players = [p for p in contenders if p.committed == highest_committed]
+        if len(highest_players) != 1:
+            return
+
+        highest_player = highest_players[0]
+
+        # Folded players' current-street chips still count as matched dead money.
+        # They cannot win the pot, but their committed chips reduce what is truly
+        # uncalled this street.
+        other_highest_committed = max(
+            (
+                p.committed
+                for p in room.seated_players()
+                if p is not highest_player
+            ),
+            default=0,
+        )
+
+        excess = highest_player.committed - other_highest_committed
         if excess <= 0:
             return
 
-        # Safety: uncalled excess should come from the current street
-        if excess > highest_player.committed:
-            raise RuntimeError(
-                f"return_uncalled_excess: excess ({excess}) > highest.committed "
-                f"({highest_player.committed}). This should not happen — uncalled "
-                f"excess must come from the current street."
-            )
+        # Defensive cap: never refund more than this player has in the current
+        # street bucket. This preserves chip accounting even in odd partial states.
+        excess = min(excess, highest_player.committed)
 
-        # Return excess to the highest investor
         highest_player.stack += excess
         highest_player.committed -= excess
         highest_player.total_invested -= excess
@@ -2020,8 +2032,7 @@ class PokerServer:
         highest_player.all_in = highest_player.stack == 0
         self._normalize_returned_excess_action_log(room, highest_player)
 
-        # Recalculate room.current_bet from remaining non-folded contenders' committed values
-        room.current_bet = max(p.committed for p in contenders)
+        room.current_bet = max((p.committed for p in contenders), default=0)
 
     def _normalize_returned_excess_action_log(self, room: Room, player: Player) -> None:
         """Rewrite the covering player's unmatched shove as the effective call."""

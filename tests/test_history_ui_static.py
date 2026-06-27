@@ -732,3 +732,56 @@ def test_stack_zero_live_all_in_players_are_not_labeled_busted_frontend():
     assert '"is_live_in_hand": is_live_in_hand' in game
     assert "and not is_live_in_hand" in game
     assert "and not self.player_is_live_in_current_hand(room, viewer)" in game
+
+def test_center_pot_cleanup_prevents_shadow_overlap():
+    css = read_static("styles.css")
+
+    assert "Center pot cleanup v2" in css
+    assert ".table-felt .pot-area" in css
+    assert "isolation: isolate" in css
+    assert "content: none !important" in css
+    assert ".table-felt .pot-chips:empty" in css
+    assert "transform: scale(.78)" in css
+    assert ".table-felt .community-cards" in css
+    assert "--center-pot-clearance" in css
+
+def test_board_tray_shadow_is_separated_from_center_pot():
+    css = read_static("styles.css")
+
+    assert "Board tray / pot visual separation v2" in css
+    assert ".table-felt .community-cards" in css
+    assert "linear-gradient(" in css
+    assert "inset 0 -8px 14px" in css
+    assert ".table-felt .pot-area + .community-cards" in css
+    assert "margin-bottom: clamp(10px, 1.5vw, 18px)" in css
+
+def test_board_cards_float_without_extra_center_shadow_layers():
+    css = read_static("styles.css")
+
+    assert "Clean floating board cards v1" in css
+    assert ".table-felt .community-cards" in css
+    assert "background: transparent !important" in css
+    assert "box-shadow: none !important" in css
+    assert ".community-cards::before" in css
+    assert "content: none !important" in css
+    assert ".table-felt .community-cards .playing-card" in css
+
+def test_legacy_table_felt_center_tray_is_disabled():
+    css = read_static("styles.css")
+
+    assert "Remove legacy center tray pseudo-element" in css
+    assert ".table-felt::after" in css
+    assert "content: none !important" in css
+    assert "display: none !important" in css
+    assert "width: fit-content !important" in css
+    assert "justify-content: center !important" in css
+
+def test_timebank_turn_badge_is_outside_felt():
+    css = read_static("styles.css")
+
+    assert "Move timebank / turn badge outside felt" in css
+    assert ".table-felt .turn-indicator" in css
+    assert "position: absolute" in css
+    assert "bottom: clamp(-38px, -3.2vw, -28px)" in css
+    assert "transform: translateX(-50%)" in css
+    assert ".table-felt .turn-indicator:empty" in css

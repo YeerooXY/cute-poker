@@ -7401,3 +7401,247 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
     flex-basis: 22px !important;
   }
 }
+
+/* ??? Center pot cleanup v2 ??? */
+.table-felt {
+  --center-pot-clearance: clamp(10px, 1.4vw, 18px);
+}
+
+.table-felt .pot-area {
+  position: relative;
+  inset: auto;
+  transform: none;
+  z-index: 4;
+  isolation: isolate;
+  display: grid;
+  grid-template-areas:
+    "label"
+    "amount"
+    "chips";
+  justify-items: center;
+  align-items: center;
+  gap: 0;
+  min-width: clamp(58px, 7vw, 76px);
+  min-height: 64px;
+  padding: 7px 12px 9px;
+  margin: 0 0 var(--center-pot-clearance);
+  border: 1px solid rgba(245, 212, 66, 0.2);
+  border-radius: 999px;
+  background:
+    radial-gradient(ellipse at 50% 24%, rgba(62, 137, 70, 0.54), rgba(18, 62, 30, 0.44) 52%, rgba(0, 0, 0, 0.3) 100%);
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.22),
+    inset 0 1px 10px rgba(255, 255, 255, 0.04),
+    inset 0 -8px 14px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.table-felt .pot-area::before,
+.table-felt .pot-area::after {
+  content: none !important;
+}
+
+.table-felt .pot-label {
+  grid-area: label;
+  line-height: 1;
+  margin: 0 0 1px;
+}
+
+.table-felt .pot-amount {
+  grid-area: amount;
+  line-height: 0.95;
+  margin: 0;
+}
+
+.table-felt .pot-chips {
+  grid-area: chips;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 0;
+  max-height: 20px;
+  margin-top: 1px;
+  pointer-events: none;
+  transform: scale(.78);
+  transform-origin: top center;
+}
+
+.table-felt .pot-chips:empty {
+  display: none;
+}
+
+.table-felt .pot-chips > * {
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.28));
+}
+
+.table-felt .community-cards {
+  position: relative;
+  z-index: 2;
+  margin-top: 0;
+}
+
+@media (max-width: 600px) {
+  .table-felt {
+    --center-pot-clearance: 8px;
+  }
+
+  .table-felt .pot-area {
+    min-width: 52px;
+    min-height: 56px;
+    padding: 6px 10px 8px;
+  }
+
+  .table-felt .pot-chips {
+    max-height: 16px;
+    transform: scale(.68);
+  }
+}
+
+/* ??? Board tray / pot visual separation v2 ??? */
+.table-felt .community-cards {
+  margin-top: clamp(6px, 1vw, 12px);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.04) 0%,
+      rgba(0, 0, 0, 0.14) 38%,
+      rgba(0, 0, 0, 0.22) 100%
+    );
+  border-color: rgba(255, 255, 255, 0.07);
+  box-shadow:
+    inset 0 -8px 14px rgba(0, 0, 0, 0.22),
+    0 5px 14px rgba(0, 0, 0, 0.12);
+}
+
+.table-felt .pot-area {
+  margin-bottom: clamp(10px, 1.5vw, 18px);
+  box-shadow:
+    0 7px 14px rgba(0, 0, 0, 0.2),
+    0 0 18px rgba(55, 150, 67, 0.1),
+    inset 0 1px 8px rgba(255, 255, 255, 0.045),
+    inset 0 -8px 12px rgba(0, 0, 0, 0.2);
+}
+
+.table-felt .pot-area + .community-cards {
+  clear: both;
+}
+
+@media (max-width: 600px) {
+  .table-felt .community-cards {
+    margin-top: 7px;
+    box-shadow:
+      inset 0 -6px 10px rgba(0, 0, 0, 0.2),
+      0 4px 10px rgba(0, 0, 0, 0.1);
+  }
+
+  .table-felt .pot-area {
+    margin-bottom: 10px;
+  }
+}
+
+/* ??? Clean floating board cards v1 ??? */
+.table-felt .community-cards {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin-top: clamp(8px, 1.2vw, 14px) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  border-width: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+}
+
+.table-felt .community-cards::before,
+.table-felt .community-cards::after,
+.community-cards::before,
+.community-cards::after {
+  content: none !important;
+  display: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.table-felt .community-cards .playing-card {
+  position: relative;
+  z-index: 2;
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+}
+
+.table-felt .pot-area {
+  margin-bottom: clamp(8px, 1.2vw, 14px) !important;
+}
+
+/* ??? Remove legacy center tray pseudo-element ??? */
+.table-felt::after {
+  content: none !important;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.table-felt .community-cards {
+  align-self: center !important;
+  width: fit-content !important;
+  max-width: min(92%, 420px);
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: clamp(5px, 0.7vw, 8px) !important;
+  transform: none !important;
+}
+
+.table-felt .pot-area {
+  align-self: center !important;
+}
+
+/* ??? Move timebank / turn badge outside felt ??? */
+.table-felt .turn-indicator {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(-38px, -3.2vw, -28px);
+  transform: translateX(-50%);
+  z-index: 6;
+  margin-top: 0 !important;
+  min-height: 0;
+  max-width: min(92vw, 420px);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.table-felt .turn-indicator:empty {
+  display: none;
+}
+
+.table-felt .turn-indicator.your-turn,
+.table-felt .turn-indicator.thinking {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 32, 12, 0.86);
+  border: 1px solid rgba(245, 212, 66, 0.3);
+  box-shadow:
+    0 5px 14px rgba(0, 0, 0, 0.28),
+    inset 0 0 8px rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+@media (max-width: 600px) {
+  .table-felt .turn-indicator {
+    bottom: -30px;
+    max-width: calc(100vw - 24px);
+    font-size: 12px;
+  }
+
+  .table-felt .turn-indicator.your-turn,
+  .table-felt .turn-indicator.thinking {
+    padding: 5px 10px;
+  }
+}
