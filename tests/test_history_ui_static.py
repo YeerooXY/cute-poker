@@ -110,3 +110,12 @@ def test_history_review_infers_revealed_cards_and_uses_spacious_modal():
     assert "min-height: 112px" in css
     assert "max-height: none" in css
     assert "overflow-y: visible" in css
+
+
+def test_history_review_can_render_persisted_would_have_breakdowns():
+    app = read_static("app.js")
+
+    assert "renderFoldedWouldHaveBreakdown(p, state)" in app
+    assert "would_have_best_cards" in app
+    assert "would_have_hand_detail" in app
+    assert "renderBestFiveBreakdownHtml" in app

@@ -5345,3 +5345,19 @@ body.history-review-open .history-review-board-cards .playing-card {
   width: 46px;
   height: 64px;
 }
+
+
+/* Follow-up: history review should use available viewport before scrolling. */
+body.history-review-open #postHandPanel.post-hand-modal {
+  width: min(1380px, calc(100vw - 36px));
+  max-height: calc(100vh - 28px);
+}
+
+body.history-review-open #postHandBody {
+  max-height: none;
+  overflow: visible;
+}
+
+body.history-review-open #postHandPanel.post-hand-modal {
+  overflow-y: auto;
+}

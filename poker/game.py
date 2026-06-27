@@ -1929,13 +1929,76 @@ class PokerServer:
             })
 
         players = []
+        real_showdown = any(w.reason != "Everyone else folded" for w in room.winners)
+
         for p in room.seated_players():
             public_cards = self._public_completed_hand_cards(room, p)
-            show_hand_detail = (
+            public_hole_fully_revealed = (
+                len(public_cards) == 2
+                and all(card != "BACK" for card in public_cards)
+            )
+
+            revealed_public_hand_name = ""
+            revealed_public_hand_detail = ""
+            revealed_public_best_cards: list[str] = []
+            if (
+                room.phase == "showdown"
+                and public_hole_fully_revealed
+                and len(room.community) == 5
+                and len(p.cards) == 2
+            ):
+                try:
+                    score, revealed_public_hand_name, revealed_public_best_cards = evaluate_7(p.cards + room.community)
+                    revealed_public_hand_detail = describe_hand(score, revealed_public_hand_name)
+                except Exception:
+                    revealed_public_hand_name = ""
+                    revealed_public_hand_detail = ""
+                    revealed_public_best_cards = []
+
+            is_uncontested_winner = any(
+                winner.player_id == p.player_id
+                and winner.reason == "Everyone else folded"
+                for winner in room.winners
+            )
+
+            show_showdown_hand_detail = (
                 room.phase == "showdown"
                 and not p.folded
-                and any(w.reason != "Everyone else folded" for w in room.winners)
+                and real_showdown
             )
+            show_uncontested_public_hand_detail = (
+                room.phase == "showdown"
+                and not p.folded
+                and is_uncontested_winner
+                and public_hole_fully_revealed
+                and bool(revealed_public_hand_name)
+            )
+
+            hand_name = ""
+            hand_detail = ""
+            best_cards: list[str] = []
+            if show_showdown_hand_detail:
+                hand_name = p.last_hand_name
+                hand_detail = p.last_hand_detail
+                best_cards = p.last_best_cards
+            elif show_uncontested_public_hand_detail:
+                hand_name = revealed_public_hand_name
+                hand_detail = revealed_public_hand_detail
+                best_cards = revealed_public_best_cards
+
+            would_have_hand_name = ""
+            would_have_hand_detail = ""
+            would_have_best_cards: list[str] = []
+            if (
+                p.folded
+                and getattr(p, "folded_reveal_mode", "hidden") == "both"
+                and public_hole_fully_revealed
+                and bool(revealed_public_hand_name)
+            ):
+                would_have_hand_name = revealed_public_hand_name
+                would_have_hand_detail = revealed_public_hand_detail
+                would_have_best_cards = revealed_public_best_cards
+
             players.append({
                 "player_id": p.player_id,
                 "name": p.name,
@@ -1948,9 +2011,12 @@ class PokerServer:
                 "uncontested_reveal_mode": getattr(p, "uncontested_reveal_mode", "hidden"),
                 "can_reveal_folded_hand": False,
                 "can_reveal_uncontested_hand": False,
-                "hand_name": p.last_hand_name if show_hand_detail else "",
-                "hand_detail": p.last_hand_detail if show_hand_detail else "",
-                "best_cards": display_cards(p.last_best_cards) if show_hand_detail else [],
+                "would_have_hand_name": would_have_hand_name,
+                "would_have_hand_detail": would_have_hand_detail,
+                "would_have_best_cards": display_cards(would_have_best_cards) if would_have_best_cards else [],
+                "hand_name": hand_name,
+                "hand_detail": hand_detail,
+                "best_cards": display_cards(best_cards) if best_cards else [],
             })
 
         return {

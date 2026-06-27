@@ -66,6 +66,7 @@ class Room:
     pot_breakdown: list = field(default_factory=list)  # Per-pot tier results for UI
     action_log: list = field(default_factory=list)  # Actions taken this hand (for analysis)
     hand_deltas: dict[str, int] = field(default_factory=dict)  # Net result this hand by player_id
+    hand_history: list[dict[str, Any]] = field(default_factory=list)  # Safe public completed-hand snapshots
     allow_folded_reveals: bool = True  # If True, folded players may reveal after showdown
 
     phase: str = "lobby"  # lobby, preflop, flop, turn, river, showdown
