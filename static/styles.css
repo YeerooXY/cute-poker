@@ -5554,3 +5554,104 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
     padding-right: 20px !important;
   }
 }
+
+
+/* ??? Table seating layout polish: players sit around the felt ??? */
+@media (min-width: 980px) {
+  .poker-table {
+    padding: 54px 250px 118px 250px !important;
+    min-height: calc(100vh - 34px) !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .table-felt {
+    width: min(940px, calc(100vw - 560px)) !important;
+    max-width: none !important;
+    height: clamp(300px, 30vw, 430px) !important;
+    aspect-ratio: auto !important;
+    border-width: 11px !important;
+    border-radius: 48% / 38% !important;
+  }
+
+  .player-seat {
+    width: 136px !important;
+    height: 104px !important;
+    min-width: 136px !important;
+    max-width: 136px !important;
+    padding: 8px 9px 7px !important;
+    border-radius: 15px !important;
+    transform: translate(-50%, -50%) !important;
+  }
+
+  .player-seat.is-you {
+    width: 146px !important;
+    height: 112px !important;
+    min-width: 146px !important;
+    max-width: 146px !important;
+  }
+
+  .seat-header {
+    height: 18px !important;
+    min-height: 18px !important;
+  }
+
+  .seat-cards {
+    justify-content: center !important;
+    margin-top: 5px !important;
+  }
+
+  .seat-bet-marker {
+    transform: translate(-50%, -50%) !important;
+  }
+
+  .turn-indicator.your-turn {
+    bottom: 12% !important;
+  }
+}
+
+@media (min-width: 1400px) {
+  .table-felt {
+    width: min(1020px, calc(100vw - 600px)) !important;
+    height: clamp(340px, 31vw, 470px) !important;
+  }
+
+  .player-seat {
+    width: 148px !important;
+    height: 112px !important;
+    min-width: 148px !important;
+    max-width: 148px !important;
+  }
+
+  .player-seat.is-you {
+    width: 158px !important;
+    height: 120px !important;
+    min-width: 158px !important;
+    max-width: 158px !important;
+  }
+}
+
+@media (max-width: 979px) {
+  .poker-table {
+    padding: 44px 18px 138px !important;
+  }
+
+  .table-felt {
+    width: min(760px, 82vw) !important;
+    max-width: none !important;
+    height: clamp(230px, 42vw, 340px) !important;
+    aspect-ratio: auto !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .poker-table {
+    padding: 42px 8px 150px !important;
+  }
+
+  .table-felt {
+    width: 78vw !important;
+    height: 38vw !important;
+    min-height: 190px !important;
+  }
+}

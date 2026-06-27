@@ -177,3 +177,19 @@ def test_history_review_drives_action_log_from_selected_hand():
     assert "const cinemaState = historyReviewDisplayState || state" in app
     assert "renderActionLog(cinemaState)" in app
     assert "state.hand_number || state.hands_played || 0" in app
+
+
+def test_table_seats_are_clustered_around_bigger_felt():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert 'const SEAT_POSITIONS = [' in app
+    assert '{ top: "82%", left: "50%" }' in app
+    assert '{ top: "48%", left: "20%" }' in app
+    assert '{ top: "48%", left: "80%" }' in app
+    assert '{ top: "17%", left: "50%" }' in app
+
+    assert "Table seating layout polish: players sit around the felt" in css
+    assert "width: min(940px" in css
+    assert "calc(100vw - 560px)" in css
+    assert "border-radius: 48% / 38%" in css

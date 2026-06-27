@@ -395,14 +395,14 @@ document.addEventListener("DOMContentLoaded", () => {
 // ─── Seat positions (8 max) ───
 // Position 0 is viewer-relative bottom/hero seat.
 const SEAT_POSITIONS = [
-  { top: "78%", left: "50%" },
-  { top: "65%", left: "10%" },
-  { top: "30%", left: "5%" },
-  { top: "5%",  left: "25%" },
-  { top: "5%",  left: "75%" },
-  { top: "30%", left: "95%" },
-  { top: "65%", left: "90%" },
-  { top: "5%",  left: "50%" },
+  { top: "82%", left: "50%" }, // bottom hero
+  { top: "68%", left: "29%" }, // lower-left
+  { top: "48%", left: "20%" }, // left
+  { top: "27%", left: "31%" }, // upper-left
+  { top: "27%", left: "69%" }, // upper-right
+  { top: "48%", left: "80%" }, // right
+  { top: "68%", left: "71%" }, // lower-right
+  { top: "17%", left: "50%" }, // top
 ];
 
 // Canonical server-seat offsets mapped to visual table positions.
@@ -416,14 +416,14 @@ const CANONICAL_VISUAL_SEAT_BY_OFFSET = [0, 1, 2, 3, 7, 4, 5, 6];
 // These are intentionally separate from SEAT_POSITIONS so player identity
 // cards stay compact while committed chips sit "in front" of each player.
 const BET_POSITIONS = [
-  { top: "67%", left: "50%" }, // bottom hero
-  { top: "58%", left: "22%" }, // lower-left
-  { top: "39%", left: "19%" }, // left
-  { top: "22%", left: "34%" }, // upper-left
-  { top: "22%", left: "66%" }, // upper-right
-  { top: "39%", left: "81%" }, // right
-  { top: "58%", left: "78%" }, // lower-right
-  { top: "24%", left: "50%" }, // top
+  { top: "68%", left: "50%" }, // bottom hero
+  { top: "60%", left: "38%" }, // lower-left
+  { top: "49%", left: "33%" }, // left
+  { top: "37%", left: "40%" }, // upper-left
+  { top: "37%", left: "60%" }, // upper-right
+  { top: "49%", left: "67%" }, // right
+  { top: "60%", left: "62%" }, // lower-right
+  { top: "31%", left: "50%" }, // top
 ];
 
 
