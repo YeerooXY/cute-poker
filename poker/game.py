@@ -1762,6 +1762,129 @@ class PokerServer:
 
         return None
 
+    def _public_completed_hand_cards(self, room: Room, player: Player) -> list[str]:
+        """Return the cards safe to show in a public completed-hand snapshot."""
+        if not player.cards:
+            return []
+
+        backs = ["BACK"] * len(player.cards)
+
+        if room.phase != "showdown":
+            return backs
+
+        if player.folded:
+            if not getattr(room, "allow_folded_reveals", True):
+                return backs
+            if len(player.cards) != 2:
+                return backs
+
+            mode = getattr(player, "folded_reveal_mode", "hidden")
+            if mode == "left":
+                return [player.cards[0], "BACK"]
+            if mode == "right":
+                return ["BACK", player.cards[1]]
+            if mode == "both":
+                return list(player.cards)
+            return backs
+
+        real_showdown = any(
+            winner.reason != "Everyone else folded"
+            for winner in room.winners
+        )
+        if real_showdown:
+            return list(player.cards)
+
+        is_uncontested_winner = any(
+            winner.player_id == player.player_id
+            and winner.reason == "Everyone else folded"
+            for winner in room.winners
+        )
+        if not is_uncontested_winner or len(player.cards) != 2:
+            return backs
+
+        mode = getattr(player, "uncontested_reveal_mode", "hidden")
+        if mode == "left":
+            return [player.cards[0], "BACK"]
+        if mode == "right":
+            return ["BACK", player.cards[1]]
+        if mode == "both":
+            return list(player.cards)
+        return backs
+
+    def public_hand_result(self, room: Room) -> dict[str, Any]:
+        """Build a sanitized public snapshot for history/replay/share-result UI.
+
+        This intentionally excludes reconnect tokens, WebSocket data, raw private
+        hole-card fields, bot debug data, and any unrevealed cards.
+        """
+        sanitized_pots = []
+        for tier in getattr(room, "pot_breakdown", []):
+            sanitized_pots.append({
+                "type": tier.get("type", ""),
+                "pot": int(tier.get("pot", 0)),
+                "eligible": list(tier.get("eligible", [])),
+                "winners": [
+                    {
+                        "player_id": winner.get("player_id", ""),
+                        "name": winner.get("name", ""),
+                        "amount": int(winner.get("amount", 0)),
+                        "hand_name": winner.get("hand_name", ""),
+                    }
+                    for winner in tier.get("winners", [])
+                ],
+            })
+
+        players = []
+        for p in room.seated_players():
+            public_cards = self._public_completed_hand_cards(room, p)
+            show_hand_detail = (
+                room.phase == "showdown"
+                and not p.folded
+                and any(w.reason != "Everyone else folded" for w in room.winners)
+            )
+            players.append({
+                "player_id": p.player_id,
+                "name": p.name,
+                "seat": p.seat,
+                "stack": p.stack,
+                "folded": p.folded,
+                "all_in": p.all_in,
+                "cards": display_cards(public_cards),
+                "hand_name": p.last_hand_name if show_hand_detail else "",
+                "hand_detail": p.last_hand_detail if show_hand_detail else "",
+                "best_cards": display_cards(p.last_best_cards) if show_hand_detail else [],
+            })
+
+        return {
+            "room_id": room.room_id,
+            "hand_number": room.hands_played,
+            "completed": room.phase == "showdown",
+            "phase": room.phase,
+            "community": display_cards(room.community),
+            "pot": room.pot,
+            "players": players,
+            "winners": [
+                {
+                    "player_id": w.player_id,
+                    "name": w.name,
+                    "amount": w.amount,
+                    "reason": w.reason,
+                    "hand_name": w.hand_name,
+                    "hand_detail": w.hand_detail,
+                    "best_cards": display_cards(w.best_cards),
+                }
+                for w in room.winners
+            ],
+            "pot_breakdown": sanitized_pots,
+            "hand_deltas": {
+                p.name: getattr(room, "hand_deltas", {}).get(p.player_id, 0)
+                for p in room.seated_players()
+                if p.player_id in getattr(room, "hand_deltas", {})
+            },
+            "action_log": _sanitize_action_log(room.action_log),
+        }
+
+
     def visible_state(self, room: Room, viewer_token: str) -> dict[str, Any]:
         viewer = self.player_by_token(room, viewer_token)
 
