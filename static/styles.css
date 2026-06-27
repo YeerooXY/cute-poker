@@ -7059,3 +7059,148 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
     min-width: 150px;
   }
 }
+
+/* Responsive showdown dense-result mode */
+.post-hand-panel.post-hand-modal.post-hand-compact {
+  width: min(860px, calc(100vw - 32px)) !important;
+  max-height: calc(100vh - clamp(72px, 12vh, 132px)) !important;
+  gap: 8px !important;
+  overflow: hidden !important;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-header,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-actions {
+  flex: 0 0 auto;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(52vh, 430px) !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  gap: 4px !important;
+  padding: 4px !important;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row {
+  grid-template-columns: minmax(118px, 0.78fr) minmax(92px, auto) minmax(0, 1fr) auto !important;
+  min-height: 34px !important;
+  padding: 4px 7px !important;
+  gap: 5px !important;
+  border-radius: 7px !important;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child {
+  min-height: 42px !important;
+  padding-block: 6px !important;
+  opacity: 1 !important;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.mucked,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:not(.winner) {
+  background: rgba(0, 0, 0, 0.28) !important;
+  opacity: 0.68;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.mucked .post-hand-name,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:not(.winner) .post-hand-name {
+  color: rgba(229, 239, 221, 0.76);
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-name {
+  font-size: 12px !important;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-result {
+  font-size: 9px !important;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-detail {
+  font-size: 10px !important;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-amount {
+  font-size: 12px !important;
+  min-width: 30px;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-cards {
+  gap: 3px !important;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-cards .playing-card,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards .playing-card {
+  width: 24px !important;
+  height: 34px !important;
+  min-width: 24px !important;
+  font-size: 9px !important;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards .playing-card,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards .playing-card {
+  width: 27px !important;
+  height: 38px !important;
+  min-width: 27px !important;
+  font-size: 10px !important;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  justify-content: flex-end;
+  padding-top: 4px !important;
+  background: linear-gradient(180deg, transparent, rgba(5, 22, 8, 0.96) 34%);
+}
+
+@media (max-height: 720px) {
+  .post-hand-panel.post-hand-modal {
+    max-height: calc(100vh - 64px) !important;
+  }
+
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-body {
+    max-height: min(48vh, 330px) !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .post-hand-panel.post-hand-modal.post-hand-compact {
+    width: calc(100vw - 16px) !important;
+    max-height: calc(100vh - 72px) !important;
+    padding: 9px !important;
+  }
+
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-title {
+    font-size: 16px !important;
+  }
+
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-body {
+    max-height: min(50vh, 360px) !important;
+  }
+
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row {
+    grid-template-columns: minmax(86px, 1fr) minmax(76px, auto) auto !important;
+    gap: 4px !important;
+  }
+
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-detail {
+    grid-column: 1 / -1;
+  }
+
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-cards .playing-card {
+    width: 21px !important;
+    height: 30px !important;
+    min-width: 21px !important;
+    font-size: 8px !important;
+  }
+
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards .playing-card,
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards .playing-card {
+    width: 24px !important;
+    height: 34px !important;
+    min-width: 24px !important;
+    font-size: 9px !important;
+  }
+}

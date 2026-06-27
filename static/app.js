@@ -1652,11 +1652,64 @@ function isPlayerCurrentlyActing(player, state) {
   return playerIds.includes(timerPlayerId);
 }
 
-function renderSeatBetMarker(player, visualSeat) {
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function fallbackBetMarkerPosition(visualSeat) {
+  return BET_POSITIONS[visualSeat % BET_POSITIONS.length] || BET_POSITIONS[0];
+}
+
+function feltClampedBetMarkerPosition(seatEl, visualSeat) {
+  const fallback = fallbackBetMarkerPosition(visualSeat);
+  const container = els.playerPositions;
+  const felt = document.querySelector(".table-felt") || container;
+
+  if (!seatEl || !container || !felt) return fallback;
+
+  const containerRect = container.getBoundingClientRect();
+  const feltRect = felt.getBoundingClientRect();
+  const seatRect = seatEl.getBoundingClientRect();
+
+  if (
+    containerRect.width <= 0
+    || containerRect.height <= 0
+    || feltRect.width <= 0
+    || feltRect.height <= 0
+    || seatRect.width <= 0
+    || seatRect.height <= 0
+  ) {
+    return fallback;
+  }
+
+  const feltCenterX = feltRect.left + feltRect.width / 2;
+  const feltCenterY = feltRect.top + feltRect.height / 2;
+  const seatCenterX = seatRect.left + seatRect.width / 2;
+  const seatCenterY = seatRect.top + seatRect.height / 2;
+
+  const towardPot = window.innerWidth <= 600 ? 0.5 : 0.43;
+  let pageX = seatCenterX + (feltCenterX - seatCenterX) * towardPot;
+  let pageY = seatCenterY + (feltCenterY - seatCenterY) * towardPot;
+
+  const markerHalfWidth = window.innerWidth <= 600 ? 36 : 44;
+  const markerHalfHeight = window.innerWidth <= 600 ? 24 : 30;
+  const feltPadX = Math.max(18, Math.min(42, feltRect.width * 0.045)) + markerHalfWidth;
+  const feltPadY = Math.max(18, Math.min(46, feltRect.height * 0.06)) + markerHalfHeight;
+
+  pageX = clampNumber(pageX, feltRect.left + feltPadX, feltRect.right - feltPadX);
+  pageY = clampNumber(pageY, feltRect.top + feltPadY, feltRect.bottom - feltPadY);
+
+  return {
+    left: `${pageX - containerRect.left}px`,
+    top: `${pageY - containerRect.top}px`,
+  };
+}
+
+function renderSeatBetMarker(player, visualSeat, seatEl = null) {
   const committed = Math.max(0, numberOrZero(player && player.committed));
   if (committed <= 0) return null;
 
-  const pos = BET_POSITIONS[visualSeat % BET_POSITIONS.length] || BET_POSITIONS[0];
+  const pos = feltClampedBetMarkerPosition(seatEl, visualSeat);
   const marker = document.createElement("div");
 
   let cls = "seat-bet-marker";
@@ -1748,7 +1801,7 @@ function renderPlayers(players, previousState = null, state = null) {
     `;
     els.playerPositions.appendChild(seat);
 
-    const betMarker = renderSeatBetMarker(p, visualSeat);
+    const betMarker = renderSeatBetMarker(p, visualSeat, seat);
     if (betMarker) els.playerPositions.appendChild(betMarker);
   });
 }
@@ -2905,6 +2958,7 @@ function renderPostHandPanel(state) {
   els.postHandPanel.classList.toggle("hidden", !visible);
 
   if (!visible) {
+    els.postHandPanel.classList.remove("post-hand-compact");
     if (els.postHandTitle) els.postHandTitle.textContent = "";
     if (els.postHandPot) els.postHandPot.textContent = "";
     if (els.postHandBody) els.postHandBody.innerHTML = "";
@@ -2958,8 +3012,14 @@ function renderPostHandPanel(state) {
       return String(a.name).localeCompare(String(b.name));
     });
 
+  const visibleResultRowCount = revealedPlayers.length + foldedPlayers.length;
+  const compactPostHandRows = visibleResultRowCount >= 6 || (window.innerHeight <= 720 && visibleResultRowCount >= 4);
+  els.postHandPanel.classList.toggle("post-hand-compact", compactPostHandRows);
+
   if (revealedPlayers.length === 0 && foldedPlayers.length === 0) {
     const historyReviewBoard = "";
+    const compactWinnerRows = winners.length >= 6 || (window.innerHeight <= 720 && winners.length >= 4);
+    els.postHandPanel.classList.toggle("post-hand-compact", compactWinnerRows);
     els.postHandBody.innerHTML = historyReviewBoard + winners.map(w => `
       <div class="post-hand-row winner">
         <div class="post-hand-player">

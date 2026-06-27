@@ -582,6 +582,39 @@ def test_table_center_cluster_polish_css_exists():
     assert "border-radius: 48% / 38%" in css
     assert "transform: scale(0.82)" in css
 
+def test_bet_markers_are_clamped_to_felt_geometry():
+    app = read_static("app.js")
+
+    assert "function feltClampedBetMarkerPosition(seatEl, visualSeat)" in app
+    assert "getBoundingClientRect()" in app
+    assert 'document.querySelector(".table-felt")' in app
+    assert "clampNumber(pageX" in app
+    assert "clampNumber(pageY" in app
+    assert "fallbackBetMarkerPosition(visualSeat)" in app
+    assert "renderSeatBetMarker(p, visualSeat, seat)" in app
+    assert 'left: `${pageX - containerRect.left}px`' in app
+    assert 'top: `${pageY - containerRect.top}px`' in app
+
+def test_showdown_compact_mode_has_responsive_scrollable_body():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert "const visibleResultRowCount = revealedPlayers.length + foldedPlayers.length;" in app
+    assert "visibleResultRowCount >= 6" in app
+    assert "window.innerHeight <= 720" in app
+    assert 'els.postHandPanel.classList.toggle("post-hand-compact", compactPostHandRows);' in app
+
+    assert "Responsive showdown dense-result mode" in css
+    assert ".post-hand-panel.post-hand-modal.post-hand-compact" in css
+    assert "max-height: calc(100vh - clamp(72px, 12vh, 132px))" in css
+    assert ".post-hand-panel.post-hand-modal.post-hand-compact .post-hand-body" in css
+    assert "overflow-y: auto !important" in css
+    assert "overscroll-behavior: contain" in css
+    assert "@media (max-height: 720px)" in css
+    assert "@media (max-width: 600px)" in css
+    assert "grid-template-columns: minmax(86px, 1fr) minmax(76px, auto) auto" in css
+    assert ".post-hand-panel.post-hand-modal.post-hand-compact .post-hand-actions" in css
+
 def test_acting_player_outline_is_robust_and_visible():
     app = read_static("app.js")
     css = read_static("styles.css")
