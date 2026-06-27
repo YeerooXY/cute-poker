@@ -818,11 +818,9 @@ function ensureAutoDealCountdownSurface() {
   postHandCountdown.id = "autoDealPostHandCountdown";
   postHandCountdown.className = "auto-deal-countdown auto-deal-post-hand-countdown hidden";
 
-  const postHandDealBtn = els.postHandDealBtn || document.getElementById("postHandDealBtn");
-  const postHandActions = postHandDealBtn ? postHandDealBtn.closest(".post-hand-actions") : document.querySelector(".post-hand-actions");
-
-  if (postHandActions) {
-    postHandActions.prepend(postHandCountdown);
+  const anchor = els.postHandBody || document.getElementById("postHandBody");
+  if (els.postHandPanel && anchor && anchor.parentNode === els.postHandPanel) {
+    els.postHandPanel.insertBefore(postHandCountdown, anchor);
   } else if (els.postHandPanel) {
     els.postHandPanel.appendChild(postHandCountdown);
   }
@@ -856,7 +854,7 @@ function setAutoDealToggleState(canShow) {
 
 function syncAutoDeal(state) {
   const viewerIsAdmin = Boolean(state && state.viewer && state.viewer.is_admin);
-  const canDeal = canViewerDeal(state);
+  const canAdminDeal = canViewerDeal(state);
   const winners = Array.isArray(state && state.winners) ? state.winners : [];
   const handComplete = Boolean(
     state
@@ -867,7 +865,7 @@ function syncAutoDeal(state) {
 
   setAutoDealToggleState(viewerIsAdmin);
 
-  if (!autoDealEnabled || !canDeal || !handComplete || state.paused) {
+  if (!autoDealEnabled || !handComplete || state.paused) {
     hideAutoDealCountdown();
     if (!handComplete) autoDealFiredKey = "";
     return;
@@ -881,14 +879,14 @@ function syncAutoDeal(state) {
 
   if (autoDealFiredKey === key) {
     clearAutoDealTimer();
-    showAutoDealCountdown("Dealing next hand?");
+    showAutoDealCountdown(canAdminDeal ? "Dealing next hand..." : "Waiting for next hand...");
     return;
   }
 
   if (autoDealHandKey !== key) {
     clearAutoDealTimer();
     autoDealHandKey = key;
-    autoDealDeadlineMs = Date.now() + (AUTO_DEAL_DELAY_SECONDS * 1000);
+    autoDealDeadlineMs = Date.now() + AUTO_DEAL_DELAY_SECONDS * 1000;
   }
 
   const remainingMs = Math.max(0, autoDealDeadlineMs - Date.now());
@@ -899,8 +897,14 @@ function syncAutoDeal(state) {
   if (remainingMs <= 0) {
     clearAutoDealTimer();
     autoDealFiredKey = key;
-    showAutoDealCountdown("Dealing next hand?");
-    action("start_hand");
+
+    if (canAdminDeal) {
+      showAutoDealCountdown("Dealing next hand...");
+      action("start_hand");
+    } else {
+      showAutoDealCountdown("Waiting for next hand...");
+    }
+
     return;
   }
 

@@ -436,9 +436,34 @@ def test_auto_deal_countdown_visible_in_post_hand_actions():
     assert "function ensureAutoDealCountdownSurface()" in app
     assert "function showAutoDealCountdown(text)" in app
     assert "autoDealPostHandCountdown" in app
-    assert "postHandActions.prepend(postHandCountdown)" in app
+    assert "postHandPanel.insertBefore(postHandCountdown, anchor)" in app
     assert 'showAutoDealCountdown(`Auto-deal in ${remainingSeconds}s`)' in app
-    assert 'showAutoDealCountdown("Dealing next hand?")' in app
+    assert 'showAutoDealCountdown("Dealing next hand...")' in app
     assert "Visible post-hand auto-deal countdown" in css
     assert ".auto-deal-post-hand-countdown" in css
     assert "@keyframes autoDealPulse" in css
+
+
+def test_auto_deal_countdown_visible_to_all_but_fires_only_for_admin():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert "const canAdminDeal = canViewerDeal(state)" in app
+    assert "setAutoDealToggleState(viewerIsAdmin)" in app
+    assert "!autoDealEnabled || !handComplete || state.paused" in app
+    assert "if (canAdminDeal)" in app
+    assert 'action("start_hand")' in app
+    assert "Waiting for next hand..." in app
+    assert "postHandPanel.insertBefore(postHandCountdown, anchor)" in app
+    assert "Public auto-deal countdown visibility" in css
+
+
+def test_auto_deal_uses_ascii_waiting_text_and_does_not_restart_for_non_admins():
+    app = read_static("app.js")
+
+    assert "Dealing next hand..." in app
+    assert "Waiting for next hand..." in app
+    assert "Dealing next hand?" not in app
+    assert "Waiting for next hand?" not in app
+    assert 'showAutoDealCountdown(canAdminDeal ? "Dealing next hand..." : "Waiting for next hand...")' in app
+    assert "autoDealFiredKey = key;" in app

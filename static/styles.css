@@ -6601,3 +6601,15 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
     filter: brightness(1.15);
   }
 }
+
+
+/* ??? Public auto-deal countdown visibility ??? */
+.post-hand-modal .auto-deal-post-hand-countdown {
+  width: fit-content;
+  margin: 8px 0 12px;
+}
+
+.auto-deal-post-hand-countdown {
+  position: relative;
+  z-index: 5;
+}
