@@ -5833,3 +5833,190 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
     font-size: 16px !important;
   }
 }
+
+
+/* ??? Fixed right rail without floating action-log tab ??? */
+@media (min-width: 980px) {
+  /* The action log is a fixed rail panel now; no floating arrow tab. */
+  .action-log-toggle {
+    display: none !important;
+  }
+
+  .action-log-panel,
+  .action-log-panel.collapsed {
+    position: fixed !important;
+    top: 42px !important;
+    right: 10px !important;
+    bottom: auto !important;
+    width: var(--right-rail-width, 220px) !important;
+    height: 42vh !important;
+    max-height: 390px !important;
+    min-height: 250px !important;
+    transform: none !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    border-radius: 12px !important;
+    border-left: 1px solid rgba(255,255,255,0.08) !important;
+    overflow: hidden !important;
+    z-index: 65 !important;
+  }
+
+  /* Chat always lives below the log, anchored to the bottom-right. */
+  .chat-panel,
+  body.action-log-open .chat-panel {
+    position: fixed !important;
+    right: 10px !important;
+    top: auto !important;
+    bottom: 10px !important;
+    width: var(--right-rail-width, 220px) !important;
+    height: min(36vh, 360px) !important;
+    max-height: 360px !important;
+    border-radius: 12px !important;
+    z-index: 64 !important;
+  }
+
+  .chat-messages,
+  body.action-log-open .chat-panel .chat-messages {
+    max-height: none !important;
+    min-height: 0 !important;
+  }
+
+  /* Opening/closing rail panels should never move the poker stage. */
+  body.action-log-open .poker-table,
+  .poker-table {
+    padding: 54px 250px 118px 250px !important;
+  }
+
+  body.action-log-open .table-felt,
+  .table-felt {
+    width: min(940px, calc(100vw - 560px)) !important;
+    max-width: none !important;
+    height: clamp(300px, 30vw, 430px) !important;
+    aspect-ratio: auto !important;
+  }
+}
+
+@media (min-width: 1400px) {
+  .action-log-panel,
+  .action-log-panel.collapsed,
+  .chat-panel,
+  body.action-log-open .chat-panel {
+    width: var(--right-rail-width, 220px) !important;
+  }
+
+  body.action-log-open .poker-table,
+  .poker-table {
+    padding: 54px 270px 118px 270px !important;
+  }
+
+  body.action-log-open .table-felt,
+  .table-felt {
+    width: min(1020px, calc(100vw - 600px)) !important;
+    height: clamp(340px, 31vw, 470px) !important;
+  }
+}
+
+
+/* ??? Bottom-left admin dock ??? */
+.admin-side-panel.admin-dock {
+  position: fixed !important;
+  left: 12px !important;
+  right: auto !important;
+  bottom: 12px !important;
+  top: auto !important;
+  width: 236px !important;
+  z-index: 55 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 9px !important;
+  padding: 11px !important;
+  border-radius: 14px !important;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(245, 212, 66, 0.08), transparent 42%),
+    rgba(6, 16, 6, 0.94) !important;
+  border: 1px solid rgba(232, 185, 35, 0.34) !important;
+  box-shadow: 0 10px 32px rgba(0,0,0,0.42) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+.admin-dock.hidden {
+  display: none !important;
+}
+
+.admin-dock-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+
+.admin-dock-title {
+  color: var(--gold-light);
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.admin-dock-subtitle {
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.admin-dock-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.admin-dock-grid .btn {
+  width: 100%;
+  min-height: 32px;
+  padding: 7px 8px;
+  font-size: 11px;
+}
+
+.admin-dock-field {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.admin-dock-field .bot-difficulty-select {
+  width: 100%;
+  min-height: 32px;
+}
+
+.admin-dock-bot-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.admin-dock-hint {
+  color: rgba(201, 230, 202, 0.58);
+  font-size: 10px;
+  line-height: 1.25;
+  padding-top: 2px;
+}
+
+@media (max-width: 760px) {
+  .admin-side-panel.admin-dock {
+    left: 8px !important;
+    bottom: 78px !important;
+    width: min(228px, calc(100vw - 16px)) !important;
+    padding: 9px !important;
+  }
+}

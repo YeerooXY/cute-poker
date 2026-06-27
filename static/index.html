@@ -203,21 +203,33 @@
       </div>
     </div>
 
-    <!-- Admin side panel (right side) -->
-    <div id="adminActions" class="admin-side-panel hidden">
-      <button id="resetBtn" class="btn btn-tiny btn-dim">↺ Reset</button>
-      <button id="pauseBtn" class="btn btn-tiny btn-dim">⏸ Pause</button>
-      <select id="botDifficultySelect" class="bot-difficulty-select">
-        <option value="easy">Easy</option>
-        <option value="medium">Medium</option>
-        <option value="hard" selected>Hard</option>
-        <option value="expert">Expert</option>
-      </select>
-      <button id="addBotBtn" class="btn btn-tiny btn-dim">🤖+</button>
-      <button id="removeBotBtn" class="btn btn-tiny btn-dim">🤖-</button>
+        <!-- Admin dock (bottom-left table management) -->
+    <div id="adminActions" class="admin-side-panel admin-dock hidden">
+      <div class="admin-dock-header">
+        <span class="admin-dock-title">Admin</span>
+        <span class="admin-dock-subtitle">Table tools</span>
+      </div>
+      <div class="admin-dock-grid">
+        <button id="resetBtn" class="btn btn-tiny btn-dim">? Reset</button>
+        <button id="pauseBtn" class="btn btn-tiny btn-dim">? Pause</button>
+        <label class="admin-dock-field">
+          <span>Bot level</span>
+          <select id="botDifficultySelect" class="bot-difficulty-select">
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard" selected>Hard</option>
+            <option value="expert">Expert</option>
+          </select>
+        </label>
+        <div class="admin-dock-bot-row">
+          <button id="addBotBtn" class="btn btn-tiny btn-dim">?? Add</button>
+          <button id="removeBotBtn" class="btn btn-tiny btn-dim">?? Remove</button>
+        </div>
+      </div>
+      <div class="admin-dock-hint">Player management can live here next.</div>
     </div>
 
-    <!-- Chat panel -->
+<!-- Chat panel -->
     <div id="chatPanel" class="chat-panel hidden">
       <div class="chat-header">
         <span>Chat</span>

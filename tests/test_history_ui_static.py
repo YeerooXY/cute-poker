@@ -207,3 +207,31 @@ def test_right_rail_does_not_shift_table_and_seats_are_readable():
     assert "height: 130px" in css
     assert "width: 36px" in css
     assert "height: 52px" in css
+
+
+def test_right_rail_has_no_floating_toggle_and_chat_is_bottom_right():
+    css = read_static("styles.css")
+
+    assert "Fixed right rail without floating action-log tab" in css
+    assert ".action-log-toggle" in css
+    assert "display: none !important" in css
+    assert ".action-log-panel.collapsed" in css
+    assert "transform: none !important" in css
+    assert "opacity: 1 !important" in css
+    assert "bottom: 10px !important" in css
+    assert "height: min(36vh, 360px)" in css
+
+
+def test_admin_panel_is_bottom_left_management_dock():
+    html = read_static("index.html")
+    css = read_static("styles.css")
+
+    assert 'class="admin-side-panel admin-dock hidden"' in html
+    assert "Table tools" in html
+    assert "Bot level" in html
+    assert "Player management can live here next." in html
+    assert "Bottom-left admin dock" in css
+    assert "left: 12px !important" in css
+    assert "bottom: 12px !important" in css
+    assert "right: auto !important" in css
+    assert ".admin-dock-bot-row" in css
