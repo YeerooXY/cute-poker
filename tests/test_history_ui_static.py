@@ -229,7 +229,7 @@ def test_admin_panel_is_bottom_left_management_dock():
     assert 'class="admin-side-panel admin-dock hidden"' in html
     assert "Table tools" in html
     assert "Bot level" in html
-    assert "Use Make Admin to hand leadership to a human player." in html
+    assert "Kick problem players between hands." in html
     assert "Bottom-left admin dock" in css
     assert "left: 12px !important" in css
     assert "bottom: 12px !important" in css
@@ -243,27 +243,28 @@ def test_admin_dock_uses_plain_text_controls_not_emoji():
     assert ">Reset<" in html
     assert ">Pause<" in html
     assert ">+ Bot<" in html
-    assert ">- Bot<" in html
+    assert ">- Bot<" not in html
+    assert "removeBotBtn" not in html
     assert "??" not in html
     assert "? Reset" not in html
     assert "? Pause" not in html
 
 
-def test_admin_dock_renders_player_list_and_transfer_controls():
+def test_admin_dock_renders_player_list_and_kick_controls():
     html = read_static("index.html")
     app = read_static("app.js")
     css = read_static("styles.css")
 
     assert 'id="adminPlayerList"' in html
-    assert "Use Make Admin to hand leadership to a human player." in html
+    assert "Kick problem players between hands." in html
     assert "function renderAdminPlayerList(state)" in app
     assert "adminPlayerStatusLabels(player, viewerIsAdmin)" in app
-    assert 'action("transfer_admin", { target_player_id: targetId })' in app
-    assert "data-admin-transfer-id" in app
-    assert "Manage" in app
+    assert 'action("kick_player", { target_player_id: targetId })' in app
+    assert "data-admin-kick-id" in app
+    assert "Kick" in app
     assert "Admin dock player management list" in css
     assert ".admin-player-row.is-admin" in css
-    assert ".admin-manage-btn" in css
+    assert ".admin-kick-btn" in css
 
 
 def test_backend_exposes_player_admin_fields_and_transfer_action():
@@ -283,7 +284,7 @@ def test_admin_player_rows_are_name_and_actions_without_stack_transfer_to_self()
 
     assert "Mock" in app
     assert "DM" in app
-    assert "Manage" in app
+    assert "Kick" in app
     assert "Mock action coming soon" in app
     assert "Direct messages coming soon" in app
     assert "!player.is_you" in app
@@ -295,7 +296,7 @@ def test_admin_player_rows_are_name_and_actions_without_stack_transfer_to_self()
     assert ".admin-player-stack" in css
     assert "display: none !important" in css
     assert ".admin-player-action-btn" in css
-    assert ".admin-manage-btn" in css
+    assert ".admin-kick-btn" in css
 
 
 def test_admin_can_kick_specific_non_self_players_between_hands():
@@ -311,8 +312,26 @@ def test_admin_can_kick_specific_non_self_players_between_hands():
 
     assert "data-admin-kick-id" in app
     assert 'action("kick_player", { target_player_id: targetId })' in app
-    assert "canKick = viewerIsAdmin && !isCurrentAdmin && !player.is_you" in app
+    assert "canKickTarget = viewerIsAdmin && !isCurrentAdmin && !player.is_you" in app
     assert "Kick" in app
 
     assert "Admin kick player action" in css
     assert ".admin-kick-btn" in css
+
+
+def test_admin_player_list_is_kick_only_no_manage_button():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert "safeKickPhase" in app
+    assert "Kick after hand" in app
+    assert "data-admin-kick-id" in app
+    assert 'action("kick_player", { target_player_id: targetId })' in app
+    assert "removeBotBtn" not in app
+    assert 'action("remove_bot")' not in app
+    assert "data-admin-transfer-id" not in app
+    assert "Make Admin" not in app
+    assert "Manage" not in app
+
+    assert "Kick-only admin player actions" in css
+    assert ".admin-kick-btn.disabled" in css

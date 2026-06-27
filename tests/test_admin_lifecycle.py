@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from types import SimpleNamespace
 
 from poker.game import PokerServer
 from poker.models import Room
@@ -25,6 +26,14 @@ def error_messages(ws: DummyWs) -> list[str]:
         message["payload"]["message"]
         for message in ws.sent
         if message.get("event") == "error"
+    ]
+
+
+def events(ws: DummyWs, event_name: str) -> list[dict]:
+    return [
+        message
+        for message in ws.sent
+        if message.get("event") == event_name
     ]
 
 
@@ -127,3 +136,62 @@ def test_bots_never_receive_admin_when_creator_leaves():
 
     assert room.creator_token == guest.token
     assert room.creator_token != bot.token
+
+
+def test_admin_kicks_specific_human_between_hands_and_notifies_target():
+    server, room, creator, guest, creator_ws, guest_ws = make_room_with_two_humans()
+    room.phase = "lobby"
+
+    run(server.player_action(room, creator, "kick_player", {
+        "target_player_id": guest.player_id,
+    }))
+
+    assert guest.player_id not in room.players
+    assert events(guest_ws, "left")
+    assert events(creator_ws, "state")
+
+
+def test_admin_kicks_specific_bot_without_removing_other_bots():
+    server, room, creator, _guest, creator_ws, _guest_ws = make_room_with_two_humans()
+    room.phase = "showdown"
+
+    bot_one = server.add_new_player(room, None, "Bot One")
+    bot_two = server.add_new_player(room, None, "Bot Two")
+    server.bots[bot_one.player_id] = SimpleNamespace(difficulty="hard")
+    server.bots[bot_two.player_id] = SimpleNamespace(difficulty="easy")
+
+    run(server.player_action(room, creator, "kick_player", {
+        "target_player_id": bot_one.player_id,
+    }))
+
+    assert bot_one.player_id not in room.players
+    assert bot_one.player_id not in server.bots
+    assert bot_two.player_id in room.players
+    assert bot_two.player_id in server.bots
+    assert events(creator_ws, "state")
+
+
+def test_admin_kick_rejects_self_current_admin_and_active_hand():
+    server, room, creator, guest, creator_ws, _guest_ws = make_room_with_two_humans()
+
+    room.phase = "lobby"
+    run(server.player_action(room, creator, "kick_player", {
+        "target_player_id": creator.player_id,
+    }))
+    assert "You cannot kick yourself." in error_messages(creator_ws)
+    assert creator.player_id in room.players
+
+    duplicate_admin = server.add_new_player(room, None, "Duplicate Admin")
+    duplicate_admin.token = room.creator_token
+    run(server.player_action(room, creator, "kick_player", {
+        "target_player_id": duplicate_admin.player_id,
+    }))
+    assert "The current table admin cannot be kicked." in error_messages(creator_ws)
+    assert duplicate_admin.player_id in room.players
+
+    room.phase = "preflop"
+    run(server.player_action(room, creator, "kick_player", {
+        "target_player_id": guest.player_id,
+    }))
+    assert "Kick players between hands only." in error_messages(creator_ws)
+    assert guest.player_id in room.players

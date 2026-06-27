@@ -12,7 +12,7 @@ const els = {};
 "foldBtn","checkCallBtn","betHalfPotBtn","betPotBtn","betAllInBtn","customBetInput",
 "customBetBtn","resetBtn","adminActions","copyRoomBtn","leaveBtn","chatToggle","chatClose",
 "chatPanel","chatMessages","chatInput","chatBtn","actionBar","turnInfo",
-"pauseBtn","sitOutBtn","spectateBtn","addBotBtn","removeBotBtn","botDifficultySelect",
+"pauseBtn","sitOutBtn","spectateBtn","addBotBtn","botDifficultySelect",
 "hintsToggle","handHistoryToggle","handHistoryPanel","handHistoryClose","handHistoryBody","handHistoryCount","bbToggleBtn","potChips","autoDealToggle","autoDealCountdown","outsBox",
 "actionLogHandNum","actionLogBody","actionLogPanel","actionLogToggle","adminPlayerList","postHandPanel","showdownTray",
 "postHandKicker","postHandTitle","postHandPot","postHandBody","postHandDealBtn"
@@ -792,6 +792,7 @@ function renderAdminPlayerList(state) {
 
   const viewerIsAdmin = Boolean(state && state.viewer && state.viewer.is_admin);
   const players = Array.isArray(state && state.players) ? state.players : [];
+  const safeKickPhase = Boolean(state && ["lobby", "showdown"].includes(state.phase));
 
   if (!viewerIsAdmin) {
     els.adminPlayerList.innerHTML = "";
@@ -819,17 +820,12 @@ function renderAdminPlayerList(state) {
       const mockHtml = `<button type="button" class="admin-player-action-btn muted" disabled title="Mock action coming soon">Mock</button>`;
       const dmHtml = `<button type="button" class="admin-player-action-btn muted" disabled title="Direct messages coming soon">DM</button>`;
 
-      const canKick = viewerIsAdmin && !isCurrentAdmin && !player.is_you && Boolean(player.id || player.player_id);
-      const kickHtml = canKick
-        ? `<button type="button" class="admin-player-action-btn admin-kick-btn" data-admin-kick-id="${id}" title="Remove this player between hands">Kick</button>`
-        : "";
-
-      const canManage = viewerIsAdmin && !isCurrentAdmin && !player.is_you && !player.is_bot && Boolean(player.id || player.player_id);
-      const manageHtml = canManage
-        ? `<button type="button" class="admin-player-action-btn admin-manage-btn" data-admin-transfer-id="${id}" title="Make this human player table admin">Manage</button>`
-        : viewerIsAdmin
-          ? `<span class="admin-manage-placeholder">${isCurrentAdmin ? "Leader" : player.is_bot ? "Bot" : ""}</span>`
-          : "";
+      const canKickTarget = viewerIsAdmin && !isCurrentAdmin && !player.is_you && Boolean(player.id || player.player_id);
+      const kickHtml = canKickTarget && safeKickPhase
+        ? `<button type="button" class="admin-player-action-btn admin-kick-btn" data-admin-kick-id="${id}" title="Remove this player from the table">Kick</button>`
+        : canKickTarget
+          ? `<button type="button" class="admin-player-action-btn admin-kick-btn disabled" disabled title="Kick is available after the current hand">Kick after hand</button>`
+          : `<span class="admin-manage-placeholder">${isCurrentAdmin ? "Leader" : ""}</span>`;
 
       return `
         <div class="admin-player-row${isCurrentAdmin ? " is-admin" : ""}${player.is_bot ? " is-bot" : ""}">
@@ -842,21 +838,11 @@ function renderAdminPlayerList(state) {
             ${mockHtml}
             ${dmHtml}
             ${kickHtml}
-            ${manageHtml}
           </div>
         </div>
       `;
     })
     .join("");
-
-  els.adminPlayerList.querySelectorAll("[data-admin-transfer-id]").forEach(btn => {
-    btn.onclick = event => {
-      event.preventDefault();
-      event.stopPropagation();
-      const targetId = btn.dataset.adminTransferId || "";
-      if (targetId) action("transfer_admin", { target_player_id: targetId });
-    };
-  });
 
   els.adminPlayerList.querySelectorAll("[data-admin-kick-id]").forEach(btn => {
     btn.onclick = event => {
@@ -1907,7 +1893,6 @@ els.addBotBtn.onclick = () => {
   const diff = els.botDifficultySelect ? els.botDifficultySelect.value : "hard";
   action("add_bot", { difficulty: diff });
 };
-els.removeBotBtn.onclick = () => action("remove_bot");
 els.sitOutBtn.onclick = () => action("sit_out");
 els.spectateBtn.onclick = () => action("spectate");
 els.copyRoomBtn.onclick = async () => { try { await navigator.clipboard.writeText(roomId); } catch {} };

@@ -6001,7 +6001,7 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
 .admin-dock-bot-row {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 7px;
 }
 
@@ -6218,4 +6218,18 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
 .admin-kick-btn:hover {
   background: rgba(180, 45, 35, 0.24);
   border-color: rgba(255, 110, 90, 0.58);
+}
+
+
+/* ??? Kick-only admin player actions ??? */
+.admin-manage-btn,
+.admin-transfer-btn {
+  display: none !important;
+}
+
+.admin-kick-btn.disabled,
+.admin-kick-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.35);
 }
