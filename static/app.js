@@ -395,8 +395,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const settHeader = document.querySelector(".room-settings-header");
   const settBody = document.querySelector(".room-settings-body");
   if (settHeader && settBody) {
-    settHeader.addEventListener("click", () => {
+    const syncSettingsExpanded = () => {
+      const expanded = !settBody.classList.contains("collapsed");
+      settHeader.setAttribute("aria-expanded", expanded ? "true" : "false");
+    };
+    const toggleSettingsExpanded = () => {
       settBody.classList.toggle("collapsed");
+      syncSettingsExpanded();
+    };
+
+    syncSettingsExpanded();
+    settHeader.addEventListener("click", toggleSettingsExpanded);
+    settHeader.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        toggleSettingsExpanded();
+      }
     });
   }
 });

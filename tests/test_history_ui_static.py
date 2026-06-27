@@ -549,3 +549,25 @@ def test_create_lobby_exposes_timer_timebank_settings():
     assert "action_time_seconds: actionTime" in app
     assert "starting_timebank_seconds: startingTimebank" in app
     assert "timebank_gain_per_hand: timebankGain" in app
+
+def test_room_settings_chevron_tracks_expanded_state():
+    app = read_static("app.js")
+
+    assert "const syncSettingsExpanded = () =>" in app
+    assert 'settHeader.setAttribute("aria-expanded", expanded ? "true" : "false")' in app
+    assert "const toggleSettingsExpanded = () =>" in app
+    assert 'event.key === "Enter" || event.key === " "' in app
+    assert "toggleSettingsExpanded();" in app
+
+
+def test_table_center_cluster_polish_css_exists():
+    css = read_static("styles.css")
+
+    assert "Table center cluster polish v1" in css
+    assert ".community-cards:empty" in css
+    assert ".community-cards:not(:empty)" in css
+    assert ".seat-bet-marker" in css
+    assert ".seat-bet-label" in css
+    assert "calc(100vw - 560px)" in css
+    assert "border-radius: 48% / 38%" in css
+    assert "transform: scale(0.82)" in css
