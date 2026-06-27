@@ -7293,3 +7293,111 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
     font-size: 8px !important;
   }
 }
+
+/* Compact post-hand winner row stability */
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  max-height: calc(2 * 1.12em);
+  overflow: hidden;
+  font-size: clamp(15px, 1.45vw, 19px) !important;
+  line-height: 1.12 !important;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-header {
+  align-items: start;
+  gap: 8px !important;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child {
+  grid-template-columns: minmax(104px, 0.78fr) minmax(134px, auto) minmax(0, 1fr) minmax(46px, auto) !important;
+  min-height: 50px !important;
+  height: auto !important;
+  align-items: center !important;
+  overflow: hidden !important;
+  padding: 5px 8px !important;
+  gap: 6px !important;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-player,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-player,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-detail,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-detail {
+  min-width: 0;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  justify-content: center;
+  align-items: center;
+  gap: 2px !important;
+  min-width: 0;
+  max-width: 146px;
+  overflow: hidden;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards .playing-card,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards .playing-card {
+  width: 26px !important;
+  height: 38px !important;
+  min-width: 26px !important;
+  max-width: 26px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  font-size: 9px !important;
+  flex: 0 0 26px !important;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-detail,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-detail {
+  grid-column: auto !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  font-size: 10px !important;
+}
+
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-amount,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-amount {
+  justify-self: end;
+  min-width: 42px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(46, 125, 50, 0.24);
+}
+
+@media (max-height: 720px), (max-width: 600px) {
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-title {
+    font-size: clamp(14px, 4vw, 16px) !important;
+  }
+
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner,
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child {
+    grid-template-columns: minmax(78px, 0.9fr) minmax(112px, auto) minmax(0, 1fr) minmax(38px, auto) !important;
+    min-height: 44px !important;
+    padding: 4px 6px !important;
+    gap: 4px !important;
+  }
+
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards,
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards {
+    max-width: 116px;
+    gap: 1px !important;
+  }
+
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards .playing-card,
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards .playing-card {
+    width: 22px !important;
+    height: 31px !important;
+    min-width: 22px !important;
+    max-width: 22px !important;
+    min-height: 31px !important;
+    max-height: 31px !important;
+    font-size: 8px !important;
+    flex-basis: 22px !important;
+  }
+}
