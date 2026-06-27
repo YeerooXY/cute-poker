@@ -1184,17 +1184,17 @@ class PokerServer:
         # Collect antes (if enabled)
         if room.ante > 0:
             if room.ante_mode == "bba":
-                # Big Blind Ante: only the dealer posts 1 BB
-                dealer_player = self.player_by_seat(room, room.dealer_seat)
-                if dealer_player and dealer_player.stack > 0:
-                    bba_amount = min(room.big_blind, dealer_player.stack)
-                    self.commit_chips(room, dealer_player, bba_amount)
+                # Big Blind Ante: the big blind posts one big blind as the table ante.
+                ante_player = bb
+                if ante_player and ante_player.stack > 0:
+                    bba_amount = min(room.big_blind, ante_player.stack)
+                    self.commit_chips(room, ante_player, bba_amount)
                     room.action_log.append({
-                        "player": dealer_player.name,
+                        "player": ante_player.name,
                         "action": "big_blind_ante",
                         "amount": bba_amount,
                         "phase": "preflop",
-                        "is_all_in": dealer_player.all_in,
+                        "is_all_in": ante_player.all_in,
                     })
             else:
                 # Classic ante: every player posts
