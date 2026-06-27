@@ -451,7 +451,7 @@ def test_action_timer_frontend_uses_backend_state_only():
     assert "state.action_timer_using_timebank" in app
     assert "state.action_timer_remaining_seconds" not in app.split("function actionTimerText", 1)[1].split("function numberOrZero", 1)[0]
     assert "viewer.timebank_seconds" in app
-    assert "thinking ?" in app
+    assert "thinking -" in app
     assert "action_timer_regular_remaining_seconds" in app
     assert "action_timer_timebank_remaining_seconds" in app
     assert "action_timer_using_timebank" in app
@@ -474,7 +474,7 @@ def test_timer_timebank_ui_is_separated_and_seat_visible():
     assert "Action ${regular}s" in app
     assert "Timebank ${actingBank}s" in app
     assert "Bank ${viewerBank}s" in app
-    assert "YOUR ACTION ? ${clockText}" in app
+    assert "YOUR ACTION - ${clockText}" in app
     assert "const bankHtml =" in app
     assert "seat-timebank" in app
     assert "Timer/timebank clarity pass" in css
@@ -571,3 +571,29 @@ def test_table_center_cluster_polish_css_exists():
     assert "calc(100vw - 560px)" in css
     assert "border-radius: 48% / 38%" in css
     assert "transform: scale(0.82)" in css
+
+def test_acting_player_outline_is_robust_and_visible():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert "function isPlayerCurrentlyActing(player, state)" in app
+    assert "player.is_action" in app
+    assert "player.is_turn" in app
+    assert "state.action_seat" in app
+    assert "state.action_timer_player_id" in app
+    assert "const isActing = isPlayerCurrentlyActing(p, state);" in app
+    assert 'if (isActing) cls += " active-turn";' in app
+
+    assert "Acting player outline clarity v1" in css
+    assert ".player-seat.active-turn::after" in css
+    assert "content: attr(data-action-label)" in css
+    assert "outline: 3px solid" in css
+    assert ".player-seat.is-you.active-turn" in css
+
+def test_acting_player_label_distinguishes_hero_from_others():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert 'seat.dataset.actionLabel = p.is_you ? "YOUR ACTION" : "ACTION";' in app
+    assert "content: attr(data-action-label)" in css
+    assert '.player-seat.active-turn[data-action-label="YOUR ACTION"]::after' in css

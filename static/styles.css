@@ -6914,3 +6914,60 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
     display: none;
   }
 }
+
+/* ??? Acting player outline clarity v1 ??? */
+.player-seat.active-turn {
+  opacity: 1 !important;
+  border-color: rgba(245, 212, 66, 0.95) !important;
+  outline: 3px solid rgba(245, 212, 66, 0.9);
+  outline-offset: 4px;
+  box-shadow:
+    0 0 0 1px rgba(245, 212, 66, 0.32),
+    0 0 24px rgba(245, 212, 66, 0.46),
+    inset 0 0 18px rgba(245, 212, 66, 0.12) !important;
+}
+
+.player-seat.active-turn::after {
+  content: attr(data-action-label);
+  position: absolute;
+  left: 50%;
+  top: -18px;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #1a1a1a;
+  background: var(--gold-light);
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.7px;
+  line-height: 1.2;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.38);
+  pointer-events: none;
+}
+
+.player-seat.is-you.active-turn {
+  border-color: rgba(245, 212, 66, 0.98) !important;
+}
+
+.seat-bet-marker.active-turn {
+  outline: 2px solid rgba(245, 212, 66, 0.88);
+  outline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+  .player-seat.active-turn {
+    outline-width: 2px;
+    outline-offset: 3px;
+  }
+
+  .player-seat.active-turn::after {
+    top: -16px;
+    font-size: 8px;
+    padding: 2px 7px;
+  }
+}
+
+.player-seat.active-turn[data-action-label="YOUR ACTION"]::after {
+  padding-inline: 10px;
+  background: linear-gradient(90deg, var(--gold-light), #fff3a3);
+}

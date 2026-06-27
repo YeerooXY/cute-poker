@@ -931,7 +931,7 @@ class PokerServer:
             return None
         if player.folded or player.all_in or player.stack <= 0:
             return None
-        if not player.cards or player.sitting_out or player.is_spectator:
+        if not player.cards or player.is_spectator:
             return None
         return player
 
@@ -1380,9 +1380,9 @@ class PokerServer:
                 await self.broadcast(room)
             return
 
-        if player.sitting_out:
-            print(f"  -> REJECTED: sitting-out player cannot act ({player.name})")
-            await self.send(player.ws, "error", {"message": "Sitting-out players cannot act."})
+        if player.sitting_out and not player.cards:
+            print(f"  -> REJECTED: sitting-out player cannot act without live cards ({player.name})")
+            await self.send(player.ws, "error", {"message": "Sitting-out players cannot act until they sit in."})
             if room.action_seat == player.seat:
                 room.action_seat = self.next_action_seat_after(room, room.action_seat)
                 await self.broadcast(room)
@@ -2276,7 +2276,6 @@ class PokerServer:
                 and not p.folded
                 and not p.all_in
                 and p.stack > 0
-                and not p.sitting_out
                 and not p.is_spectator
             ):
                 return p.seat

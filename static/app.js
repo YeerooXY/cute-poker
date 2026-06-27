@@ -904,11 +904,11 @@ function actionTimerText(state, isMyTurn) {
     : `Action ${regular}s`;
 
   if (isMyTurn) {
-    const callText = viewer.to_call > 0 ? ` ? Call ${viewer.to_call}` : "";
-    const bankText = usingTimebank ? "" : ` ? Bank ${viewerBank}s`;
+    const callText = viewer.to_call > 0 ? ` - Call ${viewer.to_call}` : "";
+    const bankText = usingTimebank ? "" : ` - Bank ${viewerBank}s`;
     return active
-      ? `YOUR ACTION ? ${clockText}${callText}${bankText}`
-      : `YOUR ACTION${callText} ? Bank ${viewerBank}s`;
+      ? `YOUR ACTION - ${clockText}${callText}${bankText}`
+      : `YOUR ACTION${callText} - Bank ${viewerBank}s`;
   }
 
   if (active) {
@@ -916,8 +916,8 @@ function actionTimerText(state, isMyTurn) {
     const acting = players.find(p => String(p.id || p.player_id || "") === String(state.action_timer_player_id || ""));
     const name = acting && acting.name ? acting.name : "Player";
     const actingSeatBank = Math.max(0, Math.floor(Number(acting && acting.timebank_seconds) || actingBank || 0));
-    const bankText = usingTimebank || (acting && acting.is_bot) ? "" : ` ? Bank ${actingSeatBank}s`;
-    return `${name} thinking ? ${clockText}${bankText}`;
+    const bankText = usingTimebank || (acting && acting.is_bot) ? "" : ` - Bank ${actingSeatBank}s`;
+    return `${name} thinking - ${clockText}${bankText}`;
   }
 
   return viewerBank > 0 ? `Bank ${viewerBank}s` : "";
@@ -1513,6 +1513,34 @@ function renderYourHand(viewer) {
 }
 
 
+
+function isPlayerCurrentlyActing(player, state) {
+  if (!player || !state) return false;
+
+  // Backend sends this for every visible player, including bots.
+  if (player.is_action) return true;
+
+  // Legacy/fallback fields.
+  if (player.is_turn) return true;
+
+  const actionSeat = Number(state.action_seat);
+  const playerSeat = Number(player.seat);
+  if (Number.isInteger(actionSeat) && Number.isInteger(playerSeat) && actionSeat === playerSeat) {
+    return true;
+  }
+
+  const timerPlayerId = String(state.action_timer_player_id || "");
+  if (!timerPlayerId) return false;
+
+  const playerIds = [
+    player.id,
+    player.player_id,
+    player.token,
+  ].filter(Boolean).map(value => String(value));
+
+  return playerIds.includes(timerPlayerId);
+}
+
 function renderSeatBetMarker(player, visualSeat) {
   const committed = Math.max(0, numberOrZero(player && player.committed));
   if (committed <= 0) return null;
@@ -1522,7 +1550,7 @@ function renderSeatBetMarker(player, visualSeat) {
 
   let cls = "seat-bet-marker";
   if (player.is_you) cls += " is-you";
-  if (player.is_turn) cls += " active-turn";
+  if (isPlayerCurrentlyActing(player, lastState)) cls += " active-turn";
 
   marker.className = cls;
   marker.style.top = pos.top;
@@ -1552,12 +1580,16 @@ function renderPlayers(players, previousState = null, state = null) {
   seatedPlayers.forEach(({ player: p, visualSeat }) => {
     const pos = SEAT_POSITIONS[visualSeat % SEAT_POSITIONS.length];
     const seat = document.createElement("div");
+    const isActing = isPlayerCurrentlyActing(p, state);
     let cls = "player-seat";
-    if (p.is_turn) cls += " active-turn";
+    if (isActing) cls += " active-turn";
     if (p.folded) cls += " folded";
     if (p.is_you) cls += " is-you";
     if (winnerNames.has(p.name)) cls += " showdown-winner-glow";
     seat.className = cls;
+    if (isActing) {
+      seat.dataset.actionLabel = p.is_you ? "YOUR ACTION" : "ACTION";
+    }
     seat.style.top = pos.top;
     seat.style.left = pos.left;
     seat.style.transform = "translate(-50%, -50%)";

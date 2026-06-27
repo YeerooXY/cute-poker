@@ -474,3 +474,71 @@ def test_sit_out_toggle_is_checked_when_next_hand_starts():
     assert creator.cards == []
     assert guest.cards
     assert third.cards
+
+def make_room_with_three_humans():
+    server, room, creator, guest, creator_ws, guest_ws = make_room_with_two_humans()
+    third_ws = DummyWs()
+    third = server.add_new_player(room, third_ws, "Third")
+    return server, room, creator, guest, third, creator_ws, guest_ws, third_ws
+
+
+def test_live_player_can_fold_after_clicking_sit_out_mid_hand():
+    server, room, creator, guest, third, creator_ws, _guest_ws, _third_ws = make_room_with_three_humans()
+
+    room.phase = "preflop"
+    room.current_bet = 10
+    room.min_raise = room.big_blind
+    room.action_seat = creator.seat
+
+    creator.cards = ["AS", "AH"]
+    guest.cards = ["KS", "KH"]
+    third.cards = ["QS", "QH"]
+
+    creator.stack = 990
+    creator.committed = 10
+    creator.acted = False
+    guest.stack = 1000
+    guest.committed = 0
+    guest.acted = False
+    third.stack = 1000
+    third.committed = 0
+    third.acted = False
+
+    run(server.player_action(room, creator, "sit_out", {}))
+    assert creator.sitting_out is True
+    assert creator.cards
+
+    run(server.player_action(room, creator, "fold", {}))
+
+    assert "Sitting-out players cannot act" not in " ".join(error_messages(creator_ws))
+    assert creator.folded is True
+    assert creator.acted is True
+    assert room.action_seat != creator.seat
+
+
+def test_next_action_does_not_skip_live_sitting_out_player():
+    server, room, creator, guest, third, _creator_ws, _guest_ws, _third_ws = make_room_with_three_humans()
+
+    room.phase = "preflop"
+    room.current_bet = 10
+    room.min_raise = room.big_blind
+
+    creator.cards = ["AS", "AH"]
+    guest.cards = ["KS", "KH"]
+    third.cards = ["QS", "QH"]
+
+    creator.folded = True
+    guest.folded = False
+    third.folded = False
+
+    guest.sitting_out = True
+    guest.stack = 1000
+    guest.committed = 0
+    guest.acted = False
+
+    third.stack = 990
+    third.committed = 10
+    third.acted = True
+
+    # From the previous actor, the live sitting-out-next-hand player must still receive action.
+    assert server.next_action_seat_after(room, third.seat) == guest.seat
