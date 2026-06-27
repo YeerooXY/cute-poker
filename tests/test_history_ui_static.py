@@ -446,10 +446,15 @@ def test_action_timer_frontend_uses_backend_state_only():
     assert "function actionTimerText(state, isMyTurn)" in app
     assert "state.action_timer_active" in app
     assert "state.action_timer_player_id" in app
-    assert "state.action_timer_remaining_seconds" in app
+    assert "state.action_timer_regular_remaining_seconds" in app
+    assert "state.action_timer_timebank_remaining_seconds" in app
+    assert "state.action_timer_using_timebank" in app
+    assert "state.action_timer_remaining_seconds" not in app.split("function actionTimerText", 1)[1].split("function numberOrZero", 1)[0]
     assert "viewer.timebank_seconds" in app
-    assert "thinking:" in app
-    assert "Bank ${timebank}s" in app
+    assert "thinking ?" in app
+    assert "action_timer_regular_remaining_seconds" in app
+    assert "action_timer_timebank_remaining_seconds" in app
+    assert "action_timer_using_timebank" in app
     assert "setTimeout" not in app.split("function actionTimerText", 1)[1].split("function numberOrZero", 1)[0]
     assert 'action("fold")' not in app.split("function actionTimerText", 1)[1].split("function numberOrZero", 1)[0]
     assert 'action("check_call")' not in app.split("function actionTimerText", 1)[1].split("function numberOrZero", 1)[0]
@@ -460,3 +465,26 @@ def test_timeout_action_log_labels_render_safely():
 
     assert 'case "timeout_check": return `${player} times out and checks`;' in app
     assert 'case "timeout_fold":  return `${player} times out and folds`;' in app
+
+
+def test_timer_timebank_ui_is_separated_and_seat_visible():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert "Action ${regular}s" in app
+    assert "Timebank ${actingBank}s" in app
+    assert "Bank ${viewerBank}s" in app
+    assert "YOUR ACTION ? ${clockText}" in app
+    assert "const bankHtml =" in app
+    assert "seat-timebank" in app
+    assert "Timer/timebank clarity pass" in css
+    assert ".seat-timebank" in css
+
+
+def test_hand_history_scrollbar_is_styled():
+    css = read_static("styles.css")
+
+    assert "Hand history scrollbar polish" in css
+    assert ".hand-history-body::-webkit-scrollbar" in css
+    assert ".hand-history-body::-webkit-scrollbar-thumb" in css
+    assert "scrollbar-color" in css

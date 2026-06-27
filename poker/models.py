@@ -71,7 +71,7 @@ class Room:
     allow_folded_reveals: bool = True  # If True, folded players may reveal after showdown
 
     auto_deal_enabled: bool = True
-    auto_deal_delay_seconds: int = 10
+    auto_deal_delay_seconds: int = 5
     auto_deal_started_at: float = 0.0
     auto_deal_hand_number: int = 0
     action_time_seconds: int = 10

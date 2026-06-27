@@ -40,7 +40,7 @@ STARTING_STACK = 1000
 MAX_CHAT_MESSAGES = 50
 MAX_CHAT_TEXT_LEN = 240
 HAND_HISTORY_LIMIT = 20
-AUTO_DEAL_DEFAULT_DELAY_SECONDS = 10
+AUTO_DEAL_DEFAULT_DELAY_SECONDS = 5
 ACTION_TIMER_DEFAULT_SECONDS = 10
 STARTING_TIMEBANK_DEFAULT_SECONDS = 100
 TIMEBANK_GAIN_DEFAULT_SECONDS = 1
@@ -952,6 +952,48 @@ class PokerServer:
         elapsed = time_module.time() - float(room.action_timer_started_at)
         remaining = max(0.0, total - elapsed)
         return int(remaining + 0.999)
+
+    def _action_timer_elapsed_seconds(self, room: Room) -> float:
+        if not getattr(room, "action_timer_started_at", 0.0):
+            return 0.0
+        return max(0.0, time_module.time() - float(room.action_timer_started_at))
+
+    def action_timer_regular_remaining_seconds(self, room: Room) -> int:
+        player = self._action_timer_player(room)
+        if not player or player.player_id != getattr(room, "action_timer_player_id", ""):
+            return 0
+
+        action_seconds = max(1, int(getattr(room, "action_time_seconds", ACTION_TIMER_DEFAULT_SECONDS)))
+        remaining = max(0.0, action_seconds - self._action_timer_elapsed_seconds(room))
+        return int(remaining + 0.999)
+
+    def action_timer_using_timebank(self, room: Room) -> bool:
+        player = self._action_timer_player(room)
+        if not player or player.player_id != getattr(room, "action_timer_player_id", ""):
+            return False
+
+        action_seconds = max(1, int(getattr(room, "action_time_seconds", ACTION_TIMER_DEFAULT_SECONDS)))
+        return self._action_timer_elapsed_seconds(room) >= action_seconds
+
+    def displayed_timebank_seconds(self, room: Room, player: Player) -> int:
+        stored = max(0, int(getattr(player, "timebank_seconds", 0)))
+
+        if player.player_id != getattr(room, "action_timer_player_id", ""):
+            return stored
+        if not getattr(room, "action_timer_started_at", 0.0):
+            return stored
+        if player != self._action_timer_player(room):
+            return stored
+
+        action_seconds = max(1, int(getattr(room, "action_time_seconds", ACTION_TIMER_DEFAULT_SECONDS)))
+        overage = max(0, int((self._action_timer_elapsed_seconds(room) - action_seconds) + 0.999))
+        return max(0, stored - overage)
+
+    def action_timer_timebank_remaining_seconds(self, room: Room) -> int:
+        player = self._action_timer_player(room)
+        if not player or player.player_id != getattr(room, "action_timer_player_id", ""):
+            return 0
+        return self.displayed_timebank_seconds(room, player)
 
     def _consume_action_timebank_for_player(self, room: Room, player: Player) -> None:
         if player.player_id != getattr(room, "action_timer_player_id", ""):
@@ -2665,7 +2707,7 @@ class PokerServer:
                 "is_sb": p.seat == room.sb_seat,
                 "is_bb": p.seat == room.bb_seat,
                 "is_action": p.seat == room.action_seat,
-                "timebank_seconds": max(0, int(getattr(p, "timebank_seconds", 0))),
+                "timebank_seconds": self.displayed_timebank_seconds(room, p),
                 "cards": display_cards(cards),
                 "hand_name": p.last_hand_name if room.phase == "showdown" and not p.folded else "",
                 "hand_detail": p.last_hand_detail if room.phase == "showdown" and not p.folded else "",
@@ -2731,7 +2773,7 @@ class PokerServer:
             is_viewer_turn = room.action_seat == viewer.seat
             viewer_committed = viewer.committed
             viewer_stack = viewer.stack
-            viewer_timebank = max(0, int(getattr(viewer, "timebank_seconds", 0)))
+            viewer_timebank = self.displayed_timebank_seconds(room, viewer)
             is_admin = viewer.token == room.creator_token
 
             # Calculate odds for the viewer (only during active hand)
@@ -2814,6 +2856,9 @@ class PokerServer:
             "action_timer_active": action_timer_active,
             "action_timer_player_id": action_timer_player_id if action_timer_active else "",
             "action_timer_remaining_seconds": self.action_timer_remaining_seconds(room) if action_timer_active else 0,
+            "action_timer_regular_remaining_seconds": self.action_timer_regular_remaining_seconds(room) if action_timer_active else 0,
+            "action_timer_timebank_remaining_seconds": self.action_timer_timebank_remaining_seconds(room) if action_timer_active else 0,
+            "action_timer_using_timebank": self.action_timer_using_timebank(room) if action_timer_active else False,
             "action_timer_total_seconds": action_timer_total_seconds,
             "action_time_seconds": getattr(room, "action_time_seconds", ACTION_TIMER_DEFAULT_SECONDS),
             "community": display_cards(room.community),

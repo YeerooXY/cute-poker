@@ -6614,3 +6614,57 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
   position: relative;
   z-index: 5;
 }
+
+
+/* ??? Timer/timebank clarity pass ??? */
+.seat-timebank {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-top: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(232,185,35,0.22);
+  background: rgba(0,0,0,0.24);
+  color: var(--text-dim);
+  font-size: 9px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.player-seat.active-turn .seat-timebank {
+  color: var(--gold-light);
+  border-color: rgba(232,185,35,0.42);
+  background: rgba(232,185,35,0.12);
+}
+
+.turn-indicator.your-turn,
+.turn-indicator.thinking {
+  letter-spacing: 0.2px;
+}
+
+
+/* ??? Hand history scrollbar polish ??? */
+.hand-history-body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(232,185,35,0.72) rgba(0,0,0,0.26);
+}
+
+.hand-history-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.hand-history-body::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.28);
+  border-radius: 999px;
+}
+
+.hand-history-body::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(245,212,66,0.88), rgba(46,125,50,0.72));
+  border-radius: 999px;
+  border: 2px solid rgba(0,0,0,0.32);
+}
+
+.hand-history-body::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(245,212,66,1), rgba(76,175,80,0.92));
+}

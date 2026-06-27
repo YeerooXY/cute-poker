@@ -865,26 +865,38 @@ function initAutoDealToggle() {
 
 function actionTimerText(state, isMyTurn) {
   const viewer = state && state.viewer ? state.viewer : {};
-  const timebank = Math.max(0, Math.floor(Number(viewer.timebank_seconds) || 0));
   const active = Boolean(state && state.action_timer_active);
-  const remaining = Math.max(0, Math.ceil(Number(state && state.action_timer_remaining_seconds) || 0));
+
+  const viewerBank = Math.max(0, Math.floor(Number(viewer.timebank_seconds) || 0));
+  const regular = Math.max(0, Math.ceil(Number(state && state.action_timer_regular_remaining_seconds) || 0));
+  const actingBank = Math.max(0, Math.floor(Number(state && state.action_timer_timebank_remaining_seconds) || 0));
+  const usingTimebank = Boolean(state && state.action_timer_using_timebank);
+
+  const clockText = usingTimebank
+    ? `Timebank ${actingBank}s`
+    : `Action ${regular}s`;
 
   if (isMyTurn) {
-    const timer = active ? ` · ${remaining}s` : "";
-    return viewer.to_call > 0
-      ? `YOUR ACTION${timer} · Call ${viewer.to_call} · Bank ${timebank}s`
-      : `YOUR ACTION${timer} · Bank ${timebank}s`;
+    const callText = viewer.to_call > 0 ? ` ? Call ${viewer.to_call}` : "";
+    const bankText = usingTimebank ? "" : ` ? Bank ${viewerBank}s`;
+    return active
+      ? `YOUR ACTION ? ${clockText}${callText}${bankText}`
+      : `YOUR ACTION${callText} ? Bank ${viewerBank}s`;
   }
 
   if (active) {
     const players = Array.isArray(state.players) ? state.players : [];
     const acting = players.find(p => String(p.id || p.player_id || "") === String(state.action_timer_player_id || ""));
     const name = acting && acting.name ? acting.name : "Player";
-    return `${name} thinking: ${remaining}s`;
+    const actingSeatBank = Math.max(0, Math.floor(Number(acting && acting.timebank_seconds) || actingBank || 0));
+    const bankText = usingTimebank || (acting && acting.is_bot) ? "" : ` ? Bank ${actingSeatBank}s`;
+    return `${name} thinking ? ${clockText}${bankText}`;
   }
 
-  return timebank > 0 ? `Timebank ${timebank}s` : "";
+  return viewerBank > 0 ? `Bank ${viewerBank}s` : "";
 }
+
+
 
 
 function numberOrZero(value) {
@@ -1503,6 +1515,10 @@ function renderPlayers(players, previousState = null, state = null) {
     if (p.sitting_out) badges.push('<span class="seat-badge warn">SIT OUT</span>');
     if (p.is_spectator) badges.push('<span class="seat-badge">👁</span>');
 
+    const bankHtml = !p.is_bot && p.timebank_seconds != null
+      ? `<div class="seat-timebank">Bank ${Math.max(0, Math.floor(Number(p.timebank_seconds) || 0))}s</div>`
+      : "";
+
     // Cards in the table seat, including hero.
     // The separate bottom hand bar can still exist, but the hero seat must
     // also show the player's own hole cards so the bottom seat is readable.
@@ -1523,6 +1539,7 @@ function renderPlayers(players, previousState = null, state = null) {
         <span class="seat-stack">💰${p.stack}</span>
       </div>
       <div class="seat-badges">${badges.join("")}</div>
+      ${bankHtml}
       ${cards}
       ${p.hand_name ? `<div class="seat-meta seat-hand-rank">${esc(p.hand_detail || p.hand_name)}</div>` : ""}
     `;

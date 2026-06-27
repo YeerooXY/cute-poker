@@ -412,3 +412,27 @@ def test_completed_hand_grants_timebank_gain_to_humans_only():
     assert creator.timebank_seconds == 6
     assert guest.timebank_seconds == 6
     assert bot.timebank_seconds == 0
+
+
+def test_auto_deal_default_delay_is_five_seconds():
+    server = PokerServer()
+    ws = DummyWs()
+
+    result = run(server.create_room(ws, {"name": "Creator"}))
+    room = server.rooms[result.room_id]
+
+    assert room.auto_deal_delay_seconds == 5
+
+
+def test_visible_state_separates_regular_action_time_from_timebank():
+    server, room, creator, _guest, _creator_ws, _guest_ws = setup_active_action_room(action_time=10, timebank=100)
+
+    room.action_timer_player_id = creator.player_id
+    room.action_timer_started_at = time.time() - 12.2
+
+    state = server.visible_state(room, creator.token)
+
+    assert state["action_timer_using_timebank"] is True
+    assert state["action_timer_regular_remaining_seconds"] == 0
+    assert 0 < state["action_timer_timebank_remaining_seconds"] < 100
+    assert state["viewer"]["timebank_seconds"] == state["action_timer_timebank_remaining_seconds"]
