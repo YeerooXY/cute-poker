@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <title>Cute Poker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-  <link href="/static/styles.css?v=7" rel="stylesheet">
+  <link href="/static/styles.css?v=8" rel="stylesheet">
 </head>
 <body>
   <!-- Connect screen -->
@@ -126,6 +126,8 @@
         <span id="phaseBadge" class="phase-badge"></span>
         <button id="bbToggleBtn" class="btn btn-tiny btn-dim" title="Toggle Big Blind unit display">BB</button>
         <button id="hintsToggle" class="btn btn-tiny btn-dim">💡</button>
+        <button id="handHistoryToggle" class="btn btn-tiny btn-dim hand-history-toggle" title="Hand history">History <span id="handHistoryCount">0</span></button>
+
         <button id="chatToggle" class="btn btn-tiny btn-dim">💬</button>
       </div>
     </div>
@@ -229,6 +231,17 @@
       </div>
     </div>
 
+    <!-- Hand History panel -->
+    <div id="handHistoryPanel" class="hand-history-panel hidden">
+      <div class="hand-history-header">
+        <span>Hand History</span>
+        <button id="handHistoryClose" class="btn btn-tiny btn-dim">X</button>
+      </div>
+      <div id="handHistoryBody" class="hand-history-body">
+        <div class="hand-history-empty">No completed hands yet.</div>
+      </div>
+    </div>
+
     <!-- Action Log panel -->
     <div id="actionLogPanel" class="action-log-panel">
       <div class="action-log-header">
@@ -241,6 +254,6 @@
     <button id="actionLogToggle" class="action-log-toggle">◀</button>
   </div>
 
-  <script src="/static/app.js?v=7"></script>
+  <script src="/static/app.js?v=8"></script>
 </body>
 </html>

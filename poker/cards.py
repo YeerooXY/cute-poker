@@ -46,11 +46,10 @@ def secure_shuffle(deck: List[str]) -> None:
 
 def display_card(card: str) -> str:
     if card == "BACK":
-        return "🂠"
-    rank = card[0]
-    suit = card[1]
+        return chr(0x1F0A0)
+    rank = card[0].upper()
+    suit = card[1].upper()
     return f"{RANK_DISPLAY[rank]}{SUIT_SYMBOLS[suit]}"
-
 
 def display_cards(cards: list[str]) -> list[str]:
     return [display_card(c) for c in cards]

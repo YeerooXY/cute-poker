@@ -13,7 +13,7 @@ const els = {};
 "customBetBtn","resetBtn","adminActions","copyRoomBtn","leaveBtn","chatToggle","chatClose",
 "chatPanel","chatMessages","chatInput","chatBtn","actionBar","turnInfo",
 "pauseBtn","sitOutBtn","spectateBtn","addBotBtn","removeBotBtn","botDifficultySelect",
-"hintsToggle","bbToggleBtn","potChips","autoDealToggle","autoDealCountdown","outsBox",
+"hintsToggle","handHistoryToggle","handHistoryPanel","handHistoryClose","handHistoryBody","handHistoryCount","bbToggleBtn","potChips","autoDealToggle","autoDealCountdown","outsBox",
 "actionLogHandNum","actionLogBody","actionLogPanel","actionLogToggle","postHandPanel","showdownTray",
 "postHandKicker","postHandTitle","postHandPot","postHandBody","postHandDealBtn"
 ].forEach(id => { els[id] = $(id); });
@@ -1036,6 +1036,7 @@ function syncRefreshAnimationSuppression(state) {
 
 
 function renderState(state) {
+  window.__pokerLastState = state;
   const previousState = lastState;
   lastState = state;
   const showdownDisplay = state.phase === "showdown" || Boolean(state.showdown_mode);
@@ -1169,6 +1170,7 @@ function renderState(state) {
   // ─── Action Log ───
   renderActionLog(state);
   renderPostHandPanel(state);
+  renderHandHistory(state);
   syncDealControls(state);
 
   // ─── Action button labels / enabled state ───
@@ -1306,6 +1308,99 @@ function renderChat(messages) {
 // ═══════════════════════════════════════════════════════════════
 // Event handlers
 // ═══════════════════════════════════════════════════════════════
+function completedHandHistoryFromState(state) {
+  if (!state || typeof state !== "object") return [];
+
+  const rawHistory = Array.isArray(state.hand_history)
+    ? state.hand_history
+    : Array.isArray(state.handHistory)
+      ? state.handHistory
+      : [];
+
+  const history = rawHistory.filter(hand => hand && typeof hand === "object");
+
+  const latest = state.latest_hand_result || state.latestHandResult || null;
+  if (latest && typeof latest === "object" && latest.completed !== false) {
+    const latestNumber = latest.hand_number != null ? String(latest.hand_number) : "";
+    const alreadyIncluded = history.some(hand => {
+      if (!hand || hand.hand_number == null || !latestNumber) return false;
+      return String(hand.hand_number) === latestNumber;
+    });
+
+    if (!alreadyIncluded) {
+      history.push(latest);
+    }
+  }
+
+  return history;
+}
+
+
+function summarizeHistoryWinners(winners) {
+  if (!Array.isArray(winners) || winners.length === 0) {
+    return "No winners recorded";
+  }
+
+  return winners.map(winner => {
+    const name = esc(winner && winner.name ? winner.name : "Player");
+    const amount = Number(winner && winner.amount) || 0;
+    const hand = winner && winner.hand_name ? ` ? ${esc(winner.hand_name)}` : "";
+    return `${name} +${amount}${hand}`;
+  }).join(" / ");
+}
+
+function renderHistoryBoard(cards) {
+  const board = Array.isArray(cards) ? cards : [];
+  if (board.length === 0) {
+    return '<span class="hand-history-no-board">No board</span>';
+  }
+  return board.map(card => makeCardHtml(card, "mini-card")).join("");
+}
+
+function renderHandHistory(state) {
+  const history = completedHandHistoryFromState(state);
+  const count = history.length;
+
+  if (els.handHistoryCount) {
+    els.handHistoryCount.textContent = String(count);
+  }
+
+  if (els.handHistoryToggle) {
+    els.handHistoryToggle.classList.toggle("has-history", count > 0);
+    els.handHistoryToggle.title = count > 0
+      ? `${count} completed hand${count === 1 ? "" : "s"}`
+      : "No completed hands yet";
+  }
+
+  if (!els.handHistoryBody) return;
+
+  if (count === 0) {
+    els.handHistoryBody.innerHTML = '<div class="hand-history-empty">No completed hands yet.</div>';
+    return;
+  }
+
+  els.handHistoryBody.innerHTML = [...history].reverse().map(hand => {
+    const handNumber = hand && hand.hand_number != null ? hand.hand_number : "?";
+    const pot = Number(hand && hand.pot) || 0;
+    const community = hand && Array.isArray(hand.community) ? hand.community : [];
+    const winners = hand && Array.isArray(hand.winners) ? hand.winners : [];
+    const winnerText = summarizeHistoryWinners(winners);
+
+    return `
+      <article class="hand-history-row">
+        <div class="hand-history-row-top">
+          <span class="hand-history-hand-num">Hand #${esc(handNumber)}</span>
+          <span class="hand-history-pot">Pot ${pot}</span>
+        </div>
+        <div class="hand-history-board">${renderHistoryBoard(community)}</div>
+        <div class="hand-history-winners">${winnerText}</div>
+      </article>
+    `;
+  }).join("");
+}
+
+
+
 els.createBtn.onclick = createRoom;
 els.joinBtn.onclick = joinRoom;
 els.reconnectBtn.onclick = reconnectLast;
@@ -1341,6 +1436,18 @@ els.removeBotBtn.onclick = () => action("remove_bot");
 els.sitOutBtn.onclick = () => action("sit_out");
 els.spectateBtn.onclick = () => action("spectate");
 els.copyRoomBtn.onclick = async () => { try { await navigator.clipboard.writeText(roomId); } catch {} };
+
+// Hand history
+if (els.handHistoryToggle) {
+  els.handHistoryToggle.onclick = () => {
+    if (els.handHistoryPanel) els.handHistoryPanel.classList.toggle("hidden");
+  };
+}
+if (els.handHistoryClose) {
+  els.handHistoryClose.onclick = () => {
+    if (els.handHistoryPanel) els.handHistoryPanel.classList.add("hidden");
+  };
+}
 
 // Chat
 els.chatToggle.onclick = () => els.chatPanel.classList.toggle("hidden");
