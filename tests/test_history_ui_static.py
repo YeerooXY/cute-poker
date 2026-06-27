@@ -335,3 +335,23 @@ def test_admin_player_list_is_kick_only_no_manage_button():
 
     assert "Kick-only admin player actions" in css
     assert ".admin-kick-btn.disabled" in css
+
+
+def test_admin_dock_has_fixed_size_player_scroll_region():
+    css = read_static("styles.css")
+
+    assert "Fixed-size admin dock layout" in css
+    assert "height: 430px !important" in css
+    assert "max-height: 430px !important" in css
+    assert ".admin-player-list" in css
+    assert "overflow-y: auto !important" in css
+
+
+def test_admin_dock_rows_stay_compact_inside_fixed_panel():
+    css = read_static("styles.css")
+
+    assert "Compact fixed admin dock rows" in css
+    assert "height: 360px !important" in css
+    assert "grid-auto-rows: max-content !important" in css
+    assert "align-self: start !important" in css
+    assert "height: 21px !important" in css

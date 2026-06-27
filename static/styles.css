@@ -6233,3 +6233,98 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
   cursor: not-allowed;
   filter: grayscale(0.35);
 }
+
+
+/* ??? Fixed-size admin dock layout ??? */
+.admin-side-panel.admin-dock {
+  width: 250px !important;
+  height: 430px !important;
+  max-height: 430px !important;
+  overflow: hidden !important;
+}
+
+.admin-dock-grid {
+  flex: 0 0 auto !important;
+}
+
+.admin-player-list {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  padding-right: 4px !important;
+}
+
+.admin-dock-hint {
+  flex: 0 0 auto !important;
+}
+
+@media (max-width: 760px) {
+  .admin-side-panel.admin-dock {
+    height: 390px !important;
+    max-height: 390px !important;
+  }
+}
+
+
+/* ??? Compact fixed admin dock rows ??? */
+.admin-side-panel.admin-dock {
+  height: 360px !important;
+  max-height: 360px !important;
+}
+
+.admin-player-list {
+  align-content: start !important;
+  align-items: start !important;
+  grid-auto-rows: max-content !important;
+}
+
+.admin-player-row {
+  align-self: start !important;
+  min-height: 0 !important;
+  gap: 5px !important;
+  padding: 8px 9px !important;
+}
+
+.admin-player-main {
+  min-height: 16px !important;
+}
+
+.admin-player-meta {
+  min-height: 18px !important;
+  align-items: center !important;
+}
+
+.admin-player-badge {
+  height: auto !important;
+  min-height: 16px !important;
+  padding: 2px 6px !important;
+  border-radius: 999px !important;
+}
+
+.admin-player-actions {
+  min-height: 22px !important;
+  align-items: center !important;
+}
+
+.admin-player-action-btn {
+  height: 21px !important;
+  min-height: 21px !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  line-height: 1 !important;
+}
+
+.admin-manage-placeholder {
+  height: 21px !important;
+  min-height: 21px !important;
+  padding: 2px 4px !important;
+  line-height: 1 !important;
+}
+
+@media (max-width: 760px) {
+  .admin-side-panel.admin-dock {
+    height: 340px !important;
+    max-height: 340px !important;
+  }
+}
