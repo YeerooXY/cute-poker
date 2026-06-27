@@ -12,7 +12,7 @@ const els = {};
 "foldBtn","checkCallBtn","betHalfPotBtn","betPotBtn","betAllInBtn","customBetInput",
 "customBetBtn","resetBtn","adminActions","copyRoomBtn","leaveBtn","chatToggle","chatClose",
 "chatPanel","chatMessages","chatInput","chatBtn","actionBar","turnInfo",
-"pauseBtn","sitOutBtn","spectateBtn","addBotBtn","botDifficultySelect",
+"pauseBtn","sitOutBtn","sitInBtn","rebuyBtn","spectateBtn","addBotBtn","botDifficultySelect",
 "hintsToggle","handHistoryToggle","handHistoryPanel","handHistoryClose","handHistoryBody","handHistoryCount","bbToggleBtn","potChips","autoDealToggle","autoDealCountdown","outsBox",
 "actionLogHandNum","actionLogBody","actionLogPanel","actionLogToggle","adminPlayerList","postHandPanel","showdownTray",
 "postHandKicker","postHandTitle","postHandPot","postHandBody","postHandDealBtn"
@@ -974,7 +974,9 @@ function adminPlayerStatusLabels(player, viewerIsAdmin = false) {
     labels.push("Player");
   }
   if (player.is_spectator) labels.push("Spectator");
+  if (numberOrZero(player.stack) <= 0 && !player.is_spectator) labels.push("Busted");
   if (player.sitting_out) labels.push("Sitting out");
+  if (numberOrZero(player.buy_in_count) > 1) labels.push(`Buy-ins ${numberOrZero(player.buy_in_count)}`);
   if (!player.connected && !player.is_bot) labels.push("Offline");
   if (player.folded) labels.push("Folded");
   if (player.all_in) labels.push("All-in");
@@ -1011,6 +1013,7 @@ function renderAdminPlayerList(state) {
       const name = esc(player.name || "Player");
       const seat = esc(player.seat || "?");
       const stack = numberOrZero(player.stack);
+      const stackText = stack <= 0 && !player.is_spectator ? "BUST" : String(stack);
       const isSelf = Boolean(player.is_you);
       const isCurrentAdmin = Boolean(player.is_admin || (viewerIsAdmin && isSelf));
 
@@ -1039,7 +1042,7 @@ function renderAdminPlayerList(state) {
           <div class="admin-player-main">
             <span class="admin-player-name">${name}</span>
             <span class="admin-player-seat">Seat ${seat}</span>
-            <span class="admin-player-stack">${stack}</span>
+            <span class="admin-player-stack">${esc(stackText)}</span>
           </div>
           <div class="admin-player-meta">${labels || '<span class="admin-player-badge muted">Player</span>'}</div>
           <div class="admin-player-actions">${actionHtml}</div>
@@ -1328,6 +1331,86 @@ function syncRefreshAnimationSuppression(state) {
 }
 
 
+
+function syncPostHandRecoveryButtons(state, viewerData) {
+  const panel = els.postHandPanel || document.getElementById("postHandPanel");
+  if (!panel) return;
+
+  const postHandDealBtn = els.postHandDealBtn || document.getElementById("postHandDealBtn");
+  let actions = panel.querySelector(".post-hand-actions");
+
+  if (!actions) {
+    actions = document.createElement("div");
+    actions.className = "post-hand-actions";
+    panel.appendChild(actions);
+  }
+
+  const ensureRecoveryButton = (id, text, title, onClick) => {
+    let btn = document.getElementById(id);
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.id = id;
+      btn.type = "button";
+      btn.className = "btn btn-deal post-hand-recovery-btn";
+      btn.onclick = event => {
+        event.preventDefault();
+        onClick();
+      };
+
+      if (postHandDealBtn && postHandDealBtn.parentElement === actions) {
+        actions.insertBefore(btn, postHandDealBtn);
+      } else {
+        actions.appendChild(btn);
+      }
+    }
+
+    btn.textContent = text;
+    btn.title = title;
+    return btn;
+  };
+
+  const sitInBtn = ensureRecoveryButton(
+    "postHandSitInBtn",
+    "Sit In next hand",
+    "Cancel sit-out before the auto-deal countdown finishes",
+    () => action("sit_out", { sitting_out: false })
+  );
+  const rebuyCount = Math.max(2, numberOrZero(viewerData && viewerData.buy_in_count) + 1);
+  const rebuyBtn = ensureRecoveryButton(
+    "postHandRebuyBtn",
+    `Rebuy #${rebuyCount}`,
+    "Buy back in for the next hand",
+    () => action("rebuy", {})
+  );
+
+  const recoveryVisible = Boolean(state && state.phase === "showdown" && state.auto_deal_active && viewerData && !viewerData.is_spectator);
+  const showSitIn = Boolean(
+    recoveryVisible
+    && viewerData.sitting_out
+    && numberOrZero(viewerData.stack) > 0
+  );
+  const showRebuy = Boolean(
+    recoveryVisible
+    && (viewerData.can_rebuy || (state.viewer && state.viewer.can_rebuy))
+  );
+
+  sitInBtn.style.display = showSitIn ? "inline-flex" : "none";
+  sitInBtn.disabled = !showSitIn;
+  rebuyBtn.style.display = showRebuy ? "inline-flex" : "none";
+  rebuyBtn.disabled = !showRebuy;
+
+  if (showSitIn || showRebuy) {
+    actions.style.display = "flex";
+    panel.classList.add("has-post-hand-recovery");
+  } else {
+    panel.classList.remove("has-post-hand-recovery");
+  }
+}
+
+function syncPostHandSitInButton(state, viewerData) {
+  syncPostHandRecoveryButtons(state, viewerData);
+}
+
 function renderState(state) {
   window.__pokerLastState = state;
   const previousState = lastState;
@@ -1445,12 +1528,39 @@ function renderState(state) {
 
   // ─── Sit out / spectate ───
   const viewerData = state.players.find(p => p.is_you);
+  const showSitInDuringCountdown = Boolean(
+    viewerData
+    && viewerData.sitting_out
+    && numberOrZero(viewerData.stack) > 0
+    && state.phase === "showdown"
+    && state.auto_deal_active
+  );
+
+  if (els.actionBar) {
+    els.actionBar.classList.toggle("show-sit-in-during-countdown", showSitInDuringCountdown);
+  }
   if (els.sitOutBtn && viewerData) {
-    els.sitOutBtn.textContent = viewerData.sitting_out ? "Sit In" : "Sit Out";
-    els.sitOutBtn.title = viewerData.sitting_out
-      ? "You will be dealt in again from the next hand"
-      : "Sit out from the next hand";
+    els.sitOutBtn.textContent = "Sit Out";
+    els.sitOutBtn.title = "Sit out from the next hand";
     els.sitOutBtn.style.display = viewerData.is_spectator ? "none" : "";
+    els.sitOutBtn.disabled = Boolean(viewerData.sitting_out);
+  }
+  if (els.sitInBtn && viewerData) {
+    els.sitInBtn.textContent = "Sit In";
+    els.sitInBtn.title = numberOrZero(viewerData.stack) <= 0
+      ? "Rebuy before sitting in again"
+      : "You will be dealt in again from the next hand";
+    els.sitInBtn.classList.toggle("sit-in-urgent", showSitInDuringCountdown);
+    els.sitInBtn.style.display = viewerData.is_spectator ? "none" : "";
+    els.sitInBtn.disabled = Boolean(!viewerData.sitting_out || numberOrZero(viewerData.stack) <= 0);
+  }
+  if (els.rebuyBtn && viewerData) {
+    const canRebuy = Boolean(viewerData.can_rebuy || (state.viewer && state.viewer.can_rebuy));
+    const nextBuyIn = Math.max(2, numberOrZero(viewerData.buy_in_count) + 1);
+    els.rebuyBtn.textContent = `Rebuy #${nextBuyIn}`;
+    els.rebuyBtn.title = canRebuy ? "Buy back in for the next hand" : "Rebuy is available after busting between hands";
+    els.rebuyBtn.style.display = viewerData.is_spectator || numberOrZero(viewerData.stack) > 0 ? "none" : "";
+    els.rebuyBtn.disabled = !canRebuy;
   }
   if (els.spectateBtn && viewerData) {
     els.spectateBtn.textContent = viewerData.is_spectator ? "Join Game" : "Spectate";
@@ -1477,6 +1587,7 @@ function renderState(state) {
   // ─── Action Log ───
   renderActionLog(cinemaState);
   renderPostHandPanel(state);
+  syncPostHandRecoveryButtons(state, viewerData);
   renderHandHistory(state);
   syncDealControls(state);
 
@@ -1601,8 +1712,10 @@ function renderPlayers(players, previousState = null, state = null) {
     if (p.is_bot) badges.push('<span class="seat-badge">🤖</span>');
     if (p.all_in) badges.push('<span class="seat-badge">ALL-IN</span>');
     if (p.folded) badges.push('<span class="seat-badge warn">FOLD</span>');
+    if (numberOrZero(p.stack) <= 0 && !p.is_spectator) badges.push('<span class="seat-badge warn">BUST</span>');
     if (!p.connected && !p.is_bot) badges.push('<span class="seat-badge warn">DC</span>');
     if (p.sitting_out) badges.push('<span class="seat-badge warn">SIT OUT</span>');
+    if (numberOrZero(p.buy_in_count) > 1) badges.push(`<span class="seat-badge">Buy-in ${numberOrZero(p.buy_in_count)}</span>`);
     if (p.is_spectator) badges.push('<span class="seat-badge">👁</span>');
 
     const bankHtml = !p.is_bot && p.timebank_seconds != null
@@ -2138,7 +2251,9 @@ els.addBotBtn.onclick = () => {
   const diff = els.botDifficultySelect ? els.botDifficultySelect.value : "hard";
   action("add_bot", { difficulty: diff });
 };
-els.sitOutBtn.onclick = () => action("sit_out");
+els.sitOutBtn.onclick = () => action("sit_out", { sitting_out: true });
+if (els.sitInBtn) els.sitInBtn.onclick = () => action("sit_out", { sitting_out: false });
+if (els.rebuyBtn) els.rebuyBtn.onclick = () => action("rebuy", {});
 els.spectateBtn.onclick = () => action("spectate");
 els.copyRoomBtn.onclick = async () => { try { await navigator.clipboard.writeText(roomId); } catch {} };
 

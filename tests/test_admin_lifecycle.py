@@ -5,7 +5,7 @@ import json
 import time
 from types import SimpleNamespace
 
-from poker.game import PokerServer
+from poker.game import PokerServer, STARTING_STACK
 from poker.models import Room, Winner
 
 
@@ -458,6 +458,102 @@ def test_between_hands_sit_out_still_toggles_immediately():
     run(server.player_action(room, creator, "sit_out", {}))
 
     assert creator.sitting_out is True
+
+
+def test_explicit_sit_out_true_false_requests_work():
+    server, room, creator, _guest, _creator_ws, _guest_ws = make_room_with_two_humans()
+    room.phase = "lobby"
+
+    run(server.player_action(room, creator, "sit_out", {"sitting_out": True}))
+    assert creator.sitting_out is True
+
+    run(server.player_action(room, creator, "sit_out", {"sitting_out": False}))
+    assert creator.sitting_out is False
+
+
+def test_busted_player_cannot_sit_in_until_rebuy():
+    server, room, creator, _guest, creator_ws, _guest_ws = make_room_with_two_humans()
+    room.phase = "showdown"
+    creator.stack = 0
+    creator.sitting_out = True
+
+    run(server.player_action(room, creator, "sit_out", {"sitting_out": False}))
+
+    assert creator.sitting_out is True
+    assert "Rebuy before sitting in again." in error_messages(creator_ws)
+
+
+def test_busted_player_can_rebuy_between_hands_and_buy_in_count_increments():
+    server, room, creator, _guest, _creator_ws, _guest_ws = make_room_with_two_humans()
+    room.phase = "showdown"
+    creator.stack = 0
+    creator.hand_start_stack = 0
+    creator.buy_in_count = 1
+    creator.sitting_out = True
+    creator.cards = ["AS", "AH"]
+    creator.folded = True
+    creator.all_in = True
+    creator.committed = 1000
+    creator.total_invested = 1000
+    creator.acted = True
+
+    before = server.visible_state(room, creator.token)
+    assert before["viewer"]["can_rebuy"] is True
+    assert next(p for p in before["players"] if p["is_you"])["can_rebuy"] is True
+
+    run(server.player_action(room, creator, "rebuy", {}))
+
+    assert creator.stack == STARTING_STACK
+    assert creator.hand_start_stack == STARTING_STACK
+    assert creator.buy_in_count == 2
+    assert creator.sitting_out is False
+    assert creator.cards == []
+    assert creator.folded is False
+    assert creator.all_in is False
+    assert creator.committed == 0
+    assert creator.total_invested == 0
+    assert creator.acted is False
+
+    after = server.visible_state(room, creator.token)
+    viewer = next(p for p in after["players"] if p["is_you"])
+    assert viewer["buy_in_count"] == 2
+    assert after["viewer"]["can_rebuy"] is False
+
+
+def test_rebuy_is_rejected_during_active_hand():
+    server, room, creator, _guest, creator_ws, _guest_ws = make_room_with_two_humans()
+    room.phase = "preflop"
+    creator.stack = 0
+    creator.buy_in_count = 1
+
+    run(server.player_action(room, creator, "rebuy", {}))
+
+    assert creator.stack == 0
+    assert creator.buy_in_count == 1
+    assert "Rebuy is available between hands only." in error_messages(creator_ws)
+
+
+def test_reset_stacks_resets_sitting_out_and_buy_in_count():
+    server, room, creator, guest, _creator_ws, _guest_ws = make_room_with_two_humans()
+    room.phase = "showdown"
+    guest.stack = 0
+    guest.buy_in_count = 3
+    guest.sitting_out = True
+    guest.cards = ["KS", "KH"]
+    guest.folded = True
+    guest.committed = 500
+    guest.total_invested = 500
+
+    run(server.player_action(room, creator, "reset_stacks", {}))
+
+    assert guest.stack == STARTING_STACK
+    assert guest.hand_start_stack == STARTING_STACK
+    assert guest.buy_in_count == 1
+    assert guest.sitting_out is False
+    assert guest.cards == []
+    assert guest.folded is False
+    assert guest.committed == 0
+    assert guest.total_invested == 0
 
 
 def test_sit_out_toggle_is_checked_when_next_hand_starts():

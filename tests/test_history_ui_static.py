@@ -490,8 +490,9 @@ def test_hand_history_scrollbar_is_styled():
     assert "scrollbar-color" in css
 
 
-def test_action_console_bank_and_single_sit_out_next_ui():
+def test_action_console_bank_and_explicit_sit_controls_ui():
     app = read_static("app.js")
+    html = read_static("index.html")
     css = read_static("styles.css")
 
     assert "function syncActionConsoleBank(state)" in app
@@ -501,7 +502,12 @@ def test_action_console_bank_and_single_sit_out_next_ui():
     assert "Cancel Sit Out" not in app
     assert "sit_out_next_hand" not in app
     assert "SIT NEXT" not in app
-    assert app.count("sitOutBtn") >= 1
+    assert 'id="sitOutBtn"' in html
+    assert 'id="sitInBtn"' in html
+    assert 'id="rebuyBtn"' in html
+    assert 'action("sit_out", { sitting_out: true })' in app
+    assert 'action("sit_out", { sitting_out: false })' in app
+    assert 'action("rebuy", {})' in app
     assert "Action console timebank pill" in css
     assert ".action-console-bank" in css
 
@@ -514,10 +520,14 @@ def test_showdown_modal_compact_row_repair_css_exists():
     assert ".post-hand-panel.post-hand-modal .post-hand-cards .playing-card" in css
 
 
-def test_sit_out_button_is_simple_single_toggle():
+def test_sit_out_sit_in_and_rebuy_are_separate_buttons():
     app = read_static("app.js")
 
-    assert 'els.sitOutBtn.textContent = viewerData.sitting_out ? "Sit In" : "Sit Out"' in app
+    assert 'els.sitOutBtn.textContent = "Sit Out"' in app
+    assert 'els.sitInBtn.textContent = "Sit In"' in app
+    assert 'els.rebuyBtn.textContent = `Rebuy #${nextBuyIn}`' in app
+    assert 'els.sitInBtn.disabled = Boolean(!viewerData.sitting_out || numberOrZero(viewerData.stack) <= 0);' in app
+    assert 'const canRebuy = Boolean(viewerData.can_rebuy || (state.viewer && state.viewer.can_rebuy));' in app
     assert "sit_out_next_hand" not in app
     assert "Sit Out Next" not in app
     assert "Cancel Sit Out" not in app
@@ -597,3 +607,53 @@ def test_acting_player_label_distinguishes_hero_from_others():
     assert 'seat.dataset.actionLabel = p.is_you ? "YOUR ACTION" : "ACTION";' in app
     assert "content: attr(data-action-label)" in css
     assert '.player-seat.active-turn[data-action-label="YOUR ACTION"]::after' in css
+
+def test_sit_in_button_is_prominent_during_auto_deal_countdown():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert "const showSitInDuringCountdown = Boolean(" in app
+    assert "viewerData.sitting_out" in app
+    assert 'state.phase === "showdown"' in app
+    assert "state.auto_deal_active" in app
+    assert 'els.actionBar.classList.toggle("show-sit-in-during-countdown", showSitInDuringCountdown)' in app
+    assert 'els.sitInBtn.classList.toggle("sit-in-urgent", showSitInDuringCountdown)' in app
+
+    assert "Sit In during auto-deal countdown" in css
+    assert ".action-bar.show-sit-in-during-countdown" in css
+    assert "#sitInBtn.sit-in-urgent" in css
+    assert 'content: "next hand"' in css
+
+def test_post_hand_recovery_buttons_are_available_during_auto_deal_countdown():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert "function syncPostHandRecoveryButtons(state, viewerData)" in app
+    assert '"postHandSitInBtn"' in app
+    assert '"postHandRebuyBtn"' in app
+    assert '"Sit In next hand"' in app
+    assert '`Rebuy #${rebuyCount}`' in app
+    assert 'action("sit_out", { sitting_out: false })' in app
+    assert 'action("rebuy", {})' in app
+    assert "viewerData.sitting_out" in app
+    assert "viewerData.can_rebuy" in app
+    assert "state.auto_deal_active" in app
+    assert "syncPostHandRecoveryButtons(state, viewerData);" in app
+
+    assert "Post-hand Sit In recovery button" in css
+    assert ".post-hand-panel.has-post-hand-recovery .post-hand-actions" in css
+    assert ".post-hand-recovery-btn" in css
+
+def test_buy_in_count_can_rebuy_and_busted_labels_are_used_in_frontend():
+    app = read_static("app.js")
+    game = (ROOT / "poker" / "game.py").read_text(encoding="utf-8")
+
+    assert "numberOrZero(player.buy_in_count) > 1" in app
+    assert "Buy-ins ${numberOrZero(player.buy_in_count)}" in app
+    assert "numberOrZero(p.buy_in_count) > 1" in app
+    assert "Buy-in ${numberOrZero(p.buy_in_count)}" in app
+    assert "Busted" in app
+    assert "BUST" in app
+    assert "viewerData.can_rebuy" in app
+    assert '"buy_in_count": max(1, int(getattr(p, "buy_in_count", 1)))' in game
+    assert '"can_rebuy": viewer_can_rebuy if viewer else False' in game

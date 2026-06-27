@@ -1225,6 +1225,20 @@ class PokerServer:
             for p in room.players.values():
                 if not p.is_spectator:
                     p.stack = STARTING_STACK
+                    p.hand_start_stack = STARTING_STACK
+                    p.buy_in_count = 1
+                    p.sitting_out = False
+                    p.cards = []
+                    p.folded = False
+                    p.folded_reveal_mode = "hidden"
+                    p.uncontested_reveal_mode = "hidden"
+                    p.all_in = False
+                    p.committed = 0
+                    p.total_invested = 0
+                    p.acted = False
+                    p.last_hand_name = ""
+                    p.last_best_cards = []
+                    p.last_hand_detail = ""
             room.phase = "lobby"
             room.pot = 0
             room.community = []
@@ -1234,8 +1248,62 @@ class PokerServer:
             await self.broadcast(room)
             return
 
+        if action == "rebuy":
+            if room.phase not in ["lobby", "showdown"]:
+                await self.send(player.ws, "error", {"message": "Rebuy is available between hands only."})
+                return
+
+            if player.is_spectator:
+                await self.send(player.ws, "error", {"message": "Join the game before rebuying."})
+                return
+
+            if player.stack > 0:
+                await self.send(player.ws, "error", {"message": "Rebuy is available only after you bust."})
+                return
+
+            player.stack = STARTING_STACK
+            player.hand_start_stack = STARTING_STACK
+            player.buy_in_count = max(1, int(getattr(player, "buy_in_count", 1))) + 1
+            player.cards = []
+            player.folded = False
+            player.folded_reveal_mode = "hidden"
+            player.uncontested_reveal_mode = "hidden"
+            player.all_in = False
+            player.committed = 0
+            player.total_invested = 0
+            player.acted = False
+            player.sitting_out = False
+            player.timebank_seconds = max(0, int(getattr(room, "starting_timebank_seconds", STARTING_TIMEBANK_DEFAULT_SECONDS)))
+
+            _append_room_message(
+                room,
+                "Admin",
+                f"{player.name} rebought for {STARTING_STACK} chips. Buy-in #{player.buy_in_count}.",
+            )
+
+            if room.phase == "showdown":
+                self._ensure_auto_deal(room)
+
+            await self.broadcast(room)
+            return
+
         if action == "sit_out":
-            player.sitting_out = not player.sitting_out
+            requested = payload.get("sitting_out", None)
+            next_sitting_out = (
+                not player.sitting_out
+                if requested is None
+                else _parse_bool_setting(requested, default=player.sitting_out)
+            )
+
+            if not next_sitting_out and player.stack <= 0 and not player.is_spectator:
+                await self.send(player.ws, "error", {"message": "Rebuy before sitting in again."})
+                return
+
+            player.sitting_out = next_sitting_out
+
+            if room.phase == "showdown":
+                self._ensure_auto_deal(room)
+
             await self.broadcast(room)
             return
 
@@ -2689,6 +2757,13 @@ class PokerServer:
                 "is_admin": p.token == room.creator_token,
                 "bot_difficulty": self.bots[p.player_id].difficulty if p.player_id in self.bots else "",
                 "stack": p.stack,
+                "buy_in_count": max(1, int(getattr(p, "buy_in_count", 1))),
+                "can_rebuy": (
+                    p.token == viewer_token
+                    and p.stack <= 0
+                    and not p.is_spectator
+                    and room.phase in ("lobby", "showdown")
+                ),
                 "committed": p.committed,
                 "total_invested": p.total_invested,
                 "hand_delta": getattr(room, "hand_deltas", {}).get(p.player_id) if room.phase == "showdown" else None,
@@ -2774,6 +2849,11 @@ class PokerServer:
             viewer_stack = viewer.stack
             viewer_timebank = self.displayed_timebank_seconds(room, viewer)
             is_admin = viewer.token == room.creator_token
+            viewer_can_rebuy = (
+                viewer.stack <= 0
+                and not viewer.is_spectator
+                and room.phase in ("lobby", "showdown")
+            )
 
             # Calculate odds for the viewer (only during active hand)
             if viewer.cards and not viewer.folded and room.phase in ["preflop", "flop", "turn", "river"]:
@@ -2902,6 +2982,7 @@ class PokerServer:
                 "committed": viewer_committed,
                 "stack": viewer_stack,
                 "timebank_seconds": viewer_timebank,
+                "can_rebuy": viewer_can_rebuy if viewer else False,
                 "is_admin": is_admin,
                 "odds": odds,
             }

@@ -22,6 +22,7 @@ class Player:
     connected: bool = True
 
     stack: int = 1000
+    buy_in_count: int = 1
     hand_start_stack: int = 1000
     cards: list[str] = field(default_factory=list)
     folded: bool = False

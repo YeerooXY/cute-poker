@@ -6971,3 +6971,91 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
   padding-inline: 10px;
   background: linear-gradient(90deg, var(--gold-light), #fff3a3);
 }
+
+/* ??? Sit In during auto-deal countdown ??? */
+.action-bar.show-sit-in-during-countdown {
+  z-index: 55;
+  max-width: 520px;
+  border: 1px solid rgba(245, 212, 66, 0.34);
+  box-shadow:
+    0 -8px 28px rgba(0, 0, 0, 0.58),
+    0 0 24px rgba(245, 212, 66, 0.16);
+}
+
+.action-bar.show-sit-in-during-countdown .action-row-options {
+  justify-content: center;
+  gap: 8px;
+}
+
+.action-bar.show-sit-in-during-countdown #sitInBtn.sit-in-urgent {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-width: 92px;
+  color: #1a1a1a;
+  background: linear-gradient(90deg, var(--gold-light), #fff3a3);
+  border-color: rgba(245, 212, 66, 0.9);
+  font-weight: 950;
+  box-shadow: 0 0 16px rgba(245, 212, 66, 0.35);
+}
+
+.action-bar.show-sit-in-during-countdown #sitInBtn.sit-in-urgent::after {
+  content: "next hand";
+  margin-left: 6px;
+  padding-left: 6px;
+  border-left: 1px solid rgba(0, 0, 0, 0.22);
+  font-size: 9px;
+  font-weight: 900;
+  opacity: 0.75;
+  text-transform: uppercase;
+}
+
+@media (max-width: 600px) {
+  .action-bar.show-sit-in-during-countdown {
+    max-width: calc(100vw - 18px);
+  }
+
+  .action-bar.show-sit-in-during-countdown #sitInBtn.sit-in-urgent {
+    min-height: 34px;
+    min-width: 104px;
+  }
+}
+
+/* ??? Post-hand Sit In recovery button ??? */
+.post-hand-panel.has-post-hand-recovery .post-hand-actions {
+  display: flex !important;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.post-hand-recovery-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  min-width: 138px;
+  padding-inline: 14px;
+  color: #1a1a1a !important;
+  background: linear-gradient(90deg, var(--gold-light), #fff3a3) !important;
+  border-color: rgba(245, 212, 66, 0.95) !important;
+  font-weight: 950;
+  box-shadow:
+    0 0 0 1px rgba(245, 212, 66, 0.35),
+    0 0 18px rgba(245, 212, 66, 0.3);
+}
+
+.post-hand-recovery-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+@media (max-width: 600px) {
+  .post-hand-panel.has-post-hand-recovery .post-hand-actions {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .post-hand-recovery-btn {
+    min-width: 150px;
+  }
+}
