@@ -936,6 +936,26 @@ class PokerServer:
             await self.remove_bot(room)
             return
 
+        if action == "transfer_admin":
+            if player.token != room.creator_token:
+                await self.send(player.ws, "error", {"message": "Only the room creator can transfer admin."})
+                return
+
+            target_player_id = str(payload.get("target_player_id", "")).strip()
+            target = room.players.get(target_player_id)
+            if not target:
+                await self.send(player.ws, "error", {"message": "Target player not found."})
+                return
+
+            if target.player_id in self.bots:
+                await self.send(player.ws, "error", {"message": "Bots cannot become table admin."})
+                return
+
+            room.creator_token = target.token
+            _append_room_message(room, "Admin", f"{player.name} made {target.name} table admin.")
+            await self.broadcast(room)
+            return
+
         if action == "reveal_folded_hand":
             await self.reveal_folded_hand(room, player, payload)
             return
@@ -2243,6 +2263,8 @@ class PokerServer:
                 "seat": p.seat,
                 "connected": p.connected,
                 "is_bot": p.player_id in self.bots,
+                "is_admin": p.token == room.creator_token,
+                "bot_difficulty": self.bots[p.player_id].difficulty if p.player_id in self.bots else "",
                 "stack": p.stack,
                 "committed": p.committed,
                 "total_invested": p.total_invested,

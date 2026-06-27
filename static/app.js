@@ -14,7 +14,7 @@ const els = {};
 "chatPanel","chatMessages","chatInput","chatBtn","actionBar","turnInfo",
 "pauseBtn","sitOutBtn","spectateBtn","addBotBtn","removeBotBtn","botDifficultySelect",
 "hintsToggle","handHistoryToggle","handHistoryPanel","handHistoryClose","handHistoryBody","handHistoryCount","bbToggleBtn","potChips","autoDealToggle","autoDealCountdown","outsBox",
-"actionLogHandNum","actionLogBody","actionLogPanel","actionLogToggle","postHandPanel","showdownTray",
+"actionLogHandNum","actionLogBody","actionLogPanel","actionLogToggle","adminPlayerList","postHandPanel","showdownTray",
 "postHandKicker","postHandTitle","postHandPot","postHandBody","postHandDealBtn"
 ].forEach(id => { els[id] = $(id); });
 
@@ -769,6 +769,91 @@ function numberOrZero(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+
+function adminPlayerStatusLabels(player, viewerIsAdmin = false) {
+  const labels = [];
+  if (!player) return labels;
+
+  const isCurrentAdmin = Boolean(player.is_admin || (viewerIsAdmin && player.is_you));
+  if (isCurrentAdmin) labels.push("Admin");
+  if (player.is_you) labels.push("You");
+  if (player.is_bot) labels.push(player.bot_difficulty ? `Bot ${player.bot_difficulty}` : "Bot");
+  if (player.is_spectator) labels.push("Spectator");
+  if (player.sitting_out) labels.push("Sitting out");
+  if (!player.connected && !player.is_bot) labels.push("Offline");
+  if (player.folded) labels.push("Folded");
+  if (player.all_in) labels.push("All-in");
+
+  return labels;
+}
+
+function renderAdminPlayerList(state) {
+  if (!els.adminPlayerList) return;
+
+  const viewerIsAdmin = Boolean(state && state.viewer && state.viewer.is_admin);
+  const players = Array.isArray(state && state.players) ? state.players : [];
+
+  if (!viewerIsAdmin) {
+    els.adminPlayerList.innerHTML = "";
+    return;
+  }
+
+  if (players.length === 0) {
+    els.adminPlayerList.innerHTML = '<div class="admin-player-empty">No players seated.</div>';
+    return;
+  }
+
+  els.adminPlayerList.innerHTML = players
+    .slice()
+    .sort((a, b) => numberOrZero(a.seat) - numberOrZero(b.seat))
+    .map(player => {
+      const id = esc(player.id || player.player_id || "");
+      const name = esc(player.name || "Player");
+      const seat = esc(player.seat || "?");
+      const isCurrentAdmin = Boolean(player.is_admin || (viewerIsAdmin && player.is_you));
+
+      const labels = adminPlayerStatusLabels(player, viewerIsAdmin)
+        .map(label => `<span class="admin-player-badge">${esc(label)}</span>`)
+        .join("");
+
+      const mockHtml = `<button type="button" class="admin-player-action-btn muted" disabled title="Mock action coming soon">Mock</button>`;
+      const dmHtml = `<button type="button" class="admin-player-action-btn muted" disabled title="Direct messages coming soon">DM</button>`;
+
+      const canManage = viewerIsAdmin && !isCurrentAdmin && !player.is_you && !player.is_bot && Boolean(player.id || player.player_id);
+      const manageHtml = canManage
+        ? `<button type="button" class="admin-player-action-btn admin-manage-btn" data-admin-transfer-id="${id}" title="Make this human player table admin">Manage</button>`
+        : viewerIsAdmin
+          ? `<span class="admin-manage-placeholder">${isCurrentAdmin ? "Leader" : player.is_bot ? "Bot" : ""}</span>`
+          : "";
+
+      return `
+        <div class="admin-player-row${isCurrentAdmin ? " is-admin" : ""}${player.is_bot ? " is-bot" : ""}">
+          <div class="admin-player-main">
+            <span class="admin-player-name">${name}</span>
+            <span class="admin-player-seat">Seat ${seat}</span>
+          </div>
+          <div class="admin-player-meta">${labels || '<span class="admin-player-badge muted">Player</span>'}</div>
+          <div class="admin-player-actions">
+            ${mockHtml}
+            ${dmHtml}
+            ${manageHtml}
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  els.adminPlayerList.querySelectorAll("[data-admin-transfer-id]").forEach(btn => {
+    btn.onclick = event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const targetId = btn.dataset.adminTransferId || "";
+      if (targetId) action("transfer_admin", { target_player_id: targetId });
+    };
+  });
+}
+
+
 function setActionButtonState(btn, enabled, label, title = "") {
   if (!btn) return;
   btn.disabled = !enabled;
@@ -1175,6 +1260,9 @@ function renderState(state) {
   renderPlayers(state.players, previousState, state);
 
   // ─── Chat ───
+  // ??? Admin dock player list ???
+  renderAdminPlayerList(state);
+
   renderChat(state.messages);
 
   // ─── Action Log ───

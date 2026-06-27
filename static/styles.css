@@ -6020,3 +6020,189 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
     padding: 9px !important;
   }
 }
+
+
+/* ??? Admin dock player management list ??? */
+.admin-dock-section-title {
+  margin-top: 2px;
+  color: var(--gold-light);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.admin-player-list {
+  display: grid;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.admin-player-empty {
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 6px 2px;
+}
+
+.admin-player-row {
+  display: grid;
+  gap: 5px;
+  padding: 7px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(0,0,0,0.22);
+}
+
+.admin-player-row.is-admin {
+  border-color: rgba(245, 212, 66, 0.42);
+  background: rgba(232, 185, 35, 0.07);
+}
+
+.admin-player-row.is-bot {
+  opacity: 0.82;
+}
+
+.admin-player-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+}
+
+.admin-player-name {
+  min-width: 0;
+  color: rgba(235,242,232,0.92);
+  font-size: 11px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-player-stack {
+  color: var(--gold-light);
+  font-size: 10px;
+  font-weight: 950;
+}
+
+.admin-player-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.admin-player-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 5px;
+  border-radius: 999px;
+  color: rgba(201,230,202,0.86);
+  background: rgba(255,255,255,0.07);
+  font-size: 9px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.admin-player-badge.muted {
+  opacity: 0.65;
+}
+
+.admin-player-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.admin-transfer-btn {
+  border: 1px solid rgba(232,185,35,0.35);
+  border-radius: 999px;
+  background: rgba(232,185,35,0.10);
+  color: var(--gold-light);
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.admin-transfer-btn:hover {
+  background: rgba(232,185,35,0.18);
+  border-color: rgba(232,185,35,0.52);
+}
+
+.admin-transfer-placeholder {
+  min-height: 16px;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+
+/* ??? Cleaner admin player action rows ??? */
+.admin-player-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.admin-player-main {
+  align-items: baseline;
+}
+
+.admin-player-name {
+  font-size: 12px !important;
+}
+
+.admin-player-seat {
+  color: var(--text-dim);
+  font-size: 9px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.admin-player-stack {
+  display: none !important;
+}
+
+.admin-player-actions {
+  justify-content: flex-start !important;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.admin-player-action-btn {
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  color: rgba(235,242,232,0.84);
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+  line-height: 1.25;
+}
+
+.admin-player-action-btn.muted {
+  opacity: 0.64;
+  cursor: default;
+}
+
+.admin-manage-btn {
+  border-color: rgba(232,185,35,0.36);
+  background: rgba(232,185,35,0.11);
+  color: var(--gold-light);
+}
+
+.admin-manage-btn:hover {
+  background: rgba(232,185,35,0.18);
+  border-color: rgba(232,185,35,0.52);
+}
+
+.admin-manage-placeholder {
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 850;
+  min-height: 19px;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 2px;
+}
