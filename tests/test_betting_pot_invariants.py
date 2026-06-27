@@ -175,7 +175,7 @@ def test_return_uncalled_excess_preserves_pot_accounting() -> None:
     assert_active_pot_invariants(room)
 
 
-def test_folded_player_chips_stay_in_pot_when_excess_is_returned() -> None:
+def test_folded_player_current_street_chips_match_excess_as_dead_money() -> None:
     server = PokerServer()
 
     covering_player = make_player(
@@ -206,18 +206,20 @@ def test_folded_player_chips_stay_in_pot_when_excess_is_returned() -> None:
 
     server.return_uncalled_excess(room)
 
-    # Only the unmatched amount above the live opponent's 400 is returned.
-    assert covering_player.stack == 600
-    assert covering_player.committed == 400
-    assert covering_player.total_invested == 400
+    # Folded current-street chips are dead money, but they still match the
+    # coverer's bet for refund purposes. Only the amount above 700 is uncalled.
+    assert covering_player.stack == 300
+    assert covering_player.committed == 700
+    assert covering_player.total_invested == 700
+    assert covering_player.all_in is False
 
     # Folded player's contribution is dead money and remains in the pot.
     assert folded_investor.total_invested == 700
     assert folded_investor.committed == 700
 
-    assert room.pot == 1500
-    assert room.current_bet == 400
-    assert room.pot == 400 + 400 + 700
+    assert room.pot == 1800
+    assert room.current_bet == 700
+    assert room.pot == 700 + 400 + 700
     assert_active_pot_invariants(room)
 
 
