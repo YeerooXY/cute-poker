@@ -7,7 +7,7 @@
 const $ = id => document.getElementById(id);
 const els = {};
 ["status","connectScreen","gameScreen","nameInput","roomInput","createBtn","joinBtn",
-"reconnectBtn","roomsList","roomId","phaseBadge","potValue","community","playerPositions",
+"reconnectBtn","autoDealDelayInput","actionTimeInput","startingTimebankInput","timebankGainInput","roomsList","roomId","phaseBadge","potValue","community","playerPositions",
 "winnerOverlay","winnerContent","yourHandBar","yourCards","handStrength","startBtn",
 "foldBtn","checkCallBtn","betHalfPotBtn","betPotBtn","betAllInBtn","customBetInput",
 "customBetBtn","resetBtn","adminActions","copyRoomBtn","leaveBtn","chatToggle","chatClose",
@@ -171,6 +171,11 @@ function makeCardHtml(card, extraClass = "") {
 
 function safeGetItem(key) { try { return localStorage.getItem(key); } catch { return null; } }
 function safeSetItem(key, val) { try { localStorage.setItem(key, val); } catch {} }
+
+function numberInputValue(input, fallback) {
+  const value = Number.parseInt(input && input.value, 10);
+  return Number.isFinite(value) ? value : fallback;
+}
 
 function getNewCardFlags(cards, previousCards) {
   const prev = Array.isArray(previousCards) ? previousCards : [];
@@ -680,6 +685,10 @@ function createRoom() {
   const anteMode = document.getElementById("anteModeSelect")?.value || "classic";
   const autoAnte = document.getElementById("autoAnteCheck")?.checked || false;
   const allowFoldedReveals = document.getElementById("allowFoldedRevealsCheck")?.checked ?? true;
+  const autoDealDelay = numberInputValue(els.autoDealDelayInput, 5);
+  const actionTime = numberInputValue(els.actionTimeInput, 10);
+  const startingTimebank = numberInputValue(els.startingTimebankInput, 100);
+  const timebankGain = numberInputValue(els.timebankGainInput, 1);
   send("create", {
     name: els.nameInput.value || "Player",
     avatar: selectedAvatar,
@@ -688,6 +697,10 @@ function createRoom() {
     ante_mode: anteMode,
     auto_ante: autoAnte,
     allow_folded_reveals: allowFoldedReveals,
+    auto_deal_delay_seconds: autoDealDelay,
+    action_time_seconds: actionTime,
+    starting_timebank_seconds: startingTimebank,
+    timebank_gain_per_hand: timebankGain,
   });
 }
 

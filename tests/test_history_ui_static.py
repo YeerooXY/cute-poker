@@ -522,3 +522,30 @@ def test_sit_out_button_is_simple_single_toggle():
     assert "Sit Out Next" not in app
     assert "Cancel Sit Out" not in app
     assert "SIT NEXT" not in app
+
+def test_create_lobby_exposes_timer_timebank_settings():
+    html = read_static("index.html")
+    app = read_static("app.js")
+
+    assert 'id="autoDealDelayInput"' in html
+    assert 'id="actionTimeInput"' in html
+    assert 'id="startingTimebankInput"' in html
+    assert 'id="timebankGainInput"' in html
+    assert "Auto-deal delay" in html
+    assert "Action timer" in html
+    assert "Starting timebank" in html
+    assert "Timebank gain / hand" in html
+
+    assert '"autoDealDelayInput"' in app
+    assert '"actionTimeInput"' in app
+    assert '"startingTimebankInput"' in app
+    assert '"timebankGainInput"' in app
+    assert "function numberInputValue(input, fallback)" in app
+    assert "const autoDealDelay = numberInputValue(els.autoDealDelayInput, 5);" in app
+    assert "const actionTime = numberInputValue(els.actionTimeInput, 10);" in app
+    assert "const startingTimebank = numberInputValue(els.startingTimebankInput, 100);" in app
+    assert "const timebankGain = numberInputValue(els.timebankGainInput, 1);" in app
+    assert "auto_deal_delay_seconds: autoDealDelay" in app
+    assert "action_time_seconds: actionTime" in app
+    assert "starting_timebank_seconds: startingTimebank" in app
+    assert "timebank_gain_per_hand: timebankGain" in app
