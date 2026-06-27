@@ -193,3 +193,17 @@ def test_table_seats_are_clustered_around_bigger_felt():
     assert "width: min(940px" in css
     assert "calc(100vw - 560px)" in css
     assert "border-radius: 48% / 38%" in css
+
+
+def test_right_rail_does_not_shift_table_and_seats_are_readable():
+    css = read_static("styles.css")
+
+    assert "Rail stability + readable player seats polish" in css
+    assert "body.action-log-open .poker-table" in css
+    assert "padding: 54px 250px 118px 250px" in css
+    assert ".action-log-toggle.panel-collapsed" in css
+    assert "top: 58px" in css
+    assert "width: 172px" in css
+    assert "height: 130px" in css
+    assert "width: 36px" in css
+    assert "height: 52px" in css

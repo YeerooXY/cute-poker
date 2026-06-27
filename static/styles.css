@@ -5655,3 +5655,181 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
     min-height: 190px !important;
   }
 }
+
+
+/* ??? Rail stability + readable player seats polish ??? */
+@media (min-width: 980px) {
+  /* Opening the action log/chat must not shove the table around. */
+  body.action-log-open .poker-table {
+    padding: 54px 250px 118px 250px !important;
+    min-height: calc(100vh - 34px) !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  body.action-log-open .table-felt {
+    width: min(940px, calc(100vw - 560px)) !important;
+    max-width: none !important;
+    height: clamp(300px, 30vw, 430px) !important;
+    aspect-ratio: auto !important;
+  }
+
+  /* The log toggle is a rail tab now, not a random floating mid-screen handle. */
+  .action-log-toggle {
+    top: 58px !important;
+    right: calc(var(--right-rail-width) + 10px) !important;
+    transform: none !important;
+    width: 24px !important;
+    height: 36px !important;
+    border-radius: 8px 0 0 8px !important;
+    z-index: 66 !important;
+  }
+
+  .action-log-toggle.panel-collapsed {
+    top: 58px !important;
+    right: 0 !important;
+    transform: none !important;
+  }
+
+  .action-log-panel {
+    z-index: 65 !important;
+  }
+
+  .chat-panel {
+    z-index: 64 !important;
+  }
+
+  /* Player panels should read as real seats around the table. */
+  .player-seat {
+    width: 172px !important;
+    height: 130px !important;
+    min-width: 172px !important;
+    max-width: 172px !important;
+    padding: 10px 12px 9px !important;
+    border-radius: 16px !important;
+  }
+
+  .player-seat.is-you {
+    width: 184px !important;
+    height: 138px !important;
+    min-width: 184px !important;
+    max-width: 184px !important;
+  }
+
+  .seat-header {
+    height: 22px !important;
+    min-height: 22px !important;
+    gap: 6px !important;
+  }
+
+  .seat-avatar {
+    font-size: 18px !important;
+  }
+
+  .seat-name {
+    font-size: 14px !important;
+  }
+
+  .seat-stack {
+    font-size: 13px !important;
+  }
+
+  .seat-badges {
+    height: 18px !important;
+    min-height: 18px !important;
+    max-height: 18px !important;
+    margin-top: 5px !important;
+  }
+
+  .seat-badge {
+    font-size: 10px !important;
+    padding: 2px 6px !important;
+  }
+
+  .seat-cards {
+    height: 56px !important;
+    min-height: 56px !important;
+    max-height: 56px !important;
+    margin-top: 7px !important;
+    gap: 6px !important;
+    justify-content: center !important;
+  }
+
+  .seat-cards .playing-card {
+    width: 36px !important;
+    height: 52px !important;
+    min-width: 36px !important;
+    min-height: 52px !important;
+    max-width: 36px !important;
+    max-height: 52px !important;
+    font-size: 14px !important;
+  }
+
+  .player-seat.is-you .seat-cards .playing-card {
+    width: 40px !important;
+    height: 56px !important;
+    min-width: 40px !important;
+    min-height: 56px !important;
+    max-width: 40px !important;
+    max-height: 56px !important;
+    font-size: 15px !important;
+  }
+
+  .seat-meta {
+    left: 12px !important;
+    right: 12px !important;
+    bottom: 7px !important;
+    height: 15px !important;
+    line-height: 15px !important;
+    font-size: 10px !important;
+  }
+
+  .seat-bet-label {
+    font-size: 10px !important;
+  }
+}
+
+@media (min-width: 1400px) {
+  body.action-log-open .poker-table {
+    padding: 54px 270px 118px 270px !important;
+  }
+
+  body.action-log-open .table-felt {
+    width: min(1020px, calc(100vw - 600px)) !important;
+    height: clamp(340px, 31vw, 470px) !important;
+  }
+
+  .player-seat {
+    width: 182px !important;
+    height: 136px !important;
+    min-width: 182px !important;
+    max-width: 182px !important;
+  }
+
+  .player-seat.is-you {
+    width: 194px !important;
+    height: 146px !important;
+    min-width: 194px !important;
+    max-width: 194px !important;
+  }
+
+  .seat-cards .playing-card {
+    width: 38px !important;
+    height: 54px !important;
+    min-width: 38px !important;
+    min-height: 54px !important;
+    max-width: 38px !important;
+    max-height: 54px !important;
+    font-size: 14px !important;
+  }
+
+  .player-seat.is-you .seat-cards .playing-card {
+    width: 42px !important;
+    height: 60px !important;
+    min-width: 42px !important;
+    min-height: 60px !important;
+    max-width: 42px !important;
+    max-height: 60px !important;
+    font-size: 16px !important;
+  }
+}
