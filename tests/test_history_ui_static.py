@@ -419,3 +419,26 @@ def test_auto_deal_countdown_starts_next_hand_for_admin():
     assert "Auto-deal countdown polish" in css
     assert ".auto-deal-toggle.is-active" in css
     assert ".auto-deal-countdown" in css
+
+
+def test_auto_deal_toggle_visible_to_admin_even_during_hand():
+    app = read_static("app.js")
+
+    assert "const viewerIsAdmin = Boolean(state && state.viewer && state.viewer.is_admin)" in app
+    assert "setAutoDealToggleState(viewerIsAdmin)" in app
+    assert "setAutoDealToggleState(canDeal)" not in app
+
+
+def test_auto_deal_countdown_visible_in_post_hand_actions():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert "function ensureAutoDealCountdownSurface()" in app
+    assert "function showAutoDealCountdown(text)" in app
+    assert "autoDealPostHandCountdown" in app
+    assert "postHandActions.prepend(postHandCountdown)" in app
+    assert 'showAutoDealCountdown(`Auto-deal in ${remainingSeconds}s`)' in app
+    assert 'showAutoDealCountdown("Dealing next hand?")' in app
+    assert "Visible post-hand auto-deal countdown" in css
+    assert ".auto-deal-post-hand-countdown" in css
+    assert "@keyframes autoDealPulse" in css

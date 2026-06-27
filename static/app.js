@@ -801,6 +801,46 @@ function hideAutoDealCountdown() {
     els.autoDealCountdown.classList.add("hidden");
     els.autoDealCountdown.textContent = "";
   }
+
+  const postHandCountdown = document.getElementById("autoDealPostHandCountdown");
+  if (postHandCountdown) {
+    postHandCountdown.classList.add("hidden");
+    postHandCountdown.textContent = "";
+  }
+}
+
+
+function ensureAutoDealCountdownSurface() {
+  let postHandCountdown = document.getElementById("autoDealPostHandCountdown");
+  if (postHandCountdown) return postHandCountdown;
+
+  postHandCountdown = document.createElement("div");
+  postHandCountdown.id = "autoDealPostHandCountdown";
+  postHandCountdown.className = "auto-deal-countdown auto-deal-post-hand-countdown hidden";
+
+  const postHandDealBtn = els.postHandDealBtn || document.getElementById("postHandDealBtn");
+  const postHandActions = postHandDealBtn ? postHandDealBtn.closest(".post-hand-actions") : document.querySelector(".post-hand-actions");
+
+  if (postHandActions) {
+    postHandActions.prepend(postHandCountdown);
+  } else if (els.postHandPanel) {
+    els.postHandPanel.appendChild(postHandCountdown);
+  }
+
+  return postHandCountdown;
+}
+
+function showAutoDealCountdown(text) {
+  if (els.autoDealCountdown) {
+    els.autoDealCountdown.classList.remove("hidden");
+    els.autoDealCountdown.textContent = text;
+  }
+
+  const postHandCountdown = ensureAutoDealCountdownSurface();
+  if (postHandCountdown) {
+    postHandCountdown.classList.remove("hidden");
+    postHandCountdown.textContent = text;
+  }
 }
 
 function setAutoDealToggleState(canShow) {
@@ -815,6 +855,7 @@ function setAutoDealToggleState(canShow) {
 }
 
 function syncAutoDeal(state) {
+  const viewerIsAdmin = Boolean(state && state.viewer && state.viewer.is_admin);
   const canDeal = canViewerDeal(state);
   const winners = Array.isArray(state && state.winners) ? state.winners : [];
   const handComplete = Boolean(
@@ -824,7 +865,7 @@ function syncAutoDeal(state) {
     && !state.__history_review
   );
 
-  setAutoDealToggleState(canDeal);
+  setAutoDealToggleState(viewerIsAdmin);
 
   if (!autoDealEnabled || !canDeal || !handComplete || state.paused) {
     hideAutoDealCountdown();
@@ -840,10 +881,7 @@ function syncAutoDeal(state) {
 
   if (autoDealFiredKey === key) {
     clearAutoDealTimer();
-    if (els.autoDealCountdown) {
-      els.autoDealCountdown.classList.remove("hidden");
-      els.autoDealCountdown.textContent = "Dealing next hand?";
-    }
+    showAutoDealCountdown("Dealing next hand?");
     return;
   }
 
@@ -856,17 +894,12 @@ function syncAutoDeal(state) {
   const remainingMs = Math.max(0, autoDealDeadlineMs - Date.now());
   const remainingSeconds = Math.ceil(remainingMs / 1000);
 
-  if (els.autoDealCountdown) {
-    els.autoDealCountdown.classList.remove("hidden");
-    els.autoDealCountdown.textContent = `Auto-deal in ${remainingSeconds}s`;
-  }
+  showAutoDealCountdown(`Auto-deal in ${remainingSeconds}s`);
 
   if (remainingMs <= 0) {
     clearAutoDealTimer();
     autoDealFiredKey = key;
-    if (els.autoDealCountdown) {
-      els.autoDealCountdown.textContent = "Dealing next hand?";
-    }
+    showAutoDealCountdown("Dealing next hand?");
     action("start_hand");
     return;
   }

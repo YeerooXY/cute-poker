@@ -6576,3 +6576,28 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
 .auto-deal-countdown.hidden {
   display: none !important;
 }
+
+
+/* ??? Visible post-hand auto-deal countdown ??? */
+.auto-deal-post-hand-countdown {
+  min-width: 128px;
+  min-height: 32px;
+  padding: 6px 12px;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+  box-shadow:
+    0 0 0 1px rgba(232,185,35,0.18),
+    0 0 18px rgba(232,185,35,0.16);
+  animation: autoDealPulse 1s ease-in-out infinite;
+}
+
+@keyframes autoDealPulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.035);
+    filter: brightness(1.15);
+  }
+}
