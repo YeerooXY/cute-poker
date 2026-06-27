@@ -1659,6 +1659,18 @@ function openDefaultPanelsForRoom(state) {
   ].forEach(panel => {
     if (panel) panel.classList.remove("hidden");
   });
+
+  // The action log uses collapsed/panel-collapsed state, not only .hidden.
+  // Open it once when entering a room so the default table HUD is complete.
+  if (els.actionLogPanel && els.actionLogToggle) {
+    panelExpanded = true;
+    applyPanelState();
+    try {
+      localStorage.setItem(PANEL_KEY, "true");
+    } catch (e) {
+      // Ignore private browsing/quota issues.
+    }
+  }
 }
 
 
@@ -2747,7 +2759,7 @@ function initActionLogToggle() {
   // Read initial state from localStorage (default to expanded/true)
   try {
     const stored = localStorage.getItem(PANEL_KEY);
-    const defaultExpanded = false;
+    const defaultExpanded = true;
     panelExpanded = stored === null ? defaultExpanded : stored !== "false";
   } catch (e) {
     panelExpanded = true;

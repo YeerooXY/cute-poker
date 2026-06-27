@@ -5367,3 +5367,66 @@ body.history-review-open #postHandPanel.history-review-modal #postHandPot {
   overflow: visible;
   padding-right: 0;
 }
+
+
+/* ??? History review compact hand-complete footprint override ??? */
+body.history-review-open #postHandPanel.post-hand-modal.history-review-modal {
+  position: fixed !important;
+  left: 50% !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: clamp(88px, 10vh, 120px) !important;
+  transform: translateX(-50%) !important;
+  width: min(760px, calc(100vw - 32px)) !important;
+  max-width: none !important;
+  height: auto !important;
+  max-height: min(58vh, 460px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 14px !important;
+  gap: 10px !important;
+  animation: historyReviewFadeInOnly 0.16s ease-out both !important;
+}
+
+body.history-review-open #postHandPanel.post-hand-modal.history-review-modal::before {
+  display: none !important;
+}
+
+@keyframes historyReviewFadeInOnly {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+body.history-review-open #postHandPanel.history-review-modal #postHandBody {
+  max-height: min(38vh, 320px) !important;
+  overflow-y: auto !important;
+  padding: 5px !important;
+}
+
+body.history-review-open #postHandPanel.history-review-modal .post-hand-row {
+  min-height: 42px !important;
+}
+
+body.history-review-open #postHandPanel.history-review-modal .history-review-board-strip {
+  margin: 8px 0 10px !important;
+  padding: 10px 12px !important;
+}
+
+body.history-review-open #postHandPanel.history-review-modal #postHandPot,
+body.history-review-open #postHandPanel.history-review-modal .post-hand-pot {
+  margin-right: 44px !important;
+}
+
+@media (max-width: 760px) {
+  body.history-review-open #postHandPanel.post-hand-modal.history-review-modal {
+    bottom: clamp(44px, 8vh, 92px) !important;
+    width: calc(100vw - 20px) !important;
+    max-height: calc(100vh - 220px) !important;
+    padding: 12px !important;
+  }
+
+  body.history-review-open #postHandPanel.history-review-modal #postHandBody {
+    max-height: calc(100vh - 395px) !important;
+  }
+}

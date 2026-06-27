@@ -53,6 +53,9 @@ def test_default_panels_auto_open_once_per_room():
     assert "els.handHistoryPanel" in app
     assert "els.chatPanel" in app
     assert "els.actionLogPanel" in app
+    assert "panelExpanded = true;" in app
+    assert 'localStorage.setItem(PANEL_KEY, "true")' in app
+    assert "const defaultExpanded = true" in app
 
 
 def test_history_review_uses_post_hand_modal_instead_of_inline_expansion():
@@ -138,10 +141,12 @@ def test_history_review_modal_uses_hand_complete_sized_layout_without_snap():
 
     assert "History review matched hand-complete sizing" in css
     assert "History review snap prevention" in css
+    assert "History review compact hand-complete footprint override" in css
     assert "#postHandPanel.post-hand-modal.history-review-modal" in css
-    assert "width: min(1120px" in css
-    assert "transform: translate(-50%, -50%)" in css
-    assert "max-height: min(82vh, 840px)" in css
+    assert "width: min(760px" in css
+    assert "transform: translateX(-50%)" in css
+    assert "max-height: min(58vh, 460px)" in css
+    assert "historyReviewFadeInOnly" in css
 
 
 def test_static_assets_are_cache_busted():
