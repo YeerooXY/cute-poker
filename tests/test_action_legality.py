@@ -45,7 +45,7 @@ def make_player(
         seat=seat,
         stack=stack,
         committed=committed,
-        cards=cards or ["AS", "AH"],
+        cards=["AS", "AH"] if cards is None else cards,
         folded=folded,
         all_in=all_in,
         acted=acted,
@@ -235,7 +235,24 @@ async def test_spectator_cannot_act_even_if_bad_client_sends_action() -> None:
 
 
 @pytest.mark.asyncio
-async def test_sitting_out_player_cannot_act_even_if_bad_client_sends_action() -> None:
+async def test_sitting_out_player_without_live_cards_cannot_act_even_if_bad_client_sends_action() -> None:
+    server = PokerServer()
+
+    sitting_out = make_player("p1", "SittingOut", seat=1, stack=1000, cards=[], sitting_out=True)
+    live = make_player("p2", "Live", seat=2, stack=1000)
+    room = make_room(sitting_out, live, action_seat=1, current_bet=0, pot=0)
+
+    await server.player_action(room, sitting_out, "bet_raise", {"amount": 100})
+
+    assert "Sitting-out players cannot act" in error_messages(player_ws(sitting_out))[0]
+    assert sitting_out.stack == 1000
+    assert sitting_out.committed == 0
+    assert room.pot == 0
+    assert room.action_seat == 2
+
+
+@pytest.mark.asyncio
+async def test_sitting_out_player_with_live_cards_can_finish_current_hand() -> None:
     server = PokerServer()
 
     sitting_out = make_player("p1", "SittingOut", seat=1, stack=1000, sitting_out=True)
@@ -244,10 +261,11 @@ async def test_sitting_out_player_cannot_act_even_if_bad_client_sends_action() -
 
     await server.player_action(room, sitting_out, "bet_raise", {"amount": 100})
 
-    assert "Sitting-out players cannot act." in error_messages(player_ws(sitting_out))
-    assert sitting_out.stack == 1000
-    assert sitting_out.committed == 0
-    assert room.pot == 0
+    assert error_messages(player_ws(sitting_out)) == []
+    assert sitting_out.stack == 900
+    assert sitting_out.committed == 100
+    assert sitting_out.total_invested == 100
+    assert room.pot == 100
     assert room.action_seat == 2
 
 
