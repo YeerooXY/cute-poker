@@ -36,6 +36,8 @@ from poker.trash_talk import get_trash_talk, TrashTalkEvent, DELAY_RANGE
 
 MAX_SEATS = 8
 STARTING_STACK = 1000
+MAX_CHAT_MESSAGES = 50
+MAX_CHAT_TEXT_LEN = 240
 _SIMULATION_MODE = os.getenv("POKER_SIMULATION") == "1"
 
 # ─── Action log sanitization ──────────────────────────────────────────────────
@@ -58,6 +60,28 @@ def _sanitize_action_log(raw_log: list[dict]) -> list[dict]:
         for entry in raw_log
     ]
 
+
+def _sanitize_chat_text(text: Any) -> str:
+    """Return a safe, bounded chat message, or empty string to drop it."""
+    if not isinstance(text, str):
+        return ""
+    clean = " ".join(text.split())
+    return clean[:MAX_CHAT_TEXT_LEN].strip()
+
+
+def _append_room_message(room: Room, name: str, text: Any) -> bool:
+    """Append a sanitized room message and enforce the room message cap."""
+    clean = _sanitize_chat_text(text)
+    if not clean:
+        return False
+
+    clean_name = (str(name).strip()[:24].strip() or "Player")
+    room.messages.append(ChatMessage(clean_name, clean))
+
+    if len(room.messages) > MAX_CHAT_MESSAGES:
+        del room.messages[:-MAX_CHAT_MESSAGES]
+
+    return True
 
 @dataclass
 class HandleResult:
@@ -109,7 +133,7 @@ class PokerServer:
             return HandleResult(room.room_id, player.token)
 
         if event == "chat":
-            await self.chat(room, player, str(payload.get("text", "")))
+            await self.chat(room, player, payload.get("text", ""))
             return HandleResult(room.room_id, player.token)
 
         await self.send(ws, "error", {"message": f"Unknown event: {event}"})
@@ -342,7 +366,7 @@ class PokerServer:
         player = Player(
             player_id=make_id(10),
             token=secrets.token_urlsafe(24),
-            name=(str(name).strip()[:24] or f"Player {seat}"),
+            name=(str(name).strip()[:24].strip() or f"Player {seat}"),
             seat=seat,
             ws=ws,
             connected=True,
@@ -410,16 +434,10 @@ class PokerServer:
         if not room.players:
             self.rooms.pop(room.room_id, None)
 
-    async def chat(self, room: Room, player: Player, text: str):
-        text = text.strip()
-        if not text:
-            return
+    async def chat(self, room: Room, player: Player, text: Any):
+        if _append_room_message(room, player.name, text):
+            await self.broadcast(room)
 
-        room.messages.append(ChatMessage(player.name, text[:240]))
-        room.messages = room.messages[-50:]
-        await self.broadcast(room)
-
-    # ─── Bot Management ───
 
     async def add_bot(self, room: Room, style: Optional[str] = None, difficulty: Optional[str] = None):
         """Add an AI bot player to the room."""
@@ -2034,7 +2052,7 @@ class PokerServer:
                     "text": m.text,
                     "timestamp": m.timestamp,
                 }
-                for m in room.messages[-50:]
+                for m in room.messages[-MAX_CHAT_MESSAGES:]
             ],
             "winners": [
                 {
