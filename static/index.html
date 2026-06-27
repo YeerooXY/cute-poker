@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <title>Cute Poker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-  <link href="/static/styles.css?v=8" rel="stylesheet">
+  <link href="/static/styles.css?v=9" rel="stylesheet">
 </head>
 <body>
   <!-- Connect screen -->
@@ -120,15 +120,14 @@
         <button id="leaveBtn" class="btn btn-tiny btn-dim">✕ Leave</button>
         <span id="roomId" class="room-code"></span>
         <button id="copyRoomBtn" class="btn btn-tiny btn-dim">📋</button>
+
+        <button id="handHistoryToggle" class="btn btn-tiny btn-dim hand-history-toggle" title="Hand history">History <span id="handHistoryCount">0</span></button>
       </div>
       <div class="hud-right">
         <span id="blindInfo" class="blind-info"></span>
         <span id="phaseBadge" class="phase-badge"></span>
         <button id="bbToggleBtn" class="btn btn-tiny btn-dim" title="Toggle Big Blind unit display">BB</button>
-        <button id="hintsToggle" class="btn btn-tiny btn-dim">💡</button>
-        <button id="handHistoryToggle" class="btn btn-tiny btn-dim hand-history-toggle" title="Hand history">History <span id="handHistoryCount">0</span></button>
-
-        <button id="chatToggle" class="btn btn-tiny btn-dim">💬</button>
+        <button id="hintsToggle" class="btn btn-tiny btn-dim">💡</button><button id="chatToggle" class="btn btn-tiny btn-dim">💬</button>
       </div>
     </div>
 
@@ -254,6 +253,6 @@
     <button id="actionLogToggle" class="action-log-toggle">◀</button>
   </div>
 
-  <script src="/static/app.js?v=8"></script>
+  <script src="/static/app.js?v=9"></script>
 </body>
 </html>

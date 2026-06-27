@@ -35,3 +35,14 @@ def test_hand_history_styles_exist():
     assert ".hand-history-row" in css
     assert ".hand-history-board" in css
     assert ".hand-history-toggle.has-history" in css
+
+
+def test_hand_history_button_lives_in_left_hud_not_chat_side():
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+
+    left = html.split('<div class="hud-left">', 1)[1].split('</div>', 1)[0]
+    right = html.split('<div class="hud-right">', 1)[1].split('</div>', 1)[0]
+
+    assert 'id="handHistoryToggle"' in left
+    assert 'id="handHistoryToggle"' not in right
+    assert left.index('id="copyRoomBtn"') < left.index('id="handHistoryToggle"')
