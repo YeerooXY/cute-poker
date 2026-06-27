@@ -899,6 +899,35 @@ function actionTimerText(state, isMyTurn) {
 
 
 
+function syncActionConsoleBank(state) {
+  if (!els.actionBar) return;
+
+  let bank = document.getElementById("actionConsoleBank");
+  if (!bank) {
+    bank = document.createElement("div");
+    bank.id = "actionConsoleBank";
+    bank.className = "action-console-bank hidden";
+    els.actionBar.appendChild(bank);
+  }
+
+  const viewer = state && state.viewer ? state.viewer : {};
+  const viewerBank = Math.max(0, Math.floor(Number(viewer.timebank_seconds) || 0));
+  const isMyTurn = Boolean(viewer.is_turn);
+  const usingTimebank = Boolean(state && state.action_timer_using_timebank && isMyTurn);
+  const active = Boolean(state && state.action_timer_active);
+
+  if (!state || (viewerBank <= 0 && !active)) {
+    bank.classList.add("hidden");
+    bank.textContent = "";
+    return;
+  }
+
+  bank.classList.remove("hidden");
+  bank.classList.toggle("using-timebank", usingTimebank);
+  bank.textContent = usingTimebank ? `Timebank ${viewerBank}s` : `Bank ${viewerBank}s`;
+}
+
+
 function numberOrZero(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -1391,9 +1420,10 @@ function renderState(state) {
   const viewerData = state.players.find(p => p.is_you);
   if (els.sitOutBtn && viewerData) {
     els.sitOutBtn.textContent = viewerData.sitting_out ? "Sit In" : "Sit Out";
-    const inHand = ["preflop","flop","turn","river"].includes(state.phase);
-    const canSitOut = !viewerData.is_spectator && (!inHand || viewerData.folded || !viewerData.cards || viewerData.cards.length === 0);
-    els.sitOutBtn.style.display = canSitOut ? "" : "none";
+    els.sitOutBtn.title = viewerData.sitting_out
+      ? "You will be dealt in again from the next hand"
+      : "Sit out from the next hand";
+    els.sitOutBtn.style.display = viewerData.is_spectator ? "none" : "";
   }
   if (els.spectateBtn && viewerData) {
     els.spectateBtn.textContent = viewerData.is_spectator ? "Join Game" : "Spectate";
@@ -1424,6 +1454,7 @@ function renderState(state) {
   syncDealControls(state);
 
   // ─── Action button labels / enabled state ───
+  syncActionConsoleBank(state);
   syncBettingControls(state, isMyTurn, showdownDisplay);
 
   // Hide outs box (removed feature)

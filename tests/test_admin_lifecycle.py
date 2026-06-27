@@ -21,6 +21,15 @@ def run(coro):
     return asyncio.run(coro)
 
 
+async def wait_until(predicate, timeout: float = 3.0, interval: float = 0.05) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if predicate():
+            return True
+        await asyncio.sleep(interval)
+    return predicate()
+
+
 def error_messages(ws: DummyWs) -> list[str]:
     return [
         message["payload"]["message"]
@@ -320,7 +329,11 @@ def test_backend_action_timer_auto_folds_when_facing_bet():
         room.pot = 20
 
         await server.broadcast(room)
-        await asyncio.sleep(1.4)
+        assert await wait_until(
+            lambda: creator.folded
+            and any(entry.get("action") == "timeout_fold" for entry in room.action_log),
+            timeout=3.0,
+        )
 
         assert creator.folded is True
         assert any(entry.get("action") == "timeout_fold" for entry in room.action_log)
@@ -436,3 +449,28 @@ def test_visible_state_separates_regular_action_time_from_timebank():
     assert state["action_timer_regular_remaining_seconds"] == 0
     assert 0 < state["action_timer_timebank_remaining_seconds"] < 100
     assert state["viewer"]["timebank_seconds"] == state["action_timer_timebank_remaining_seconds"]
+
+
+def test_between_hands_sit_out_still_toggles_immediately():
+    server, room, creator, _guest, _creator_ws, _guest_ws = make_room_with_two_humans()
+    room.phase = "lobby"
+
+    run(server.player_action(room, creator, "sit_out", {}))
+
+    assert creator.sitting_out is True
+
+
+def test_sit_out_toggle_is_checked_when_next_hand_starts():
+    server, room, creator, guest, _creator_ws, _guest_ws = make_room_with_two_humans()
+    third_ws = DummyWs()
+    third = server.add_new_player(room, third_ws, "Third")
+    room.phase = "lobby"
+
+    run(server.player_action(room, creator, "sit_out", {}))
+
+    assert creator.sitting_out is True
+    run(server.start_hand(room))
+
+    assert creator.cards == []
+    assert guest.cards
+    assert third.cards

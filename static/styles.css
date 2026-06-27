@@ -6668,3 +6668,77 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
 .hand-history-body::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, rgba(245,212,66,1), rgba(76,175,80,0.92));
 }
+
+
+/* ??? Action console timebank pill ??? */
+.action-console-bank {
+  position: absolute;
+  right: 10px;
+  bottom: calc(100% + 6px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(232,185,35,0.34);
+  background: rgba(0,0,0,0.46);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 0 12px rgba(0,0,0,0.25);
+  pointer-events: none;
+}
+
+.action-console-bank.using-timebank {
+  color: var(--gold-light);
+  border-color: rgba(232,185,35,0.72);
+  background: rgba(232,185,35,0.16);
+  box-shadow: 0 0 16px rgba(232,185,35,0.22);
+}
+
+
+/* ??? Showdown modal compact row repair ??? */
+.post-hand-panel.post-hand-modal .post-hand-body {
+  gap: 6px !important;
+}
+
+.post-hand-panel.post-hand-modal .post-hand-row {
+  grid-template-columns: minmax(150px, 0.9fr) minmax(120px, auto) minmax(0, 1fr) auto !important;
+  min-height: 42px !important;
+  padding: 6px 8px !important;
+  gap: 7px !important;
+  overflow: hidden;
+}
+
+.post-hand-panel.post-hand-modal .post-hand-row:first-child {
+  min-height: 46px !important;
+}
+
+.post-hand-panel.post-hand-modal .post-hand-cards {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.post-hand-panel.post-hand-modal .post-hand-cards .playing-card,
+.post-hand-panel.post-hand-modal .post-hand-row:first-child .post-hand-cards .playing-card {
+  width: 28px !important;
+  height: 40px !important;
+  min-width: 28px !important;
+  font-size: 11px !important;
+  flex: 0 0 auto;
+}
+
+.post-hand-panel.post-hand-modal .post-hand-detail {
+  min-width: 0;
+  font-size: 11px !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.post-hand-panel.post-hand-modal .post-hand-amount {
+  min-width: 52px;
+  text-align: center;
+}

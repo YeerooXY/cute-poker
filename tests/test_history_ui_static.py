@@ -488,3 +488,37 @@ def test_hand_history_scrollbar_is_styled():
     assert ".hand-history-body::-webkit-scrollbar" in css
     assert ".hand-history-body::-webkit-scrollbar-thumb" in css
     assert "scrollbar-color" in css
+
+
+def test_action_console_bank_and_single_sit_out_next_ui():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert "function syncActionConsoleBank(state)" in app
+    assert "actionConsoleBank" in app
+    assert "syncActionConsoleBank(state);" in app
+    assert "Sit Out Next" not in app
+    assert "Cancel Sit Out" not in app
+    assert "sit_out_next_hand" not in app
+    assert "SIT NEXT" not in app
+    assert app.count("sitOutBtn") >= 1
+    assert "Action console timebank pill" in css
+    assert ".action-console-bank" in css
+
+
+def test_showdown_modal_compact_row_repair_css_exists():
+    css = read_static("styles.css")
+
+    assert "Showdown modal compact row repair" in css
+    assert ".post-hand-panel.post-hand-modal .post-hand-row" in css
+    assert ".post-hand-panel.post-hand-modal .post-hand-cards .playing-card" in css
+
+
+def test_sit_out_button_is_simple_single_toggle():
+    app = read_static("app.js")
+
+    assert 'els.sitOutBtn.textContent = viewerData.sitting_out ? "Sit In" : "Sit Out"' in app
+    assert "sit_out_next_hand" not in app
+    assert "Sit Out Next" not in app
+    assert "Cancel Sit Out" not in app
+    assert "SIT NEXT" not in app

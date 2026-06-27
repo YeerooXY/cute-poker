@@ -1,0 +1,48 @@
+param(
+  [Parameter(Mandatory=$true)]
+  [string]$Message,
+
+  [switch]$FullTests
+)
+
+$ErrorActionPreference = "Stop"
+
+$repo = Resolve-Path "$PSScriptRoot\.."
+Set-Location $repo
+
+Write-Host "[safe_commit] Cleaning generated logs/temp..." -ForegroundColor Cyan
+git restore -- logs 2>$null
+git clean -f -- logs/*.json 2>$null
+Remove-Item -Force server_port_helpers.patch -ErrorAction SilentlyContinue
+
+Write-Host "[safe_commit] Running focused checks..." -ForegroundColor Cyan
+python -m pytest tests/test_history_ui_static.py tests/test_admin_lifecycle.py -q
+
+if (Get-Command node -ErrorAction SilentlyContinue) {
+  node --check static/app.js
+}
+
+if ($FullTests) {
+  Write-Host "[safe_commit] Running full test suite..." -ForegroundColor Cyan
+  python -m pytest -q
+}
+
+Write-Host "[safe_commit] Working tree:" -ForegroundColor Cyan
+git status --short
+
+Write-Host "[safe_commit] Staging known source/test files..." -ForegroundColor Cyan
+git add poker/game.py poker/models.py static/app.js static/styles.css tests/test_admin_lifecycle.py tests/test_history_ui_static.py scripts/safe_commit.ps1
+
+$staged = git diff --cached --name-only
+if (-not $staged) {
+  Write-Error "[safe_commit] Nothing staged to commit."
+  exit 1
+}
+
+Write-Host "[safe_commit] Staged files:" -ForegroundColor Cyan
+$staged
+
+git commit -m $Message
+git push
+
+Write-Host "[safe_commit] Done." -ForegroundColor Green
