@@ -41,6 +41,9 @@ MAX_CHAT_MESSAGES = 50
 MAX_CHAT_TEXT_LEN = 240
 HAND_HISTORY_LIMIT = 20
 AUTO_DEAL_DEFAULT_DELAY_SECONDS = 10
+ACTION_TIMER_DEFAULT_SECONDS = 10
+STARTING_TIMEBANK_DEFAULT_SECONDS = 100
+TIMEBANK_GAIN_DEFAULT_SECONDS = 1
 _SIMULATION_MODE = os.getenv("POKER_SIMULATION") == "1"
 
 # ─── Action log sanitization ──────────────────────────────────────────────────
@@ -163,6 +166,7 @@ class PokerServer:
         self._bot_loop_active: dict[str, asyncio.Event] = {}  # room_id → Event (set when idle)
         self._pending_start_hand: dict[str, bool] = {}  # room_id → queued start_hand flag
         self._auto_deal_tasks: dict[str, asyncio.Task] = {}
+        self._action_timer_tasks: dict[str, asyncio.Task] = {}
 
     async def handle(self, ws: WebSocket, event: str, payload: dict[str, Any]) -> HandleResult:
         if event == "create":
@@ -211,6 +215,7 @@ class PokerServer:
 
         # Backend-owned auto-deal countdown
         self._ensure_auto_deal(room)
+        self._ensure_action_timer(room)
 
         # Clear odds cache on new hand (preflop start with empty board)
         if room.phase == "preflop" and not room.community:
@@ -266,6 +271,26 @@ class PokerServer:
         if auto_deal_delay is None or auto_deal_delay < 1:
             auto_deal_delay = AUTO_DEAL_DEFAULT_DELAY_SECONDS
         room.auto_deal_delay_seconds = auto_deal_delay
+        action_time = _parse_non_negative_int_amount(
+            payload.get("action_time_seconds", ACTION_TIMER_DEFAULT_SECONDS)
+        )
+        room.action_time_seconds = max(1, action_time if action_time is not None else ACTION_TIMER_DEFAULT_SECONDS)
+
+        starting_timebank = _parse_non_negative_int_amount(
+            payload.get("starting_timebank_seconds", STARTING_TIMEBANK_DEFAULT_SECONDS)
+        )
+        room.starting_timebank_seconds = max(
+            0,
+            starting_timebank if starting_timebank is not None else STARTING_TIMEBANK_DEFAULT_SECONDS,
+        )
+
+        timebank_gain = _parse_non_negative_int_amount(
+            payload.get("timebank_gain_per_hand", TIMEBANK_GAIN_DEFAULT_SECONDS)
+        )
+        room.timebank_gain_per_hand = max(
+            0,
+            timebank_gain if timebank_gain is not None else TIMEBANK_GAIN_DEFAULT_SECONDS,
+        )
 
         player = self.add_new_player(room, ws, payload.get("name", "Player"), payload.get("avatar", "🎭"))
         room.creator_token = player.token
@@ -373,6 +398,8 @@ class PokerServer:
                     self._bot_task_running.discard(room_id)
                     self._bot_loop_active.pop(room_id, None)
                     self._pending_start_hand.pop(room_id, None)
+                    self._cancel_auto_deal_for_room_id(room_id)
+                    self._cancel_action_timer_for_room_id(room_id)
                     self.rooms.pop(room_id, None)
                     return
 
@@ -419,6 +446,8 @@ class PokerServer:
 
         # If room is empty, delete it
         if not room.players:
+            self._cancel_auto_deal_for_room_id(room.room_id)
+            self._cancel_action_timer_for_room_id(room.room_id)
             self.rooms.pop(room.room_id, None)
         else:
             # If only bots remain (no human players), destroy the room
@@ -430,6 +459,8 @@ class PokerServer:
                 self._bot_task_running.discard(room.room_id)
                 self._bot_loop_active.pop(room.room_id, None)
                 self._pending_start_hand.pop(room.room_id, None)
+                self._cancel_auto_deal_for_room_id(room.room_id)
+                self._cancel_action_timer_for_room_id(room.room_id)
                 self.rooms.pop(room.room_id, None)
             else:
                 # If only one player left in a hand, award them the pot
@@ -451,6 +482,7 @@ class PokerServer:
             connected=True,
             stack=STARTING_STACK,
             avatar=avatar[:4] if avatar else "🎭",
+            timebank_seconds=max(0, int(getattr(room, "starting_timebank_seconds", STARTING_TIMEBANK_DEFAULT_SECONDS))),
         )
         room.players[player.player_id] = player
         return player
@@ -535,6 +567,8 @@ class PokerServer:
             self.assign_new_creator_if_needed(room)
         # If room is now empty, remove it
         if not room.players:
+            self._cancel_auto_deal_for_room_id(room.room_id)
+            self._cancel_action_timer_for_room_id(room.room_id)
             self.rooms.pop(room.room_id, None)
 
     async def chat(self, room: Room, player: Player, text: Any):
@@ -572,6 +606,7 @@ class PokerServer:
             connected=True,
             stack=STARTING_STACK,
             avatar=config.avatar,
+            timebank_seconds=0,
         )
         room.players[bot_player.player_id] = bot_player
         self.bots[bot_player.player_id] = config
@@ -864,6 +899,164 @@ class PokerServer:
     def _cancel_auto_deal(self, room: Room) -> None:
         self._cancel_auto_deal_for_room_id(room.room_id)
 
+    def _cancel_action_timer_for_room_id(self, room_id: str) -> None:
+        task = self._action_timer_tasks.pop(room_id, None)
+        if task and not task.done():
+            try:
+                current = asyncio.current_task()
+            except RuntimeError:
+                current = None
+            if task is not current:
+                task.cancel()
+
+        room = self.rooms.get(room_id)
+        if room:
+            room.action_timer_started_at = 0.0
+            room.action_timer_player_id = ""
+            room.action_timer_generation += 1
+
+    def _cancel_action_timer(self, room: Room) -> None:
+        self._cancel_action_timer_for_room_id(room.room_id)
+
+    def _action_timer_player(self, room: Room) -> Optional[Player]:
+        if room.phase not in ("preflop", "flop", "turn", "river"):
+            return None
+        if room.paused or room.action_seat is None:
+            return None
+
+        player = self.player_by_seat(room, room.action_seat)
+        if not player:
+            return None
+        if player.player_id in self.bots:
+            return None
+        if player.folded or player.all_in or player.stack <= 0:
+            return None
+        if not player.cards or player.sitting_out or player.is_spectator:
+            return None
+        return player
+
+    def _action_timer_total_seconds_for_player(self, room: Room, player: Player) -> int:
+        action_seconds = max(1, int(getattr(room, "action_time_seconds", ACTION_TIMER_DEFAULT_SECONDS)))
+        timebank = max(0, int(getattr(player, "timebank_seconds", 0)))
+        return action_seconds + timebank
+
+    def action_timer_remaining_seconds(self, room: Room) -> int:
+        if not getattr(room, "action_timer_started_at", 0.0):
+            return 0
+
+        player = self._action_timer_player(room)
+        if not player or player.player_id != getattr(room, "action_timer_player_id", ""):
+            return 0
+
+        total = self._action_timer_total_seconds_for_player(room, player)
+        elapsed = time_module.time() - float(room.action_timer_started_at)
+        remaining = max(0.0, total - elapsed)
+        return int(remaining + 0.999)
+
+    def _consume_action_timebank_for_player(self, room: Room, player: Player) -> None:
+        if player.player_id != getattr(room, "action_timer_player_id", ""):
+            return
+        if not getattr(room, "action_timer_started_at", 0.0):
+            return
+
+        action_seconds = max(1, int(getattr(room, "action_time_seconds", ACTION_TIMER_DEFAULT_SECONDS)))
+        elapsed = time_module.time() - float(room.action_timer_started_at)
+        overage = max(0, int((elapsed - action_seconds) + 0.999))
+        if overage:
+            player.timebank_seconds = max(0, int(getattr(player, "timebank_seconds", 0)) - overage)
+
+    def _ensure_action_timer(self, room: Room) -> None:
+        player = self._action_timer_player(room)
+        if not player:
+            self._cancel_action_timer(room)
+            return
+
+        room_id = room.room_id
+        existing = self._action_timer_tasks.get(room_id)
+        if (
+            existing
+            and not existing.done()
+            and room.action_timer_player_id == player.player_id
+            and getattr(room, "action_timer_started_at", 0.0) > 0
+        ):
+            return
+
+        self._cancel_action_timer(room)
+        room.action_timer_started_at = time_module.time()
+        room.action_timer_player_id = player.player_id
+        generation = room.action_timer_generation
+        self._action_timer_tasks[room_id] = asyncio.create_task(
+            self._action_timer_countdown(room_id, generation, player.player_id)
+        )
+
+    async def _action_timer_countdown(self, room_id: str, generation: int, player_id: str) -> None:
+        try:
+            while True:
+                room = self.rooms.get(room_id)
+                if not room:
+                    return
+                if room.action_timer_generation != generation:
+                    return
+
+                player = self._action_timer_player(room)
+                if not player or player.player_id != player_id:
+                    return
+
+                remaining = self.action_timer_remaining_seconds(room)
+                await self.broadcast(room)
+                if remaining <= 0:
+                    break
+
+                await asyncio.sleep(min(1.0, float(remaining)))
+
+            room = self.rooms.get(room_id)
+            if room and room.action_timer_generation == generation:
+                await self._apply_action_timeout(room, player_id, generation)
+        finally:
+            task = self._action_timer_tasks.get(room_id)
+            try:
+                current = asyncio.current_task()
+            except RuntimeError:
+                current = None
+            if task is current:
+                self._action_timer_tasks.pop(room_id, None)
+
+    async def _apply_action_timeout(self, room: Room, player_id: str, generation: int) -> None:
+        player = room.players.get(player_id)
+        if not player or room.action_timer_generation != generation:
+            return
+        if player != self._action_timer_player(room):
+            return
+
+        to_call = max(0, room.current_bet - player.committed)
+        action = "timeout_fold" if to_call > 0 else "timeout_check"
+        player.timebank_seconds = 0
+        committed_before = player.committed
+
+        if to_call > 0:
+            player.folded = True
+            amount = 0
+        else:
+            amount = 0
+
+        player.acted = True
+        room.action_log.append({
+            "player": player.name,
+            "is_bot": False,
+            "phase": room.phase,
+            "pot": room.pot,
+            "current_bet": room.current_bet,
+            "committed": player.committed,
+            "committed_before": committed_before,
+            "stack": player.stack,
+            "action": action,
+            "amount": amount,
+            "is_all_in": player.all_in,
+        })
+
+        self._cancel_action_timer(room)
+        await self.after_action(room)
+
     def _auto_deal_can_run(self, room: Room) -> bool:
         if not getattr(room, "auto_deal_enabled", True):
             return False
@@ -995,6 +1188,7 @@ class PokerServer:
             room.community = []
             room.winners = []
             self._cancel_auto_deal(room)
+            self._cancel_action_timer(room)
             await self.broadcast(room)
             return
 
@@ -1171,11 +1365,15 @@ class PokerServer:
         committed_before = player.committed
 
         if action == "fold":
+            self._consume_action_timebank_for_player(room, player)
+            self._cancel_action_timer(room)
             player.folded = True
             player.acted = True
             print(f"  -> FOLD by {player.name}")
 
         elif action == "check_call":
+            self._consume_action_timebank_for_player(room, player)
+            self._cancel_action_timer(room)
             to_call = max(0, room.current_bet - player.committed)
             # If player can't cover the full call, they go all-in
             call_amount = min(to_call, player.stack)
@@ -1213,6 +1411,9 @@ class PokerServer:
             if needed <= 0:
                 await self.send(player.ws, "error", {"message": "Raise amount too small."})
                 return
+
+            self._consume_action_timebank_for_player(room, player)
+            self._cancel_action_timer(room)
 
             # Calculate the raise increment (for min_raise tracking)
             raise_increment = raise_to - room.current_bet
@@ -1429,6 +1630,7 @@ class PokerServer:
             return
 
         self._cancel_auto_deal(room)
+        self._cancel_action_timer(room)
         self._odds_cache.pop(room.room_id, None)
         room.deck = new_deck()
         room.community = []
@@ -2234,6 +2436,7 @@ class PokerServer:
 
     def record_completed_hand(self, room: Room) -> dict[str, Any]:
         """Store a safe public completed-hand snapshot for later history/replay UI."""
+        self._grant_completed_hand_timebank(room)
         snapshot = self.public_hand_result(room)
 
         history = getattr(room, "hand_history", None)
@@ -2246,6 +2449,22 @@ class PokerServer:
             del history[:-HAND_HISTORY_LIMIT]
 
         return snapshot
+
+    def _grant_completed_hand_timebank(self, room: Room) -> None:
+        hand_number = int(getattr(room, "hands_played", 0))
+        if getattr(room, "timebank_awarded_hand_number", -1) == hand_number:
+            return
+
+        gain = max(0, int(getattr(room, "timebank_gain_per_hand", TIMEBANK_GAIN_DEFAULT_SECONDS)))
+        if gain <= 0:
+            room.timebank_awarded_hand_number = hand_number
+            return
+
+        for p in room.seated_players():
+            if p.player_id not in self.bots:
+                p.timebank_seconds = max(0, int(getattr(p, "timebank_seconds", 0))) + gain
+
+        room.timebank_awarded_hand_number = hand_number
 
     def full_hand_history(self, room: Room) -> list[dict[str, Any]]:
         """Return full safe public snapshots for recent completed hands."""
@@ -2446,6 +2665,7 @@ class PokerServer:
                 "is_sb": p.seat == room.sb_seat,
                 "is_bb": p.seat == room.bb_seat,
                 "is_action": p.seat == room.action_seat,
+                "timebank_seconds": max(0, int(getattr(p, "timebank_seconds", 0))),
                 "cards": display_cards(cards),
                 "hand_name": p.last_hand_name if room.phase == "showdown" and not p.folded else "",
                 "hand_detail": p.last_hand_detail if room.phase == "showdown" and not p.folded else "",
@@ -2505,11 +2725,13 @@ class PokerServer:
         viewer_stack = 0
         is_admin = False
         odds = None
+        viewer_timebank = 0
         if viewer:
             viewer_to_call = max(0, room.current_bet - viewer.committed)
             is_viewer_turn = room.action_seat == viewer.seat
             viewer_committed = viewer.committed
             viewer_stack = viewer.stack
+            viewer_timebank = max(0, int(getattr(viewer, "timebank_seconds", 0)))
             is_admin = viewer.token == room.creator_token
 
             # Calculate odds for the viewer (only during active hand)
@@ -2551,6 +2773,19 @@ class PokerServer:
                 except Exception:
                     pass
 
+        action_timer_player_id = getattr(room, "action_timer_player_id", "")
+        action_timer_player = room.players.get(action_timer_player_id) if action_timer_player_id else None
+        action_timer_active = (
+            bool(action_timer_player)
+            and action_timer_player == self._action_timer_player(room)
+            and getattr(room, "action_timer_started_at", 0.0) > 0
+        )
+        action_timer_total_seconds = (
+            self._action_timer_total_seconds_for_player(room, action_timer_player)
+            if action_timer_active and action_timer_player
+            else 0
+        )
+
         return {
             "room_id": room.room_id,
             "phase": room.phase,
@@ -2576,6 +2811,11 @@ class PokerServer:
                 and getattr(room, "auto_deal_started_at", 0.0) > 0
             ),
             "auto_deal_remaining_seconds": self.auto_deal_remaining_seconds(room),
+            "action_timer_active": action_timer_active,
+            "action_timer_player_id": action_timer_player_id if action_timer_active else "",
+            "action_timer_remaining_seconds": self.action_timer_remaining_seconds(room) if action_timer_active else 0,
+            "action_timer_total_seconds": action_timer_total_seconds,
+            "action_time_seconds": getattr(room, "action_time_seconds", ACTION_TIMER_DEFAULT_SECONDS),
             "community": display_cards(room.community),
             "players": players,
             "messages": [
@@ -2617,6 +2857,7 @@ class PokerServer:
                 "to_call": viewer_to_call,
                 "committed": viewer_committed,
                 "stack": viewer_stack,
+                "timebank_seconds": viewer_timebank,
                 "is_admin": is_admin,
                 "odds": odds,
             }

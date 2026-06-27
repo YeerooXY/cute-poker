@@ -438,3 +438,25 @@ def test_auto_deal_countdown_surface_is_public_not_admin_only():
     assert "autoDealPostHandCountdown" in app
     assert "postHandPanel.insertBefore(postHandCountdown, anchor)" in app
     assert "postHandActions.prepend(postHandCountdown)" not in app
+
+
+def test_action_timer_frontend_uses_backend_state_only():
+    app = read_static("app.js")
+
+    assert "function actionTimerText(state, isMyTurn)" in app
+    assert "state.action_timer_active" in app
+    assert "state.action_timer_player_id" in app
+    assert "state.action_timer_remaining_seconds" in app
+    assert "viewer.timebank_seconds" in app
+    assert "thinking:" in app
+    assert "Bank ${timebank}s" in app
+    assert "setTimeout" not in app.split("function actionTimerText", 1)[1].split("function numberOrZero", 1)[0]
+    assert 'action("fold")' not in app.split("function actionTimerText", 1)[1].split("function numberOrZero", 1)[0]
+    assert 'action("check_call")' not in app.split("function actionTimerText", 1)[1].split("function numberOrZero", 1)[0]
+
+
+def test_timeout_action_log_labels_render_safely():
+    app = read_static("app.js")
+
+    assert 'case "timeout_check": return `${player} times out and checks`;' in app
+    assert 'case "timeout_fold":  return `${player} times out and folds`;' in app

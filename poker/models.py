@@ -31,6 +31,7 @@ class Player:
     committed: int = 0
     total_invested: int = 0
     acted: bool = False
+    timebank_seconds: int = 100
 
     last_hand_name: str = ""
     last_best_cards: list[str] = field(default_factory=list)
@@ -73,6 +74,13 @@ class Room:
     auto_deal_delay_seconds: int = 10
     auto_deal_started_at: float = 0.0
     auto_deal_hand_number: int = 0
+    action_time_seconds: int = 10
+    starting_timebank_seconds: int = 100
+    timebank_gain_per_hand: int = 1
+    action_timer_started_at: float = 0.0
+    action_timer_generation: int = 0
+    action_timer_player_id: str = ""
+    timebank_awarded_hand_number: int = -1
 
     phase: str = "lobby"  # lobby, preflop, flop, turn, river, showdown
     pot: int = 0

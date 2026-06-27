@@ -52,6 +52,24 @@ def make_room_with_two_humans():
     return server, room, creator, guest, creator_ws, guest_ws
 
 
+def setup_active_action_room(action_time: int = 1, timebank: int = 0):
+    server, room, creator, guest, creator_ws, guest_ws = make_room_with_two_humans()
+    room.phase = "preflop"
+    room.action_time_seconds = action_time
+    room.starting_timebank_seconds = timebank
+    room.timebank_gain_per_hand = 1
+    room.action_seat = creator.seat
+    room.current_bet = 0
+    room.min_raise = room.big_blind
+    creator.cards = ["AS", "AH"]
+    guest.cards = ["KS", "KH"]
+    creator.timebank_seconds = timebank
+    guest.timebank_seconds = timebank
+    creator.acted = False
+    guest.acted = False
+    return server, room, creator, guest, creator_ws, guest_ws
+
+
 def test_explicit_creator_leave_transfers_admin_to_remaining_human():
     server, room, creator, guest, _creator_ws, guest_ws = make_room_with_two_humans()
 
@@ -253,3 +271,144 @@ def test_backend_auto_deal_starts_next_hand_after_countdown():
         assert events(guest_ws, "state")
 
     run(scenario())
+
+
+def test_backend_action_timer_state_is_visible_for_human_action():
+    async def scenario():
+        server, room, creator, guest, _creator_ws, _guest_ws = setup_active_action_room(action_time=5, timebank=7)
+
+        await server.broadcast(room)
+        creator_state = server.visible_state(room, creator.token)
+        guest_state = server.visible_state(room, guest.token)
+
+        assert creator_state["action_timer_active"] is True
+        assert guest_state["action_timer_active"] is True
+        assert creator_state["action_timer_player_id"] == creator.player_id
+        assert creator_state["action_timer_total_seconds"] == 12
+        assert creator_state["action_timer_remaining_seconds"] <= 12
+        assert creator_state["viewer"]["timebank_seconds"] == 7
+        assert guest_state["viewer"]["timebank_seconds"] == 7
+
+    run(scenario())
+
+
+def test_backend_action_timer_auto_checks_when_no_call():
+    async def scenario():
+        server, room, creator, _guest, _creator_ws, _guest_ws = setup_active_action_room(action_time=1, timebank=0)
+
+        await server.broadcast(room)
+        await asyncio.sleep(1.4)
+
+        assert any(
+            entry.get("player") == creator.name
+            and entry.get("action") == "timeout_check"
+            for entry in room.action_log
+        )
+        assert creator.folded is False
+        assert any(entry.get("action") == "timeout_check" for entry in room.action_log)
+        assert room.action_seat != creator.seat
+
+    run(scenario())
+
+
+def test_backend_action_timer_auto_folds_when_facing_bet():
+    async def scenario():
+        server, room, creator, guest, _creator_ws, _guest_ws = setup_active_action_room(action_time=1, timebank=0)
+        room.current_bet = 20
+        guest.committed = 20
+        guest.total_invested = 20
+        room.pot = 20
+
+        await server.broadcast(room)
+        await asyncio.sleep(1.4)
+
+        assert creator.folded is True
+        assert any(entry.get("action") == "timeout_fold" for entry in room.action_log)
+        assert room.phase == "showdown"
+        assert room.winners and room.winners[0].player_id == guest.player_id
+
+    run(scenario())
+
+
+def test_backend_action_timer_consumes_timebank_before_timeout_action():
+    async def scenario():
+        server, room, creator, _guest, _creator_ws, _guest_ws = setup_active_action_room(action_time=1, timebank=1)
+
+        await server.broadcast(room)
+        await asyncio.sleep(2.4)
+
+        assert creator.timebank_seconds == 0
+        assert any(entry.get("action") == "timeout_check" for entry in room.action_log)
+
+    run(scenario())
+
+
+def test_stale_action_timer_does_not_act_after_manual_action():
+    async def scenario():
+        server, room, creator, _guest, _creator_ws, _guest_ws = setup_active_action_room(action_time=1, timebank=0)
+
+        await server.broadcast(room)
+        await server.player_action(room, creator, "check_call", {})
+        await asyncio.sleep(1.4)
+
+        assert not any(
+            entry.get("player") == creator.name
+            and str(entry.get("action", "")).startswith("timeout_")
+            for entry in room.action_log
+        )
+        assert any(
+            entry.get("player") == creator.name
+            and entry.get("action") == "check_call"
+            for entry in room.action_log
+        )
+
+    run(scenario())
+
+
+def test_paused_room_does_not_timeout_action_player():
+    async def scenario():
+        server, room, creator, _guest, _creator_ws, _guest_ws = setup_active_action_room(action_time=1, timebank=0)
+
+        await server.broadcast(room)
+        room.paused = True
+        await server.broadcast(room)
+        await asyncio.sleep(1.4)
+
+        assert creator.acted is False
+        assert not any(str(entry.get("action", "")).startswith("timeout_") for entry in room.action_log)
+        assert room.action_timer_started_at == 0.0
+
+    run(scenario())
+
+
+def test_bots_are_not_timed_out_by_human_action_timer():
+    async def scenario():
+        server, room, creator, guest, _creator_ws, _guest_ws = setup_active_action_room(action_time=1, timebank=0)
+        server.bots[creator.player_id] = SimpleNamespace(difficulty="hard")
+
+        await server.broadcast(room)
+        await asyncio.sleep(1.4)
+
+        assert room.action_timer_started_at == 0.0
+        assert creator.acted is False
+        assert not any(str(entry.get("action", "")).startswith("timeout_") for entry in room.action_log)
+
+    run(scenario())
+
+
+def test_completed_hand_grants_timebank_gain_to_humans_only():
+    server, room, creator, guest, _creator_ws, _guest_ws = setup_active_action_room(action_time=1, timebank=2)
+    bot = server.add_new_player(room, None, "Bot")
+    server.bots[bot.player_id] = SimpleNamespace(difficulty="hard")
+    bot.timebank_seconds = 0
+    room.phase = "showdown"
+    room.winners = [Winner(creator.player_id, creator.name, 10, "Everyone else folded")]
+    room.hands_played = 3
+    room.timebank_gain_per_hand = 4
+
+    server.record_completed_hand(room)
+    server.refresh_latest_completed_hand(room)
+
+    assert creator.timebank_seconds == 6
+    assert guest.timebank_seconds == 6
+    assert bot.timebank_seconds == 0

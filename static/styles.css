@@ -383,6 +383,7 @@ html, body {
 
 .turn-indicator { margin-top: 10px; font-size: 13px; font-weight: 700; min-height: 20px; }
 .turn-indicator.your-turn { color: var(--gold-light); font-size: 15px; font-weight: 850; animation: pulse-text 1.5s infinite; }
+.turn-indicator.thinking { color: var(--text-dim); font-size: 13px; font-weight: 800; }
 
 .outs-box {
   margin-top: 8px; font-size: 11px; color: var(--text-dim); text-align: center;

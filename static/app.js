@@ -342,6 +342,8 @@ function formatActionEntry(entry) {
     case "fold":       return `${player} folds`;
     case "check_call": return amount > 0 ? `${player} calls ${amount}` : `${player} checks`;
     case "bet_raise":  return entry._isFirstBetOnStreet ? `${player} bets ${amount}` : `${player} raises to ${amount}`;
+    case "timeout_check": return `${player} times out and checks`;
+    case "timeout_fold":  return `${player} times out and folds`;
     default:           return `${player} ${entry.action || "acts"}`;
   }
 }
@@ -861,6 +863,29 @@ function initAutoDealToggle() {
 }
 
 
+function actionTimerText(state, isMyTurn) {
+  const viewer = state && state.viewer ? state.viewer : {};
+  const timebank = Math.max(0, Math.floor(Number(viewer.timebank_seconds) || 0));
+  const active = Boolean(state && state.action_timer_active);
+  const remaining = Math.max(0, Math.ceil(Number(state && state.action_timer_remaining_seconds) || 0));
+
+  if (isMyTurn) {
+    const timer = active ? ` · ${remaining}s` : "";
+    return viewer.to_call > 0
+      ? `YOUR ACTION${timer} · Call ${viewer.to_call} · Bank ${timebank}s`
+      : `YOUR ACTION${timer} · Bank ${timebank}s`;
+  }
+
+  if (active) {
+    const players = Array.isArray(state.players) ? state.players : [];
+    const acting = players.find(p => String(p.id || p.player_id || "") === String(state.action_timer_player_id || ""));
+    const name = acting && acting.name ? acting.name : "Player";
+    return `${name} thinking: ${remaining}s`;
+  }
+
+  return timebank > 0 ? `Timebank ${timebank}s` : "";
+}
+
 
 function numberOrZero(value) {
   const n = Number(value);
@@ -1283,12 +1308,15 @@ function renderState(state) {
   // ─── Turn indicator ───
   const isMyTurn = state.viewer && state.viewer.is_turn;
   if (isMyTurn) {
-    els.turnInfo.textContent = state.viewer.to_call > 0
-      ? `⚡ YOUR ACTION · Call ${state.viewer.to_call}` : "⚡ YOUR ACTION";
+    els.turnInfo.textContent = actionTimerText(state, true);
     els.turnInfo.className = "turn-indicator your-turn";
     els.actionBar.classList.add("my-turn");
+  } else if (state.action_timer_active) {
+    els.turnInfo.textContent = actionTimerText(state, false);
+    els.turnInfo.className = "turn-indicator thinking";
+    els.actionBar.classList.remove("my-turn");
   } else {
-    els.turnInfo.textContent = "";
+    els.turnInfo.textContent = actionTimerText(state, false);
     els.turnInfo.className = "turn-indicator";
     els.actionBar.classList.remove("my-turn");
   }
