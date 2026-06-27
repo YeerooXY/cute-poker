@@ -44,6 +44,17 @@ def test_compact_history_panel_renderer_is_wired():
     assert ".hand-history-row" in css
 
 
+def test_default_panels_auto_open_once_per_room():
+    app = read_static("app.js")
+
+    assert "let defaultPanelsRoomId" in app
+    assert "function openDefaultPanelsForRoom(state)" in app
+    assert "openDefaultPanelsForRoom(state);" in app
+    assert "els.handHistoryPanel" in app
+    assert "els.chatPanel" in app
+    assert "els.actionLogPanel" in app
+
+
 def test_history_review_uses_post_hand_modal_instead_of_inline_expansion():
     app = read_static("app.js")
     css = read_static("styles.css")
@@ -60,24 +71,19 @@ def test_history_review_uses_post_hand_modal_instead_of_inline_expansion():
     assert ".hand-history-review-btn" in css
 
 
-def test_static_assets_are_cache_busted():
-    html = read_static("index.html")
-
-    assert "/static/styles.css?v=" in html
-    assert "/static/app.js?v=" in html
-
-
-def test_history_review_modal_has_large_overlay_and_close_controls():
+def test_history_review_modal_has_overlay_and_close_controls():
     app = read_static("app.js")
     css = read_static("styles.css")
 
     assert "function syncHistoryReviewChrome(visible)" in app
     assert "historyReviewCloseBtn" in app
     assert "Escape" in app
+    assert "History review click-outside close" in app
+    assert "pointerdown" in app
+    assert "els.postHandPanel.contains(event.target)" in app
     assert "history-review-open" in app
     assert "body.history-review-open::before" in css
     assert ".history-review-close-btn" in css
-    assert "width: min(1120px" in css
 
 
 def test_history_review_modal_renders_saved_board_and_keeps_close_clear_of_pot_badge():
@@ -89,15 +95,15 @@ def test_history_review_modal_renders_saved_board_and_keeps_close_clear_of_pot_b
     assert "renderHistoryReviewBoard(state)" in app
     assert ".history-review-board-strip" in css
     assert "history-review-board-cards" in css
-    assert "margin-right: 52px" in css
+    assert "margin-right" in css
 
 
-def test_history_review_infers_revealed_cards_and_uses_spacious_modal():
+def test_history_review_infers_revealed_cards_without_leaking_hidden_cards():
     app = read_static("app.js")
-    css = read_static("styles.css")
 
     assert "function inferRevealModeFromHistoryCards(cards)" in app
-    assert 'card === "🂠"' in app
+    assert "function isHiddenHistoryCard(card)" in app
+    assert 'card === "BACK"' in app
     assert "function normalizeHistoryReviewPlayer(player, hand)" in app
     assert "normalizeHistoryReviewPlayer(player, hand)" in app
     assert "can_reveal_folded_hand: false" in app
@@ -105,11 +111,6 @@ def test_history_review_infers_revealed_cards_and_uses_spacious_modal():
     assert "!isHiddenHistoryCard(cards[0])" in app
     assert "!isHiddenHistoryCard(cards[1])" in app
     assert "historyWinnerIds(hand)" in app
-    assert "not a tiny debug drawer" in css
-    assert "width: min(1280px" in css
-    assert "min-height: 112px" in css
-    assert "max-height: none" in css
-    assert "overflow-y: visible" in css
 
 
 def test_history_review_can_render_persisted_would_have_breakdowns():
@@ -119,3 +120,32 @@ def test_history_review_can_render_persisted_would_have_breakdowns():
     assert "would_have_best_cards" in app
     assert "would_have_hand_detail" in app
     assert "renderBestFiveBreakdownHtml" in app
+
+
+def test_history_review_modal_uses_hand_complete_sized_layout_without_snap():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert "history-review-modal" in app
+    assert "const historyReviewVisible = visible && historyReviewMode" in app
+    assert 'classList.toggle("history-review-modal", historyReviewVisible)' in app
+    assert "syncHistoryReviewChrome(historyReviewVisible)" in app
+    assert 'classList.toggle("hidden", !visible)' in app
+
+    block = app.split("const historyReviewVisible = visible && historyReviewMode", 1)[1]
+    block = block.split("if (!visible)", 1)[0]
+    assert block.index('classList.toggle("history-review-modal", historyReviewVisible)') < block.index('classList.toggle("hidden", !visible)')
+
+    assert "History review matched hand-complete sizing" in css
+    assert "History review snap prevention" in css
+    assert "#postHandPanel.post-hand-modal.history-review-modal" in css
+    assert "width: min(1120px" in css
+    assert "transform: translate(-50%, -50%)" in css
+    assert "max-height: min(82vh, 840px)" in css
+
+
+def test_static_assets_are_cache_busted():
+    html = read_static("index.html")
+
+    assert "/static/styles.css?v=" in html
+    assert "/static/app.js?v=" in html

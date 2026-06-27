@@ -5302,62 +5302,68 @@ body.history-review-open .history-review-close-btn {
 }
 
 
-/* History review should feel like the real hand-complete screen, not a tiny debug drawer. */
-body.history-review-open #postHandPanel.post-hand-modal {
-  top: 52%;
-  width: min(1280px, calc(100vw - 56px));
-  max-height: calc(100vh - 72px);
-  padding: 28px 30px 30px;
+
+/* History review matched hand-complete sizing: stable, centered, readable. */
+body.history-review-open #postHandPanel.post-hand-modal.history-review-modal {
+  position: fixed;
+  left: 50%;
+  top: 55%;
+  right: auto;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+  width: min(1120px, calc(100vw - 64px));
+  max-width: none;
+  height: auto;
+  max-height: min(82vh, 840px);
+  display: block;
+  overflow-y: auto;
+  padding: 24px 26px 26px;
 }
 
-body.history-review-open #postHandBody {
-  max-height: none;
-  overflow-y: visible;
-  padding-right: 10px;
-}
-
-body.history-review-open #postHandPanel .post-hand-row {
-  min-height: 112px;
-  padding: 16px 22px;
-  gap: 16px;
-}
-
-body.history-review-open #postHandPanel .post-hand-cards {
-  gap: 8px;
-  justify-content: center;
-}
-
-body.history-review-open #postHandPanel .post-hand-breakdown {
-  grid-column: 1 / -1;
-  margin-top: 8px;
-}
-
-body.history-review-open .history-review-board-strip {
-  margin: 14px 0 20px;
-  padding: 18px 18px 20px;
-}
-
-body.history-review-open .history-review-board-cards {
-  gap: 10px;
-}
-
-body.history-review-open .history-review-board-cards .playing-card {
-  width: 46px;
-  height: 64px;
-}
-
-
-/* Follow-up: history review should use available viewport before scrolling. */
-body.history-review-open #postHandPanel.post-hand-modal {
-  width: min(1380px, calc(100vw - 36px));
-  max-height: calc(100vh - 28px);
-}
-
-body.history-review-open #postHandBody {
+body.history-review-open #postHandPanel.history-review-modal #postHandBody {
   max-height: none;
   overflow: visible;
+  padding-right: 0;
 }
 
-body.history-review-open #postHandPanel.post-hand-modal {
+body.history-review-open #postHandPanel.history-review-modal .history-review-board-strip {
+  margin: 12px 0 18px;
+  padding: 14px 16px;
+}
+
+body.history-review-open #postHandPanel.history-review-modal .post-hand-row {
+  min-height: unset;
+}
+
+body.history-review-open #postHandPanel.history-review-modal .history-review-close-btn {
+  top: 14px;
+  right: 14px;
+}
+
+body.history-review-open #postHandPanel.history-review-modal #postHandPot {
+  margin-right: 58px;
+}
+
+
+/* History review snap prevention: class-based layout is active before unhide. */
+#postHandPanel.post-hand-modal.history-review-modal {
+  position: fixed;
+  left: 50%;
+  top: 55%;
+  right: auto;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+  width: min(1120px, calc(100vw - 64px));
+  max-width: none;
+  height: auto;
+  max-height: min(82vh, 840px);
+  display: block;
   overflow-y: auto;
+  padding: 24px 26px 26px;
+}
+
+#postHandPanel.history-review-modal #postHandBody {
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
 }

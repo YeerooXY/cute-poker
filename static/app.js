@@ -31,6 +31,7 @@ let reconnectTimer = null;
 let intentionalDisconnect = false;
 let selectedHistoryHandNumber = null;
 let selectedHistoryReviewKey = null;
+let defaultPanelsRoomId = null;
 
 // ─── Helpers ───
 function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
@@ -1041,6 +1042,7 @@ function renderState(state) {
   window.__pokerLastState = state;
   const previousState = lastState;
   lastState = state;
+  openDefaultPanelsForRoom(state);
   const showdownDisplay = state.phase === "showdown" || Boolean(state.showdown_mode);
   const handCompleteDisplay = state.phase === "showdown" && Array.isArray(state.winners) && state.winners.length > 0;
   document.body.classList.toggle("showdown-cinema", showdownDisplay);
@@ -1644,6 +1646,22 @@ function bindHandHistoryReviewButtons() {
 }
 
 
+function openDefaultPanelsForRoom(state) {
+  const currentRoomId = state && (state.room_id || state.roomId || roomId || "");
+  if (!currentRoomId || defaultPanelsRoomId === currentRoomId) return;
+
+  defaultPanelsRoomId = currentRoomId;
+
+  [
+    els.handHistoryPanel,
+    els.chatPanel,
+    els.actionLogPanel,
+  ].forEach(panel => {
+    if (panel) panel.classList.remove("hidden");
+  });
+}
+
+
 function renderHistoryReviewBoard(state) {
   const board = Array.isArray(state && state.community) ? state.community : [];
   if (!board.length) return "";
@@ -1780,6 +1798,15 @@ document.addEventListener("keydown", event => {
   if (event.key === "Escape" && selectedHistoryReviewKey) {
     closeHistoryReview();
   }
+});
+
+// History review click-outside close
+document.addEventListener("pointerdown", event => {
+  if (!selectedHistoryReviewKey || !els.postHandPanel) return;
+  if (els.postHandPanel.classList.contains("hidden")) return;
+  if (els.postHandPanel.contains(event.target)) return;
+
+  closeHistoryReview();
 });
 
 // Chat
@@ -2395,10 +2422,11 @@ function renderPostHandPanel(state) {
 
   const winners = Array.isArray(state.winners) ? state.winners : [];
   const visible = historyReviewMode || (state.phase === "showdown" && winners.length > 0);
-  syncHistoryReviewChrome(visible && historyReviewMode);
-
-  els.postHandPanel.classList.toggle("hidden", !visible);
+  const historyReviewVisible = visible && historyReviewMode;
   els.postHandPanel.classList.toggle("post-hand-modal", visible);
+  els.postHandPanel.classList.toggle("history-review-modal", historyReviewVisible);
+  syncHistoryReviewChrome(historyReviewVisible);
+  els.postHandPanel.classList.toggle("hidden", !visible);
 
   if (!visible) {
     if (els.postHandTitle) els.postHandTitle.textContent = "";
