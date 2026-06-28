@@ -125,12 +125,32 @@ def test_visible_state_exposes_showdown_winners_pot_breakdown_and_deltas() -> No
         }
     ]
 
-    assert state["pot_breakdown"] == room.pot_breakdown
+    pots = state["pot_breakdown"]
+    assert len(pots) == 1
 
-    # Public room-level hand deltas are keyed by display name for frontend use.
+    main_pot = pots[0]
+    assert main_pot["id"] == 0
+    assert main_pot["pot_id"] == 0
+    assert main_pot["label"] == "Main Pot"
+    assert main_pot["type"] == "main"
+    assert main_pot["amount"] == 400
+    assert main_pot["pot"] == 400
+    assert main_pot["eligible_player_ids"] == ["p1", "p2"]
+    assert main_pot["eligible"] == ["p1", "p2"]
+    assert main_pot["winners"][0]["player_id"] == "p1"
+    assert main_pot["winners"][0]["amount"] == 400
+    assert main_pot["winners"][0]["hand_name"] == "One Pair"
+
+    # Public room-level hand deltas keep the legacy name-keyed shape.
     assert state["hand_deltas"] == {
         "Winner": 200,
         "Loser": -200,
+    }
+
+    # New code should prefer stable player_id-keyed deltas.
+    assert state["hand_deltas_by_player_id"] == {
+        "p1": 200,
+        "p2": -200,
     }
 
     winner_state = player_state(state, winner.player_id)
@@ -283,10 +303,31 @@ def test_visible_state_preserves_pot_breakdown_shape_for_split_side_pots() -> No
 
     state = server.visible_state(room, p1.token)
 
-    assert state["pot_breakdown"] == room.pot_breakdown
-    assert sum(tier["pot"] for tier in state["pot_breakdown"]) == 250
+    pots = state["pot_breakdown"]
+    assert len(pots) == 2
+
+    assert pots[0]["id"] == 0
+    assert pots[0]["pot_id"] == 0
+    assert pots[0]["label"] == "Main Pot"
+    assert pots[0]["type"] == "main"
+    assert pots[0]["amount"] == 150
+    assert pots[0]["pot"] == 150
+    assert pots[0]["eligible_player_ids"] == ["p1", "p2", "p3"]
+    assert pots[0]["winners"][0]["player_id"] == "p1"
+
+    assert pots[1]["id"] == 1
+    assert pots[1]["pot_id"] == 1
+    assert pots[1]["label"] == "Side Pot 1"
+    assert pots[1]["type"] == "side"
+    assert pots[1]["amount"] == 100
+    assert pots[1]["pot"] == 100
+    assert pots[1]["eligible_player_ids"] == ["p2", "p3"]
+    assert {winner["player_id"] for winner in pots[1]["winners"]} == {"p2", "p3"}
+
+    assert sum(tier["amount"] for tier in pots) == 250
+    assert sum(tier["pot"] for tier in pots) == 250
     assert sum(
         winner["amount"]
-        for tier in state["pot_breakdown"]
+        for tier in pots
         for winner in tier["winners"]
     ) == 250

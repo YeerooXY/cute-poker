@@ -196,21 +196,26 @@ def test_public_result_snapshot_sanitizes_pot_breakdown_and_action_log():
     encoded = json.dumps(snapshot)
 
     assert snapshot["hand_deltas"] == {"Winner": 50, "Loser": -50}
-    assert snapshot["pot_breakdown"] == [
-        {
-            "type": "main",
-            "pot": 120,
-            "eligible": [winner.player_id, loser.player_id],
-            "winners": [
-                {
-                    "player_id": winner.player_id,
-                    "name": winner.name,
-                    "amount": 120,
-                    "hand_name": "One Pair",
-                }
-            ],
-        }
-    ]
+    assert snapshot["hand_deltas_by_player_id"] == {"p1": 50, "p2": -50}
+
+    pots = snapshot["pot_breakdown"]
+    assert len(pots) == 1
+
+    main_pot = pots[0]
+    assert main_pot["id"] == 0
+    assert main_pot["pot_id"] == 0
+    assert main_pot["label"] == "Main Pot"
+    assert main_pot["type"] == "main"
+    assert main_pot["amount"] == 120
+    assert main_pot["pot"] == 120
+    assert main_pot["eligible_player_ids"] == [winner.player_id, loser.player_id]
+    assert main_pot["eligible"] == [winner.player_id, loser.player_id]
+    assert main_pot["winners"][0]["player_id"] == winner.player_id
+    assert main_pot["winners"][0]["name"] == winner.name
+    assert main_pot["winners"][0]["amount"] == 120
+    assert main_pot["winners"][0]["hand_name"] == "One Pair"
+
+    assert snapshot["player_results"]
 
     assert snapshot["action_log"] == [
         {
