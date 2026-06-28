@@ -1390,7 +1390,7 @@ function syncPostHandRecoveryButtons(state, viewerData) {
   const sitInBtn = ensureRecoveryButton(
     "postHandSitInBtn",
     "Sit In next hand",
-    "Cancel sit-out before the auto-deal countdown finishes",
+    "You will be dealt in again from the next hand",
     () => action("sit_out", { sitting_out: false })
   );
   const rebuyCount = Math.max(2, numberOrZero(viewerData && viewerData.buy_in_count) + 1);
@@ -1401,7 +1401,13 @@ function syncPostHandRecoveryButtons(state, viewerData) {
     () => action("rebuy", {})
   );
 
-  const recoveryVisible = Boolean(state && state.phase === "showdown" && state.auto_deal_active && viewerData && !viewerData.is_spectator);
+  const canRebuy = Boolean(viewerData && (viewerData.can_rebuy || (state.viewer && state.viewer.can_rebuy)));
+  const recoveryVisible = Boolean(
+    state
+    && state.phase === "showdown"
+    && viewerData
+    && !viewerData.is_spectator
+  );
   const showSitIn = Boolean(
     recoveryVisible
     && viewerData.sitting_out
@@ -1409,7 +1415,7 @@ function syncPostHandRecoveryButtons(state, viewerData) {
   );
   const showRebuy = Boolean(
     recoveryVisible
-    && (viewerData.can_rebuy || (state.viewer && state.viewer.can_rebuy))
+    && canRebuy
   );
 
   sitInBtn.style.display = showSitIn ? "inline-flex" : "none";

@@ -764,7 +764,7 @@ def test_sit_in_button_is_prominent_during_auto_deal_countdown():
     assert "#sitInBtn.sit-in-urgent" in css
     assert 'content: "next hand"' in css
 
-def test_post_hand_recovery_buttons_are_available_during_auto_deal_countdown():
+def test_post_hand_recovery_buttons_are_available_during_showdown_without_auto_deal():
     app = read_static_js_bundle()
     css = read_static_css_bundle()
 
@@ -777,7 +777,10 @@ def test_post_hand_recovery_buttons_are_available_during_auto_deal_countdown():
     assert 'action("rebuy", {})' in app
     assert "viewerData.sitting_out" in app
     assert "viewerData.can_rebuy" in app
-    assert "state.auto_deal_active" in app
+    assert 'state.phase === "showdown"' in app
+    assert "numberOrZero(viewerData.stack) > 0" in app
+    assert "const canRebuy = Boolean(viewerData && (viewerData.can_rebuy || (state.viewer && state.viewer.can_rebuy)))" in app
+    assert "state.phase === \"showdown\" && state.auto_deal_active && viewerData" not in app
     assert "syncPostHandRecoveryButtons(state, viewerData);" in app
 
     assert "Post-hand Sit In recovery button" in css
