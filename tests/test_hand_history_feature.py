@@ -101,6 +101,21 @@ def test_uncontested_fold_win_records_history_without_revealing_winner_cards():
     winner = make_player("alice", "Alice", 1, ["AS", "AH"], invested=20, stack=980)
     folder = make_player("bob", "Bob", 2, ["KS", "KH"], invested=20, stack=980, folded=True)
     room = make_room(winner, folder)
+    room.pot_breakdown = [
+        {
+            "type": "side",
+            "pot": 999,
+            "eligible": ["paperbot"],
+            "winners": [
+                {
+                    "player_id": "paperbot",
+                    "name": "Paperbot",
+                    "amount": 999,
+                    "hand_name": "Full house",
+                }
+            ],
+        }
+    ]
 
     server.award_to_last_player(room)
 
@@ -113,11 +128,58 @@ def test_uncontested_fold_win_records_history_without_revealing_winner_cards():
     assert snapshot["winners"][0]["reason"] == "Everyone else folded"
     assert by_name(snapshot, "Alice")["cards"] == [BACK, BACK]
     assert by_name(snapshot, "Bob")["cards"] == [BACK, BACK]
+    assert snapshot["pot_breakdown"] == [
+        {
+            "id": 0,
+            "pot_id": 0,
+            "label": "Main Pot",
+            "type": "main",
+            "amount": 40,
+            "pot": 40,
+            "eligible_player_ids": ["alice"],
+            "eligible": ["alice"],
+            "winners": [
+                {
+                    "player_id": "alice",
+                    "name": "Alice",
+                    "amount": 40,
+                    "hand_name": "",
+                    "hand_detail": "",
+                    "best_cards": [],
+                }
+            ],
+        }
+    ]
 
     assert "AS" not in encoded
     assert "AH" not in encoded
     assert "KS" not in encoded
     assert "KH" not in encoded
+    assert "Paperbot" not in encoded
+    assert "Full house" not in encoded
+
+
+def test_start_hand_clears_previous_pot_breakdown():
+    server = PokerServer()
+
+    alice = make_player("alice", "Alice", 1, ["AS", "AH"], invested=0, stack=1000)
+    bob = make_player("bob", "Bob", 2, ["KS", "KH"], invested=0, stack=1000)
+    room = make_room(alice, bob)
+    room.phase = "showdown"
+    room.pot_breakdown = [
+        {
+            "type": "side",
+            "pot": 999,
+            "eligible": ["paperbot"],
+            "winners": [{"player_id": "paperbot", "name": "Paperbot", "amount": 999}],
+        }
+    ]
+
+    import asyncio
+    asyncio.run(server.start_hand(room))
+
+    assert room.phase == "preflop"
+    assert room.pot_breakdown == []
 
 
 def test_hand_history_is_capped_to_recent_results():

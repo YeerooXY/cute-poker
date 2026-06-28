@@ -1777,6 +1777,7 @@ class PokerServer:
         room.min_raise = room.big_blind
         room.phase = "preflop"
         room.winners = []
+        room.pot_breakdown = []
         room.action_log = []
         room.hand_deltas = {}
 
@@ -2060,6 +2061,21 @@ class PokerServer:
         amount = room.pot
         winner.stack += amount
         room.winners = [Winner(winner.player_id, winner.name, amount, "Everyone else folded")]
+        room.pot_breakdown = [
+            {
+                "type": "main",
+                "pot": amount,
+                "eligible": [winner.player_id],
+                "winners": [
+                    {
+                        "player_id": winner.player_id,
+                        "name": winner.name,
+                        "amount": amount,
+                        "hand_name": "",
+                    }
+                ],
+            }
+        ]
         room.phase = "showdown"
         room.action_seat = None
         self.finalize_hand_deltas(room)
