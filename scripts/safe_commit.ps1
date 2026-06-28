@@ -19,7 +19,13 @@ Write-Host "[safe_commit] Running focused checks..." -ForegroundColor Cyan
 python -m pytest tests/test_history_ui_static.py tests/test_admin_lifecycle.py -q
 
 if (Get-Command node -ErrorAction SilentlyContinue) {
-  node --check static/app.js
+  $jsChecks = @("static/app.js")
+  if (Test-Path "static/js") {
+    $jsChecks += Get-ChildItem -Path "static/js" -Filter "*.js" -File | Sort-Object FullName | ForEach-Object { $_.FullName }
+  }
+  foreach ($jsFile in $jsChecks) {
+    node --check $jsFile
+  }
 }
 
 if ($FullTests) {

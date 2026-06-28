@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -6,6 +7,40 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def read_static(name: str) -> str:
     return (ROOT / "static" / name).read_text(encoding="utf-8")
+
+
+def linked_static_assets(kind: str) -> list[str]:
+    html = read_static("index.html")
+    if kind == "js":
+        matches = re.findall(r'<script\b[^>]*\bsrc="([^"]+)"', html)
+        fallback = ["app.js"]
+    elif kind == "css":
+        matches = []
+        for tag in re.findall(r"<link\b[^>]*>", html):
+            if 'rel="stylesheet"' not in tag:
+                continue
+            href = re.search(r'\bhref="([^"]+)"', tag)
+            if href:
+                matches.append(href.group(1))
+        fallback = ["styles.css"]
+    else:
+        raise ValueError(f"Unknown static asset kind: {kind}")
+
+    names = []
+    for asset in matches:
+        path = asset.split("?", 1)[0]
+        if not path.startswith("/static/"):
+            continue
+        names.append(path.removeprefix("/static/"))
+    return names or fallback
+
+
+def read_static_js_bundle() -> str:
+    return "\n".join(read_static(name) for name in linked_static_assets("js"))
+
+
+def read_static_css_bundle() -> str:
+    return "\n".join(read_static(name) for name in linked_static_assets("css"))
 
 
 def test_hand_history_markup_exists():
@@ -31,8 +66,8 @@ def test_hand_history_button_lives_in_left_hud_not_chat_side():
 
 
 def test_compact_history_panel_renderer_is_wired():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert "function completedHandHistoryFromState(state)" in app
     assert "function renderHandHistory(state)" in app
@@ -45,7 +80,7 @@ def test_compact_history_panel_renderer_is_wired():
 
 
 def test_default_panels_auto_open_once_per_room():
-    app = read_static("app.js")
+    app = read_static_js_bundle()
 
     assert "let defaultPanelsRoomId" in app
     assert "function openDefaultPanelsForRoom(state)" in app
@@ -59,8 +94,8 @@ def test_default_panels_auto_open_once_per_room():
 
 
 def test_history_review_uses_post_hand_modal_instead_of_inline_expansion():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert "hand_history_details" in app
     assert "selectedHistoryReviewKey" in app
@@ -75,8 +110,8 @@ def test_history_review_uses_post_hand_modal_instead_of_inline_expansion():
 
 
 def test_history_review_modal_has_overlay_and_close_controls():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert "function syncHistoryReviewChrome(visible)" in app
     assert "historyReviewCloseBtn" in app
@@ -90,8 +125,8 @@ def test_history_review_modal_has_overlay_and_close_controls():
 
 
 def test_history_review_modal_renders_saved_board_and_keeps_close_clear_of_pot_badge():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert "historyReviewDisplayState" in app
     assert "const cinemaState = historyReviewDisplayState || state" in app
@@ -102,7 +137,7 @@ def test_history_review_modal_renders_saved_board_and_keeps_close_clear_of_pot_b
 
 
 def test_history_review_infers_revealed_cards_without_leaking_hidden_cards():
-    app = read_static("app.js")
+    app = read_static_js_bundle()
 
     assert "function inferRevealModeFromHistoryCards(cards)" in app
     assert "function isHiddenHistoryCard(card)" in app
@@ -117,7 +152,7 @@ def test_history_review_infers_revealed_cards_without_leaking_hidden_cards():
 
 
 def test_history_review_can_render_persisted_would_have_breakdowns():
-    app = read_static("app.js")
+    app = read_static_js_bundle()
 
     assert "renderFoldedWouldHaveBreakdown(p, state)" in app
     assert "would_have_best_cards" in app
@@ -126,8 +161,8 @@ def test_history_review_can_render_persisted_would_have_breakdowns():
 
 
 def test_history_review_modal_uses_hand_complete_sized_layout_without_snap():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert "history-review-modal" in app
     assert "const historyReviewVisible = visible && historyReviewMode" in app
@@ -162,7 +197,7 @@ def test_static_assets_are_cache_busted():
 
 
 def test_right_rail_stacks_action_log_and_chat():
-    css = read_static("styles.css")
+    css = read_static_css_bundle()
 
     assert "--right-rail-width: 220px" in css
     assert "Right rail: smaller action log with chat underneath" in css
@@ -172,7 +207,7 @@ def test_right_rail_stacks_action_log_and_chat():
 
 
 def test_history_review_drives_action_log_from_selected_hand():
-    app = read_static("app.js")
+    app = read_static_js_bundle()
 
     assert "const cinemaState = historyReviewDisplayState || state" in app
     assert "renderActionLog(cinemaState)" in app
@@ -180,8 +215,8 @@ def test_history_review_drives_action_log_from_selected_hand():
 
 
 def test_table_seats_are_clustered_around_bigger_felt():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert 'const SEAT_POSITIONS = [' in app
     assert '{ top: "80%", left: "50%" }' in app
@@ -196,7 +231,7 @@ def test_table_seats_are_clustered_around_bigger_felt():
 
 
 def test_right_rail_does_not_shift_table_and_seats_are_readable():
-    css = read_static("styles.css")
+    css = read_static_css_bundle()
 
     assert "Rail stability + readable player seats polish" in css
     assert "body.action-log-open .poker-table" in css
@@ -210,7 +245,7 @@ def test_right_rail_does_not_shift_table_and_seats_are_readable():
 
 
 def test_right_rail_has_no_floating_toggle_and_chat_is_bottom_right():
-    css = read_static("styles.css")
+    css = read_static_css_bundle()
 
     assert "Fixed right rail without floating action-log tab" in css
     assert ".action-log-toggle" in css
@@ -224,7 +259,7 @@ def test_right_rail_has_no_floating_toggle_and_chat_is_bottom_right():
 
 def test_admin_panel_is_bottom_left_management_dock():
     html = read_static("index.html")
-    css = read_static("styles.css")
+    css = read_static_css_bundle()
 
     assert 'class="admin-side-panel admin-dock hidden"' in html
     assert "Table tools" in html
@@ -252,8 +287,8 @@ def test_admin_dock_uses_plain_text_controls_not_emoji():
 
 def test_admin_dock_renders_player_list_and_kick_controls():
     html = read_static("index.html")
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert 'id="adminPlayerList"' in html
     assert "Kick problem players between hands." in html
@@ -279,8 +314,8 @@ def test_backend_exposes_player_admin_fields_and_transfer_action():
 
 
 def test_admin_player_rows_are_name_and_actions_without_stack_transfer_to_self():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert "Mock" in app
     assert "DM" in app
@@ -301,8 +336,8 @@ def test_admin_player_rows_are_name_and_actions_without_stack_transfer_to_self()
 
 def test_admin_can_kick_specific_non_self_players_between_hands():
     game = (ROOT / "poker" / "game.py").read_text(encoding="utf-8")
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert 'if action == "kick_player":' in game
     assert 'Kick players between hands only.' in game
@@ -320,8 +355,8 @@ def test_admin_can_kick_specific_non_self_players_between_hands():
 
 
 def test_admin_player_list_is_kick_only_no_manage_button():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert "safeKickPhase" in app
     assert "Kick after hand" in app
@@ -338,7 +373,7 @@ def test_admin_player_list_is_kick_only_no_manage_button():
 
 
 def test_admin_dock_has_fixed_size_player_scroll_region():
-    css = read_static("styles.css")
+    css = read_static_css_bundle()
 
     assert "Fixed-size admin dock layout" in css
     assert "height: 430px !important" in css
@@ -348,7 +383,7 @@ def test_admin_dock_has_fixed_size_player_scroll_region():
 
 
 def test_admin_dock_rows_stay_compact_inside_fixed_panel():
-    css = read_static("styles.css")
+    css = read_static_css_bundle()
 
     assert "Compact fixed admin dock rows" in css
     assert "height: 360px !important" in css
@@ -358,8 +393,8 @@ def test_admin_dock_rows_stay_compact_inside_fixed_panel():
 
 
 def test_admin_self_row_has_no_action_buttons():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert "const isSelf = Boolean(player.is_you)" in app
     assert "const mockHtml = isSelf" in app
@@ -371,8 +406,8 @@ def test_admin_self_row_has_no_action_buttons():
 
 
 def test_table_roster_visible_for_all_with_admin_controls_gated():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert 'els.adminActions.classList.remove("hidden")' in app
     assert 'els.adminActions.classList.toggle("is-table-admin", viewerIsAdmin)' in app
@@ -389,8 +424,8 @@ def test_table_roster_visible_for_all_with_admin_controls_gated():
 
 
 def test_roster_distinguishes_bots_players_and_styles_scrollbar():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert 'labels.push("Player")' in app
     assert 'player.is_bot ? " is-bot" : " is-human"' in app
@@ -403,7 +438,7 @@ def test_roster_distinguishes_bots_players_and_styles_scrollbar():
     assert "scrollbar-color" in css
 
 def test_auto_deal_toggle_visible_to_admin_even_during_hand():
-    app = read_static("app.js")
+    app = read_static_js_bundle()
 
     assert "const viewerIsAdmin = Boolean(state && state.viewer && state.viewer.is_admin)" in app
     assert "setAutoDealToggleState(viewerIsAdmin)" in app
@@ -411,8 +446,8 @@ def test_auto_deal_toggle_visible_to_admin_even_during_hand():
 
 
 def test_auto_deal_frontend_uses_backend_state():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert "function syncAutoDeal(state)" in app
     assert "state.auto_deal_enabled" in app
@@ -432,7 +467,7 @@ def test_auto_deal_frontend_uses_backend_state():
 
 
 def test_auto_deal_countdown_surface_is_public_not_admin_only():
-    app = read_static("app.js")
+    app = read_static_js_bundle()
 
     assert "function ensureAutoDealCountdownSurface()" in app
     assert "autoDealPostHandCountdown" in app
@@ -441,7 +476,7 @@ def test_auto_deal_countdown_surface_is_public_not_admin_only():
 
 
 def test_action_timer_frontend_uses_backend_state_only():
-    app = read_static("app.js")
+    app = read_static_js_bundle()
 
     assert "function actionTimerText(state, isMyTurn)" in app
     assert "state.action_timer_active" in app
@@ -461,15 +496,15 @@ def test_action_timer_frontend_uses_backend_state_only():
 
 
 def test_timeout_action_log_labels_render_safely():
-    app = read_static("app.js")
+    app = read_static_js_bundle()
 
     assert 'case "timeout_check": return `${player} times out and checks`;' in app
     assert 'case "timeout_fold":  return `${player} times out and folds`;' in app
 
 
 def test_timer_timebank_ui_is_separated_and_seat_visible():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert "Action ${regular}s" in app
     assert "Timebank ${actingBank}s" in app
@@ -482,7 +517,7 @@ def test_timer_timebank_ui_is_separated_and_seat_visible():
 
 
 def test_hand_history_scrollbar_is_styled():
-    css = read_static("styles.css")
+    css = read_static_css_bundle()
 
     assert "Hand history scrollbar polish" in css
     assert ".hand-history-body::-webkit-scrollbar" in css
@@ -491,9 +526,9 @@ def test_hand_history_scrollbar_is_styled():
 
 
 def test_action_console_bank_and_explicit_sit_controls_ui():
-    app = read_static("app.js")
+    app = read_static_js_bundle()
     html = read_static("index.html")
-    css = read_static("styles.css")
+    css = read_static_css_bundle()
 
     assert "function syncActionConsoleBank(state)" in app
     assert "actionConsoleBank" in app
@@ -513,7 +548,7 @@ def test_action_console_bank_and_explicit_sit_controls_ui():
 
 
 def test_showdown_modal_compact_row_repair_css_exists():
-    css = read_static("styles.css")
+    css = read_static_css_bundle()
 
     assert "Showdown modal compact row repair" in css
     assert ".post-hand-panel.post-hand-modal .post-hand-row" in css
@@ -521,7 +556,7 @@ def test_showdown_modal_compact_row_repair_css_exists():
 
 
 def test_sit_out_sit_in_and_rebuy_are_separate_buttons():
-    app = read_static("app.js")
+    app = read_static_js_bundle()
 
     assert 'els.sitOutBtn.textContent = "Sit Out"' in app
     assert 'els.sitInBtn.textContent = "Sit In"' in app
@@ -535,7 +570,7 @@ def test_sit_out_sit_in_and_rebuy_are_separate_buttons():
 
 def test_create_lobby_exposes_timer_timebank_settings():
     html = read_static("index.html")
-    app = read_static("app.js")
+    app = read_static_js_bundle()
 
     assert 'id="autoDealDelayInput"' in html
     assert 'id="actionTimeInput"' in html
@@ -561,7 +596,7 @@ def test_create_lobby_exposes_timer_timebank_settings():
     assert "timebank_gain_per_hand: timebankGain" in app
 
 def test_room_settings_chevron_tracks_expanded_state():
-    app = read_static("app.js")
+    app = read_static_js_bundle()
 
     assert "const syncSettingsExpanded = () =>" in app
     assert 'settHeader.setAttribute("aria-expanded", expanded ? "true" : "false")' in app
@@ -571,7 +606,7 @@ def test_room_settings_chevron_tracks_expanded_state():
 
 
 def test_table_center_cluster_polish_css_exists():
-    css = read_static("styles.css")
+    css = read_static_css_bundle()
 
     assert "Table center cluster polish v1" in css
     assert ".community-cards:empty" in css
@@ -583,8 +618,8 @@ def test_table_center_cluster_polish_css_exists():
     assert "transform: scale(0.82)" in css
 
 def test_center_pot_chips_use_displayed_amount_and_hide_empty_state():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert "const centerPotAmount = displayedCenterPotAmount(state);" in app
     assert "renderChipStackHtml(centerPotAmount" in app
@@ -593,7 +628,7 @@ def test_center_pot_chips_use_displayed_amount_and_hide_empty_state():
     assert "min-height: 0" in css
 
 def test_bet_markers_are_clamped_to_felt_geometry():
-    app = read_static("app.js")
+    app = read_static_js_bundle()
 
     assert "function feltClampedBetMarkerPosition(seatEl, visualSeat)" in app
     assert "getBoundingClientRect()" in app
@@ -606,8 +641,8 @@ def test_bet_markers_are_clamped_to_felt_geometry():
     assert 'top: `${pageY - containerRect.top}px`' in app
 
 def test_showdown_compact_mode_has_responsive_scrollable_body():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert "const shownResultRowCount = revealedPlayers.length;" in app
     assert "const visibleResultRowCount = shownResultRowCount + foldedPlayers.length;" in app
@@ -631,8 +666,8 @@ def test_showdown_compact_mode_has_responsive_scrollable_body():
     assert ".post-hand-panel.post-hand-modal.post-hand-compact .post-hand-actions" in css
 
 def test_adaptive_post_hand_density_modes_keep_small_showdowns_rich():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert "post-hand-small" in app
     assert "post-hand-dense" in app
@@ -650,8 +685,8 @@ def test_adaptive_post_hand_density_modes_keep_small_showdowns_rich():
     assert "display: none !important" in css
 
 def test_post_hand_result_rows_separate_primary_and_secondary_sizing():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert "post-hand-row post-hand-primary-row" in app
     assert "post-hand-row post-hand-secondary-row" in app
@@ -668,7 +703,7 @@ def test_post_hand_result_rows_separate_primary_and_secondary_sizing():
     assert "height: 31px !important" in css
 
 def test_compact_post_hand_winner_rows_have_stable_card_layout():
-    css = read_static("styles.css")
+    css = read_static_css_bundle()
 
     assert "Compact post-hand winner row stability" in css
     assert ".post-hand-panel.post-hand-modal.post-hand-compact .post-hand-title" in css
@@ -686,8 +721,8 @@ def test_compact_post_hand_winner_rows_have_stable_card_layout():
     assert "height: 64px !important" in css
 
 def test_acting_player_outline_is_robust_and_visible():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert "function isPlayerCurrentlyActing(player, state)" in app
     assert "player.is_action" in app
@@ -704,16 +739,16 @@ def test_acting_player_outline_is_robust_and_visible():
     assert ".player-seat.is-you.active-turn" in css
 
 def test_acting_player_label_distinguishes_hero_from_others():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert 'seat.dataset.actionLabel = p.is_you ? "YOUR ACTION" : "ACTION";' in app
     assert "content: attr(data-action-label)" in css
     assert '.player-seat.active-turn[data-action-label="YOUR ACTION"]::after' in css
 
 def test_sit_in_button_is_prominent_during_auto_deal_countdown():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert "const showSitInDuringCountdown = Boolean(" in app
     assert "viewerData.sitting_out" in app
@@ -728,8 +763,8 @@ def test_sit_in_button_is_prominent_during_auto_deal_countdown():
     assert 'content: "next hand"' in css
 
 def test_post_hand_recovery_buttons_are_available_during_auto_deal_countdown():
-    app = read_static("app.js")
-    css = read_static("styles.css")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
 
     assert "function syncPostHandRecoveryButtons(state, viewerData)" in app
     assert '"postHandSitInBtn"' in app
@@ -748,7 +783,7 @@ def test_post_hand_recovery_buttons_are_available_during_auto_deal_countdown():
     assert ".post-hand-recovery-btn" in css
 
 def test_buy_in_count_can_rebuy_and_busted_labels_are_used_in_frontend():
-    app = read_static("app.js")
+    app = read_static_js_bundle()
     game = (ROOT / "poker" / "game.py").read_text(encoding="utf-8")
 
     assert "numberOrZero(player.buy_in_count) > 1" in app
@@ -762,7 +797,7 @@ def test_buy_in_count_can_rebuy_and_busted_labels_are_used_in_frontend():
     assert '"can_rebuy": viewer_can_rebuy if viewer else False' in game
 
 def test_stack_zero_live_all_in_players_are_not_labeled_busted_frontend():
-    app = read_static("app.js")
+    app = read_static_js_bundle()
     game = (ROOT / "poker" / "game.py").read_text(encoding="utf-8")
 
     assert "function playerIsLiveInCurrentHand(player, state = lastState)" in app
@@ -776,7 +811,7 @@ def test_stack_zero_live_all_in_players_are_not_labeled_busted_frontend():
     assert "and not self.player_is_live_in_current_hand(room, viewer)" in game
 
 def test_center_pot_cleanup_prevents_shadow_overlap():
-    css = read_static("styles.css")
+    css = read_static_css_bundle()
 
     assert "Center pot cleanup v2" in css
     assert ".table-felt .pot-area" in css
@@ -788,7 +823,7 @@ def test_center_pot_cleanup_prevents_shadow_overlap():
     assert "--center-pot-clearance" in css
 
 def test_board_tray_shadow_is_separated_from_center_pot():
-    css = read_static("styles.css")
+    css = read_static_css_bundle()
 
     assert "Board tray / pot visual separation v2" in css
     assert ".table-felt .community-cards" in css
@@ -798,7 +833,7 @@ def test_board_tray_shadow_is_separated_from_center_pot():
     assert "margin-bottom: clamp(10px, 1.5vw, 18px)" in css
 
 def test_board_cards_float_without_extra_center_shadow_layers():
-    css = read_static("styles.css")
+    css = read_static_css_bundle()
 
     assert "Clean floating board cards v1" in css
     assert ".table-felt .community-cards" in css
@@ -809,7 +844,7 @@ def test_board_cards_float_without_extra_center_shadow_layers():
     assert ".table-felt .community-cards .playing-card" in css
 
 def test_legacy_table_felt_center_tray_is_disabled():
-    css = read_static("styles.css")
+    css = read_static_css_bundle()
 
     assert "Remove legacy center tray pseudo-element" in css
     assert ".table-felt::after" in css
@@ -819,7 +854,7 @@ def test_legacy_table_felt_center_tray_is_disabled():
     assert "justify-content: center !important" in css
 
 def test_timebank_turn_badge_is_outside_felt():
-    css = read_static("styles.css")
+    css = read_static_css_bundle()
 
     assert "Move timebank / turn badge outside felt" in css
     assert ".table-felt .turn-indicator" in css
@@ -832,7 +867,7 @@ def test_timebank_turn_badge_is_outside_felt():
     assert "display: none !important" in css
 
 def test_showdown_winner_matching_uses_player_identity_not_names_only():
-    app = read_static("app.js")
+    app = read_static_js_bundle()
 
     assert "function playerKey(player)" in app
     assert "function winnerKey(winner)" in app
@@ -848,7 +883,7 @@ def test_showdown_winner_matching_uses_player_identity_not_names_only():
     assert "winnerAmountByName" not in app
 
 def test_showdown_winner_amount_uses_winners_list_with_net_secondary():
-    app = read_static("app.js")
+    app = read_static_js_bundle()
 
     assert 'const winAmount = winnerAmountForPlayer(p, winners);' in app
     assert 'const amount = isWinner ? `+${winAmount}` : formatHandDelta(delta);' in app
@@ -857,7 +892,7 @@ def test_showdown_winner_amount_uses_winners_list_with_net_secondary():
     assert 'title="${isWinner ? "Winner share" : "Net result this hand"}"' in app
 
 def test_showdown_winner_showcase_css_prevents_card_clipping():
-    css = read_static("styles.css")
+    css = read_static_css_bundle()
 
     assert "Old-style showdown winner showcase rows" in css
     assert ".post-hand-panel.post-hand-modal .post-hand-row.winner" in css
