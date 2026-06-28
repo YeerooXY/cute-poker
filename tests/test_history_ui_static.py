@@ -131,8 +131,10 @@ def test_history_review_modal_renders_saved_board_and_keeps_close_clear_of_pot_b
     assert "historyReviewDisplayState" in app
     assert "const cinemaState = historyReviewDisplayState || state" in app
     assert "renderShowdownTray(cinemaState)" in app
-    assert 'const historyReviewBoard = "";' in app
-    assert ".history-review-board-strip" in css
+    assert "function renderPostHandBoardStrip(state)" in app
+    assert "resultPanelOwnsShowdown" in app
+    assert ".post-hand-board-strip" in css
+    assert ".post-hand-board-cards .playing-card" in css
     assert "margin-right" in css
 
 

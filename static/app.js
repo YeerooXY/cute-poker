@@ -2988,11 +2988,12 @@ function renderShowdownTray(state) {
   const showdownDisplay = state.phase === "showdown" || Boolean(state.showdown_mode);
   const board = Array.isArray(state.community) ? state.community : [];
   const winners = Array.isArray(state.winners) ? state.winners : [];
+  const resultPanelOwnsShowdown = winners.length > 0;
   const uncontestedFoldWin = state.phase === "showdown"
     && winners.some(w => w && w.reason === "Everyone else folded");
   const contenders = uncontestedFoldWin ? [] : showdownTrayParticipants(state);
 
-  if (!showdownDisplay) {
+  if (!showdownDisplay || resultPanelOwnsShowdown) {
     tray.classList.add("hidden");
     tray.innerHTML = "";
     return;
@@ -3127,6 +3128,20 @@ function renderPostHandPotAwardsHtml(state) {
   `;
 }
 
+function renderPostHandBoardStrip(state) {
+  const board = Array.isArray(state && state.community) ? state.community : [];
+  const boardHtml = board.length
+    ? board.map(card => makeCardHtml(card, "post-hand-board-card")).join("")
+    : '<span class="post-hand-board-empty">No board dealt</span>';
+
+  return `
+    <section class="post-hand-board-strip" aria-label="Showdown board">
+      <div class="post-hand-board-label">${board.length === 5 ? "Showdown board" : "Board"}</div>
+      <div class="post-hand-board-cards">${boardHtml}</div>
+    </section>
+  `;
+}
+
 
 
 function isUncontestedWinnerRow(player, winners = []) {
@@ -3222,14 +3237,14 @@ function renderPostHandPanel(state) {
   els.postHandPanel.classList.toggle("post-hand-compact", compactPostHandRows);
 
   if (revealedPlayers.length === 0 && foldedPlayers.length === 0) {
-    const historyReviewBoard = "";
+    const postHandBoard = renderPostHandBoardStrip(state);
     const potAwardsHtml = renderPostHandPotAwardsHtml(state);
     const compactWinnerRows = winners.length >= 6 || (window.innerHeight <= 720 && winners.length >= 4);
     els.postHandPanel.classList.toggle("post-hand-compact", compactWinnerRows);
     els.postHandPanel.classList.toggle("post-hand-small", winners.length > 0 && winners.length <= 2);
     els.postHandPanel.classList.toggle("post-hand-dense", winners.length >= 3);
     els.postHandPanel.classList.toggle("post-hand-many-players", winners.length >= 5);
-    els.postHandBody.innerHTML = historyReviewBoard + potAwardsHtml + winners.map(w => `
+    els.postHandBody.innerHTML = postHandBoard + potAwardsHtml + winners.map(w => `
       <div class="post-hand-row post-hand-primary-row winner">
         <div class="post-hand-player">
           <span class="post-hand-name">${esc(w.name)}</span>
@@ -3349,7 +3364,7 @@ function renderPostHandPanel(state) {
     `;
   }).join("");
 
-  const historyReviewBoard = "";
+  const postHandBoard = renderPostHandBoardStrip(state);
   const potAwardsHtml = renderPostHandPotAwardsHtml(state);
   const showSectionHeadings = Boolean(potAwardsHtml) || visibleResultRowCount >= 3;
 
@@ -3375,7 +3390,7 @@ function renderPostHandPanel(state) {
     `
     : "";
 
-  els.postHandBody.innerHTML = `${historyReviewBoard}${potAwardsHtml}${shownSection}${muckedSection}`;
+  els.postHandBody.innerHTML = `${postHandBoard}${potAwardsHtml}${shownSection}${muckedSection}`;
   bindFoldedRevealButtons();
 }
 

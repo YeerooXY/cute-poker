@@ -860,6 +860,46 @@ html, body {
   white-space: nowrap;
 }
 
+.post-hand-board-strip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border: 1px solid rgba(245, 212, 66, 0.18);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.post-hand-board-label {
+  color: var(--gold-light);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.post-hand-board-cards {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.post-hand-board-cards .playing-card {
+  width: 34px;
+  height: 48px;
+  min-width: 34px;
+  font-size: 13px;
+}
+
+.post-hand-board-empty {
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 750;
+}
+
 .post-hand-mucked-section .post-hand-row {
   opacity: 0.9;
 }
