@@ -812,6 +812,59 @@ html, body {
   padding-right: 2px;
 }
 
+.post-hand-section {
+  display: grid;
+  gap: 6px;
+}
+
+.post-hand-section-heading {
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  padding: 2px 2px 0;
+}
+
+.post-hand-pot-awards {
+  padding: 7px 8px;
+  background: rgba(232, 185, 35, 0.08);
+  border: 1px solid rgba(232, 185, 35, 0.2);
+  border-radius: 7px;
+}
+
+.post-hand-pot-row {
+  display: grid;
+  grid-template-columns: minmax(72px, 0.8fr) auto minmax(130px, 1.5fr);
+  gap: 8px;
+  align-items: center;
+  color: var(--text);
+  font-size: 11px;
+}
+
+.post-hand-pot-label {
+  color: var(--gold-light);
+  font-weight: 850;
+}
+
+.post-hand-pot-amount {
+  font-weight: 900;
+  text-align: right;
+}
+
+.post-hand-pot-winners {
+  color: var(--text-dim);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.post-hand-mucked-section .post-hand-row {
+  opacity: 0.9;
+}
+
+
 .post-hand-row {
   display: grid;
   grid-template-columns: minmax(96px, 1fr) auto minmax(110px, 1.4fr) auto;
@@ -7099,13 +7152,13 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
 }
 
 .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.mucked,
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:not(.winner) {
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-secondary-row {
   background: rgba(0, 0, 0, 0.28) !important;
   opacity: 0.68;
 }
 
 .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.mucked .post-hand-name,
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:not(.winner) .post-hand-name {
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-secondary-row .post-hand-name {
   color: rgba(229, 239, 221, 0.76);
 }
 
@@ -7259,7 +7312,7 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
 }
 
 .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.mucked .post-hand-cards .playing-card,
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:not(.winner) .post-hand-cards .playing-card {
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-secondary-row .post-hand-cards .playing-card {
   width: 21px !important;
   height: 30px !important;
   min-width: 21px !important;
@@ -7303,7 +7356,7 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
   gap: 4px !important;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row:not(.winner) {
+.post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row.post-hand-secondary-row {
   grid-template-columns: minmax(112px, 0.9fr) minmax(86px, auto) minmax(0, 1fr) minmax(42px, auto) !important;
   min-height: 32px !important;
   padding: 4px 7px !important;
@@ -7311,14 +7364,14 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
   opacity: 0.82;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row:not(.winner) .post-hand-cards {
+.post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row.post-hand-secondary-row .post-hand-cards {
   gap: 1px !important;
   justify-content: center;
   max-width: 92px;
   overflow: hidden;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row:not(.winner) .post-hand-cards .playing-card {
+.post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row.post-hand-secondary-row .post-hand-cards .playing-card {
   width: 17px !important;
   height: 24px !important;
   min-width: 17px !important;
@@ -7329,24 +7382,24 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
   flex: 0 0 17px !important;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row:not(.winner) .post-hand-name {
+.post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row.post-hand-secondary-row .post-hand-name {
   font-size: 11px !important;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row:not(.winner) .post-hand-result {
+.post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row.post-hand-secondary-row .post-hand-result {
   font-size: 8px !important;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row:not(.winner) .post-hand-detail {
+.post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row.post-hand-secondary-row .post-hand-detail {
   font-size: 9px !important;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row:not(.winner) .post-hand-amount {
+.post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row.post-hand-secondary-row .post-hand-amount {
   font-size: 10px !important;
   min-width: 34px;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row:not(.winner) .post-hand-breakdown {
+.post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row.post-hand-secondary-row .post-hand-breakdown {
   display: none !important;
 }
 
@@ -7366,11 +7419,11 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
 }
 
 @media (max-width: 600px) {
-  .post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row:not(.winner) {
+  .post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row.post-hand-secondary-row {
     grid-template-columns: minmax(84px, 0.9fr) minmax(64px, auto) minmax(0, 1fr) minmax(34px, auto) !important;
   }
 
-  .post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row:not(.winner) .post-hand-cards .playing-card {
+  .post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row.post-hand-secondary-row .post-hand-cards .playing-card {
     width: 14px !important;
     height: 20px !important;
     min-width: 14px !important;
@@ -7836,5 +7889,294 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
     min-height: 32px !important;
     max-height: 32px !important;
     flex-basis: 22px !important;
+  }
+}
+
+
+/* Post-hand readability: winners/shown hands stay large, mucked rows stay compact. */
+.post-hand-shown-section .post-hand-row {
+  grid-template-columns: minmax(180px, 1fr) auto minmax(180px, 1.2fr) auto;
+  min-height: 86px;
+  padding: 14px 16px;
+}
+
+.post-hand-shown-section .post-hand-name {
+  font-size: 24px;
+}
+
+.post-hand-shown-section .post-hand-result {
+  font-size: 13px;
+}
+
+.post-hand-shown-section .post-hand-cards .playing-card {
+  width: 56px;
+  height: 78px;
+  font-size: 20px;
+}
+
+.post-hand-shown-section .post-hand-detail {
+  font-size: 13px;
+  white-space: normal;
+}
+
+.post-hand-shown-section .post-hand-amount {
+  font-size: 26px;
+  min-width: 62px;
+}
+
+.post-hand-mucked-section .post-hand-row {
+  min-height: 34px;
+  padding: 6px 10px;
+  grid-template-columns: minmax(110px, 1fr) auto minmax(140px, 1.4fr) auto;
+}
+
+.post-hand-mucked-section .post-hand-name {
+  font-size: 12px;
+}
+
+.post-hand-mucked-section .post-hand-result {
+  font-size: 9px;
+}
+
+.post-hand-mucked-section .post-hand-cards .playing-card {
+  width: 22px;
+  height: 31px;
+  font-size: 9px;
+}
+
+.post-hand-mucked-section .post-hand-detail {
+  font-size: 10px;
+}
+
+.post-hand-mucked-section .post-hand-amount {
+  font-size: 11px;
+  min-width: 30px;
+}
+
+.post-hand-many-players .post-hand-shown-section .post-hand-row {
+  min-height: 76px;
+  padding: 10px 12px;
+}
+
+.post-hand-many-players .post-hand-shown-section .post-hand-cards .playing-card {
+  width: 46px;
+  height: 64px;
+  font-size: 16px;
+}
+
+@media (max-width: 600px) {
+  .post-hand-shown-section .post-hand-row,
+  .post-hand-mucked-section .post-hand-row {
+    grid-template-columns: 1fr;
+  }
+
+  .post-hand-shown-section .post-hand-cards .playing-card {
+    width: 42px;
+    height: 58px;
+    font-size: 15px;
+  }
+}
+
+
+
+
+/* Primary showdown rows: winners + actually shown hands */
+.post-hand-row.post-hand-primary-row {
+  grid-template-columns: minmax(180px, 1fr) auto minmax(180px, 1.2fr) auto !important;
+  min-height: 86px !important;
+  padding: 14px 16px !important;
+}
+
+.post-hand-row.post-hand-primary-row .post-hand-name {
+  font-size: 24px !important;
+}
+
+.post-hand-row.post-hand-primary-row .post-hand-result {
+  font-size: 13px !important;
+}
+
+.post-hand-row.post-hand-primary-row .post-hand-cards .playing-card {
+  width: 44px !important;
+  height: 62px !important;
+  font-size: 17px !important;
+}
+
+.post-hand-row.post-hand-primary-row .post-hand-detail {
+  font-size: 13px !important;
+  white-space: normal !important;
+}
+
+.post-hand-row.post-hand-primary-row .post-hand-amount {
+  font-size: 26px !important;
+  min-width: 62px !important;
+}
+
+/* Secondary showdown rows: mucked / folded / compact info rows */
+.post-hand-row.post-hand-secondary-row {
+  grid-template-columns: minmax(110px, 1fr) auto minmax(140px, 1.4fr) auto !important;
+  min-height: 34px !important;
+  padding: 6px 10px !important;
+}
+
+.post-hand-row.post-hand-secondary-row .post-hand-name {
+  font-size: 12px !important;
+}
+
+.post-hand-row.post-hand-secondary-row .post-hand-result {
+  font-size: 9px !important;
+}
+
+.post-hand-row.post-hand-secondary-row .post-hand-cards .playing-card {
+  width: 22px !important;
+  height: 31px !important;
+  font-size: 9px !important;
+}
+
+.post-hand-row.post-hand-secondary-row .post-hand-detail {
+  font-size: 10px !important;
+}
+
+.post-hand-row.post-hand-secondary-row .post-hand-amount {
+  font-size: 11px !important;
+  min-width: 30px !important;
+}
+
+/* Let up to ~4 shown rows stay readable before shrinking harder */
+.post-hand-many-players .post-hand-row.post-hand-primary-row {
+  min-height: 72px !important;
+  padding: 10px 12px !important;
+}
+
+.post-hand-many-players .post-hand-row.post-hand-primary-row .post-hand-cards .playing-card {
+  width: 36px !important;
+  height: 52px !important;
+  font-size: 14px !important;
+}
+
+@media (max-width: 600px) {
+  .post-hand-row.post-hand-primary-row,
+  .post-hand-row.post-hand-secondary-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .post-hand-row.post-hand-primary-row .post-hand-cards .playing-card {
+    width: 36px !important;
+    height: 50px !important;
+    font-size: 14px !important;
+  }
+}
+
+
+
+/* Final showdown readability override:
+   shown hands should be readable; only mucked/folded rows stay tiny. */
+.post-hand-panel {
+  width: min(980px, calc(100vw - 48px)) !important;
+  max-height: min(62vh, 660px) !important;
+}
+
+.post-hand-row.post-hand-primary-row {
+  grid-template-columns: minmax(210px, 1fr) minmax(280px, auto) minmax(220px, 1.2fr) auto !important;
+  min-height: 104px !important;
+  padding: 16px 20px !important;
+  gap: 18px !important;
+}
+
+.post-hand-row.post-hand-primary-row .post-hand-cards {
+  gap: 8px !important;
+  justify-content: center !important;
+  align-items: center !important;
+  min-width: 280px !important;
+}
+
+.post-hand-row.post-hand-primary-row .post-hand-cards .playing-card,
+.post-hand-row.post-hand-primary-row .post-hand-cards .playing-card.showdown-card-flip {
+  width: 58px !important;
+  height: 82px !important;
+  min-width: 58px !important;
+  min-height: 82px !important;
+  font-size: 21px !important;
+  border-radius: 6px !important;
+}
+
+.post-hand-row.post-hand-primary-row .post-hand-name {
+  font-size: 26px !important;
+  line-height: 1.05 !important;
+}
+
+.post-hand-row.post-hand-primary-row .post-hand-result {
+  font-size: 13px !important;
+}
+
+.post-hand-row.post-hand-primary-row .post-hand-detail {
+  font-size: 13px !important;
+  line-height: 1.25 !important;
+  white-space: normal !important;
+}
+
+.post-hand-row.post-hand-primary-row .post-hand-amount {
+  font-size: 28px !important;
+  min-width: 76px !important;
+}
+
+/* Keep folded/mucked genuinely compact. */
+.post-hand-row.post-hand-secondary-row .post-hand-cards {
+  gap: 3px !important;
+  justify-content: center !important;
+  min-width: 56px !important;
+}
+
+.post-hand-row.post-hand-secondary-row .post-hand-cards .playing-card,
+.post-hand-row.post-hand-secondary-row .post-hand-cards .playing-card.showdown-card-flip {
+  width: 22px !important;
+  height: 31px !important;
+  min-width: 22px !important;
+  min-height: 31px !important;
+  font-size: 9px !important;
+}
+
+/* Up to four shown hands should still be readable. Shrink only a little. */
+.post-hand-dense .post-hand-row.post-hand-primary-row .post-hand-cards .playing-card,
+.post-hand-dense .post-hand-row.post-hand-primary-row .post-hand-cards .playing-card.showdown-card-flip {
+  width: 52px !important;
+  height: 74px !important;
+  min-width: 52px !important;
+  min-height: 74px !important;
+  font-size: 19px !important;
+}
+
+/* Very crowded hands can compress, but not to unreadable mini-cards. */
+.post-hand-many-players .post-hand-row.post-hand-primary-row .post-hand-cards .playing-card,
+.post-hand-many-players .post-hand-row.post-hand-primary-row .post-hand-cards .playing-card.showdown-card-flip {
+  width: 46px !important;
+  height: 64px !important;
+  min-width: 46px !important;
+  min-height: 64px !important;
+  font-size: 16px !important;
+}
+
+@media (max-width: 760px) {
+  .post-hand-panel {
+    width: calc(100vw - 16px) !important;
+    max-height: 58vh !important;
+  }
+
+  .post-hand-row.post-hand-primary-row {
+    grid-template-columns: 1fr !important;
+    min-height: 0 !important;
+  }
+
+  .post-hand-row.post-hand-primary-row .post-hand-cards {
+    min-width: 0 !important;
+    justify-content: flex-start !important;
+  }
+
+  .post-hand-row.post-hand-primary-row .post-hand-cards .playing-card,
+  .post-hand-row.post-hand-primary-row .post-hand-cards .playing-card.showdown-card-flip {
+    width: 42px !important;
+    height: 60px !important;
+    min-width: 42px !important;
+    min-height: 60px !important;
+    font-size: 15px !important;
   }
 }

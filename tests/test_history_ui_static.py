@@ -642,11 +642,29 @@ def test_adaptive_post_hand_density_modes_keep_small_showdowns_rich():
 
     assert "Adaptive showdown result density" in css
     assert ".post-hand-panel.post-hand-modal.post-hand-small .post-hand-breakdown" in css
-    assert ".post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row:not(.winner)" in css
-    assert ".post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row:not(.winner) .post-hand-breakdown" in css
+    assert ".post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row.post-hand-secondary-row" in css
+    assert ".post-hand-panel.post-hand-modal.post-hand-dense .post-hand-row.post-hand-secondary-row .post-hand-breakdown" in css
     assert ".post-hand-panel.post-hand-modal.post-hand-many-players .post-hand-row.mucked" in css
     assert ".post-hand-panel.post-hand-modal.post-hand-many-players .post-hand-row.mucked .post-hand-cards" in css
     assert "display: none !important" in css
+
+def test_post_hand_result_rows_separate_primary_and_secondary_sizing():
+    app = read_static("app.js")
+    css = read_static("styles.css")
+
+    assert "post-hand-row post-hand-primary-row" in app
+    assert "post-hand-row post-hand-secondary-row" in app
+    assert "post-hand-shown-section" in app
+    assert "post-hand-mucked-section" in app
+
+    assert ".post-hand-row.post-hand-primary-row .post-hand-cards .playing-card" in css
+    assert ".post-hand-row.post-hand-secondary-row .post-hand-cards .playing-card" in css
+    assert "width: 58px !important" in css
+    assert "height: 82px !important" in css
+    assert "width: 46px !important" in css
+    assert "height: 64px !important" in css
+    assert "width: 22px !important" in css
+    assert "height: 31px !important" in css
 
 def test_compact_post_hand_winner_rows_have_stable_card_layout():
     css = read_static("styles.css")

@@ -1898,6 +1898,14 @@ function findHistoryDetail(hand, details) {
 }
 
 function historyPlayerDelta(hand, player) {
+  const idDeltas = hand && hand.hand_deltas_by_player_id && typeof hand.hand_deltas_by_player_id === "object"
+    ? hand.hand_deltas_by_player_id
+    : {};
+  const idKeys = [player && player.player_id, player && player.id, player && player.playerId].filter(Boolean);
+  for (const key of idKeys) {
+    if (Number.isFinite(Number(idDeltas[key]))) return Number(idDeltas[key]);
+  }
+
   const deltas = hand && hand.hand_deltas && typeof hand.hand_deltas === "object" ? hand.hand_deltas : {};
   const keys = [player && player.name, player && player.player_id, player && player.id].filter(Boolean);
   for (const key of keys) {
@@ -1952,10 +1960,19 @@ function renderHistoryPotBreakdown(hand) {
   return `
     <div class="hand-history-detail-section">
       <div class="hand-history-detail-heading">Pots</div>
-      ${rows.map(row => {
-        const amount = Number(row && row.amount) || 0;
-        const winners = Array.isArray(row && row.winners) ? row.winners.join(", ") : "";
-        return `<div class="hand-history-pot-row">Pot ${amount}${winners ? ` -> ${esc(winners)}` : ""}</div>`;
+      ${rows.map((row, index) => {
+        const amount = Number(row && (row.amount ?? row.pot)) || 0;
+        const label = row && row.label ? row.label : (index === 0 ? "Main Pot" : `Side Pot ${index}`);
+        const winners = Array.isArray(row && row.winners)
+          ? row.winners.map(winner => {
+              if (typeof winner === "string") return winner;
+              const name = winner && winner.name ? winner.name : "Player";
+              const share = Number(winner && winner.amount) || 0;
+              const hand = winner && winner.hand_name ? ` ? ${winner.hand_name}` : "";
+              return `${name} +${share}${hand}`;
+            }).join(", ")
+          : "";
+        return `<div class="hand-history-pot-row">${esc(label)} ${amount}${winners ? ` -> ${esc(winners)}` : ""}</div>`;
       }).join("")}
     </div>
   `;
@@ -2638,7 +2655,13 @@ function computeHandDeltas(state, winners) {
   const players = Array.isArray(state.players) ? state.players : [];
   const deltas = new Map();
 
-  const explicit = state.hand_deltas || state.handDeltas || state.net_deltas || state.netDeltas || null;
+  const explicit = state.hand_deltas_by_player_id
+    || state.handDeltasByPlayerId
+    || state.hand_deltas
+    || state.handDeltas
+    || state.net_deltas
+    || state.netDeltas
+    || null;
   if (explicit && typeof explicit === "object") {
     for (const player of players) {
       for (const key of deltaKeysForPlayer(player)) {
@@ -3012,6 +3035,106 @@ function renderShowdownTray(state) {
   tray.classList.remove("hidden");
 }
 
+
+function publicPlayerId(value) {
+  if (!value) return "";
+  return String(value.player_id || value.id || value.playerId || "");
+}
+
+function postHandPlayersById(state) {
+  const map = new Map();
+  const players = Array.isArray(state && state.players) ? state.players : [];
+  for (const player of players) {
+    const id = publicPlayerId(player);
+    if (id) map.set(id, player);
+  }
+  return map;
+}
+
+function normalizePostHandResultRow(result, state) {
+  const playersById = postHandPlayersById(state);
+  const resultId = publicPlayerId(result);
+  const player = playersById.get(resultId) || {};
+  const playerId = resultId || publicPlayerId(player) || playerKey(player) || playerKey(result);
+
+  return {
+    ...player,
+    ...result,
+    id: playerId || player.id || result.id || "",
+    player_id: playerId || player.player_id || result.player_id || "",
+    name: result.name || player.name || "Player",
+    cards: Array.isArray(result.cards) ? result.cards : (Array.isArray(player.cards) ? player.cards : []),
+    best_cards: Array.isArray(result.best_cards) ? result.best_cards : (Array.isArray(player.best_cards) ? player.best_cards : []),
+    hand_name: result.hand_name || player.hand_name || "",
+    hand_detail: result.hand_detail || player.hand_detail || "",
+    folded: Boolean(result.folded ?? player.folded),
+    mucked: Boolean(result.mucked),
+    hand_delta: Number.isFinite(Number(result.net_delta)) ? Number(result.net_delta) : player.hand_delta,
+    net_delta: Number.isFinite(Number(result.net_delta)) ? Number(result.net_delta) : player.net_delta,
+    won_amount: Number.isFinite(Number(result.won_amount)) ? Number(result.won_amount) : 0,
+    pot_ids_won: Array.isArray(result.pot_ids_won) ? result.pot_ids_won : [],
+  };
+}
+
+function postHandResultRows(state) {
+  const serverResults = Array.isArray(state && state.player_results) ? state.player_results : [];
+  if (serverResults.length > 0) {
+    return serverResults.map(result => normalizePostHandResultRow(result, state));
+  }
+
+  return Array.isArray(state && state.players) ? state.players : [];
+}
+
+function postHandRowHasShownHand(row) {
+  return Boolean(
+    row
+    && !row.folded
+    && !row.mucked
+    && row.hand_name
+    && Array.isArray(row.best_cards)
+    && row.best_cards.length > 0
+  );
+}
+
+function renderPostHandPotAwardsHtml(state) {
+  const pots = Array.isArray(state && state.pot_breakdown) ? state.pot_breakdown : [];
+  if (pots.length <= 1) return "";
+
+  return `
+    <section class="post-hand-section post-hand-pot-awards" aria-label="Pot awards">
+      <div class="post-hand-section-heading">Pot awards</div>
+      ${pots.map((pot, index) => {
+        const label = pot && pot.label ? pot.label : (index === 0 ? "Main Pot" : `Side Pot ${index}`);
+        const amount = Number(pot && (pot.amount ?? pot.pot)) || 0;
+        const winners = Array.isArray(pot && pot.winners) ? pot.winners : [];
+        const winnerText = winners.map(winner => {
+          if (typeof winner === "string") return winner;
+          const name = winner && winner.name ? winner.name : "Player";
+          const share = Number(winner && winner.amount) || 0;
+          const hand = winner && winner.hand_name ? ` ? ${winner.hand_name}` : "";
+          return `${name} +${share}${hand}`;
+        }).join(" / ");
+
+        return `
+          <div class="post-hand-pot-row">
+            <span class="post-hand-pot-label">${esc(label)}</span>
+            <span class="post-hand-pot-amount">${amount}</span>
+            <span class="post-hand-pot-winners">${winnerText ? esc(winnerText) : "No winner recorded"}</span>
+          </div>
+        `;
+      }).join("")}
+    </section>
+  `;
+}
+
+
+
+function isUncontestedWinnerRow(player, winners = []) {
+  const winner = winnerForPlayer(player, winners);
+  return Boolean(winner && winner.reason === "Everyone else folded");
+}
+
+
 function renderPostHandPanel(state) {
   if (!els.postHandPanel) return;
 
@@ -3057,19 +3180,18 @@ function renderPostHandPanel(state) {
   }
   if (!els.postHandBody) return;
 
-  const players = Array.isArray(state.players) ? state.players : [];
+  const players = postHandResultRows(state);
 
-  const revealedPlayers = players
-    .filter(p => p.hand_name && p.best_cards && p.best_cards.length > 0 && !p.folded);
+  const revealedPlayers = players.filter(p =>
+    postHandRowHasShownHand(p) || isUncontestedWinnerRow(p, winners)
+  );
 
   const handDeltas = computeHandDeltas(state, winners);
 
   const revealedKeys = new Set(revealedPlayers.map(playerKey));
 
-  // Any player who participated in the hand but does not have a valid revealed
-  // showdown hand should be treated as mucked. This is safer than relying only
-  // on p.folded, and prevents folded/mucked players from disappearing in visual
-  // fixtures or future partial-reveal states.
+  // Prefer backend player_results for completed-hand membership. It is stable
+  // by player_id, so duplicate names no longer collapse into the same row.
   const foldedPlayers = players
     .filter(p => {
       const key = playerKey(p);
@@ -3078,12 +3200,13 @@ function renderPostHandPanel(state) {
       const invested = Number(p.total_invested || 0) > 0 || Number(p.committed || 0) > 0;
       const hasDelta = handDeltas.has(playerKey(p));
       const hadCards = Array.isArray(p.cards) && p.cards.length > 0;
+      const hasServerResult = Number.isFinite(Number(p.net_delta)) || Number.isFinite(Number(p.won_amount));
 
-      return p.folded || invested || hasDelta || hadCards;
+      return p.folded || p.mucked || invested || hasDelta || hadCards || hasServerResult;
     })
     .sort((a, b) => {
-      const aWinner = winnerForPlayer(a, winners) ? 0 : 1;
-      const bWinner = winnerForPlayer(b, winners) ? 0 : 1;
+      const aWinner = winnerForPlayer(a, winners) || Number(a.won_amount) > 0 ? 0 : 1;
+      const bWinner = winnerForPlayer(b, winners) || Number(b.won_amount) > 0 ? 0 : 1;
       if (aWinner !== bWinner) return aWinner - bWinner;
       return String(a.name).localeCompare(String(b.name));
     });
@@ -3099,13 +3222,14 @@ function renderPostHandPanel(state) {
 
   if (revealedPlayers.length === 0 && foldedPlayers.length === 0) {
     const historyReviewBoard = "";
+    const potAwardsHtml = renderPostHandPotAwardsHtml(state);
     const compactWinnerRows = winners.length >= 6 || (window.innerHeight <= 720 && winners.length >= 4);
     els.postHandPanel.classList.toggle("post-hand-compact", compactWinnerRows);
     els.postHandPanel.classList.toggle("post-hand-small", winners.length > 0 && winners.length <= 2);
     els.postHandPanel.classList.toggle("post-hand-dense", winners.length >= 3);
     els.postHandPanel.classList.toggle("post-hand-many-players", winners.length >= 5);
-    els.postHandBody.innerHTML = historyReviewBoard + winners.map(w => `
-      <div class="post-hand-row winner">
+    els.postHandBody.innerHTML = historyReviewBoard + potAwardsHtml + winners.map(w => `
+      <div class="post-hand-row post-hand-primary-row winner">
         <div class="post-hand-player">
           <span class="post-hand-name">${esc(w.name)}</span>
           <span class="post-hand-result">wins</span>
@@ -3123,11 +3247,41 @@ function renderPostHandPanel(state) {
   const shownRows = sortedPlayers.map(p => {
     const winner = winnerForPlayer(p, winners);
     const isWinner = Boolean(winner);
+    const delta = handDeltas.get(playerKey(p));
+    const winAmount = winnerAmountForPlayer(p, winners);
+    const displayWinAmount = Number(p.won_amount) > 0 ? Number(p.won_amount) : winAmount;
+    const isUncontestedWinner = isUncontestedWinnerRow(p, winners);
+
+    if (isUncontestedWinner) {
+      const cards = uncontestedCardsForModal(p).map(card => makeCardHtml(card, "showdown-card-flip")).join("");
+      const shown = uncontestedRevealIsShown(p);
+      const result = shown ? "shown winner" : "wins uncontested";
+      const detail = uncontestedRevealDetail(p);
+      const revealActions = renderUncontestedRevealActions(p);
+      const amount = Number.isFinite(Number(delta)) ? formatHandDelta(delta) : `+${displayWinAmount}`;
+      const amountClass = Number.isFinite(Number(delta)) ? handDeltaClass(delta) : "gain winner-amount";
+      const mode = uncontestedRevealMode(p);
+      const rowExtraClass = mode === "both"
+        ? " revealed"
+        : (mode === "left" || mode === "right") ? " partial-revealed" : "";
+
+      return `
+        <div class="post-hand-row post-hand-primary-row winner post-hand-winner-glow uncontested${rowExtraClass}">
+          <div class="post-hand-player">
+            <span class="post-hand-name">${esc(p.name)}</span>
+            <span class="post-hand-result">${esc(result)}</span>
+          </div>
+          <div class="post-hand-cards">${cards}</div>
+          <div class="post-hand-detail">${esc(detail)}</div>
+          <div class="post-hand-amount ${amountClass}" title="Net result this hand">${esc(amount)}</div>
+          ${revealActions}
+        </div>
+      `;
+    }
+
     const detail = p.hand_detail || p.hand_name;
     const cards = sortBestFiveForDisplay(p.best_cards, p.hand_name).map(card => makeCardHtml(card, "showdown-card-flip")).join("");
     const result = isWinner ? (winners.length > 1 ? "splits" : "wins") : "shows";
-    const delta = handDeltas.get(playerKey(p));
-    const winAmount = winnerAmountForPlayer(p, winners);
     const amount = isWinner ? `+${winAmount}` : formatHandDelta(delta);
     const amountClass = isWinner ? "gain winner-amount" : handDeltaClass(delta);
     const netText = isWinner && Number.isFinite(Number(delta)) && Number(delta) !== winAmount
@@ -3137,8 +3291,9 @@ function renderPostHandPanel(state) {
       || (isWinner && !els.postHandPanel.classList.contains("post-hand-many-players"))
       || (p.is_you && !els.postHandPanel.classList.contains("post-hand-many-players"));
     const breakdown = showBestFiveBreakdown ? renderBestFiveBreakdownHtml(p, state) : "";
+
     return `
-      <div class="post-hand-row${isWinner ? " winner post-hand-winner-glow" : ""}">
+      <div class="post-hand-row post-hand-primary-row${isWinner ? " winner post-hand-winner-glow" : ""}">
         <div class="post-hand-player">
           <span class="post-hand-name">${esc(p.name)}</span>
           <span class="post-hand-result">${result}</span>
@@ -3169,7 +3324,7 @@ function renderPostHandPanel(state) {
       : foldedRevealDetail(p);
     const result = isUncontestedWinner ? (isUncontestedShown ? "shown winner" : "wins uncontested") : mode === "both" ? "revealed" : "mucked";
     const revealActions = isUncontestedWinner ? renderUncontestedRevealActions(p) : renderFoldedRevealActions(p);
-    const wouldHaveBreakdown = isUncontestedWinner ? "" : renderFoldedWouldHaveBreakdown(p, state);
+    const wouldHaveBreakdown = historyReviewMode ? renderFoldedWouldHaveBreakdown(p, state) : "";
     const baseRowClass = isUncontestedWinner ? " winner post-hand-winner-glow uncontested" : " mucked";
     const uncontestedMode = isUncontestedWinner ? uncontestedRevealMode(p) : "";
     const rowExtraClass = isUncontestedWinner
@@ -3177,7 +3332,7 @@ function renderPostHandPanel(state) {
       : mode === "both" ? " would-have" : (mode === "left" || mode === "right") ? " partial-revealed" : "";
 
     return `
-      <div class="post-hand-row${baseRowClass}${rowExtraClass}">
+      <div class="post-hand-row post-hand-secondary-row${baseRowClass}${rowExtraClass}">
         <div class="post-hand-player">
           <span class="post-hand-name">${esc(p.name)}</span>
           <span class="post-hand-result">${esc(result)}</span>
@@ -3194,7 +3349,32 @@ function renderPostHandPanel(state) {
   }).join("");
 
   const historyReviewBoard = "";
-  els.postHandBody.innerHTML = `${historyReviewBoard}${shownRows}${muckedRows}`;
+  const potAwardsHtml = renderPostHandPotAwardsHtml(state);
+  const showSectionHeadings = Boolean(potAwardsHtml) || visibleResultRowCount >= 3;
+
+  const onlyUncontestedWinners = revealedPlayers.length > 0
+    && revealedPlayers.every(p => isUncontestedWinnerRow(p, winners));
+  const shownHeading = onlyUncontestedWinners ? "Winner" : "Shown hands";
+
+  const shownSection = shownRows
+    ? `
+      <section class="post-hand-section post-hand-shown-section">
+        ${showSectionHeadings ? `<div class="post-hand-section-heading">${esc(shownHeading)}</div>` : ''}
+        ${shownRows}
+      </section>
+    `
+    : "";
+
+  const muckedSection = muckedRows
+    ? `
+      <section class="post-hand-section post-hand-mucked-section">
+        ${showSectionHeadings ? '<div class="post-hand-section-heading">Mucked / folded</div>' : ''}
+        ${muckedRows}
+      </section>
+    `
+    : "";
+
+  els.postHandBody.innerHTML = `${historyReviewBoard}${potAwardsHtml}${shownSection}${muckedSection}`;
   bindFoldedRevealButtons();
 }
 
