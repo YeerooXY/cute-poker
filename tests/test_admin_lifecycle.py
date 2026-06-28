@@ -410,11 +410,32 @@ def test_bots_are_not_timed_out_by_human_action_timer():
     run(scenario())
 
 
-def test_completed_hand_grants_timebank_gain_to_humans_only():
+def test_completed_hand_grants_timebank_gain_to_active_dealt_humans_only():
     server, room, creator, guest, _creator_ws, _guest_ws = setup_active_action_room(action_time=1, timebank=2)
     bot = server.add_new_player(room, None, "Bot")
     server.bots[bot.player_id] = SimpleNamespace(difficulty="hard")
     bot.timebank_seconds = 0
+    bot.cards = ["2S", "2H"]
+
+    sitting_out = server.add_new_player(room, DummyWs(), "SittingOut")
+    sitting_out.timebank_seconds = 2
+    sitting_out.cards = ["3S", "3H"]
+    sitting_out.sitting_out = True
+
+    spectator = server.add_new_player(room, DummyWs(), "Spectator")
+    spectator.timebank_seconds = 2
+    spectator.cards = ["4S", "4H"]
+    spectator.is_spectator = True
+
+    busted = server.add_new_player(room, DummyWs(), "Busted")
+    busted.timebank_seconds = 2
+    busted.cards = ["5S", "5H"]
+    busted.stack = 0
+
+    not_dealt = server.add_new_player(room, DummyWs(), "NotDealt")
+    not_dealt.timebank_seconds = 2
+    not_dealt.cards = []
+
     room.phase = "showdown"
     room.winners = [Winner(creator.player_id, creator.name, 10, "Everyone else folded")]
     room.hands_played = 3
@@ -426,6 +447,15 @@ def test_completed_hand_grants_timebank_gain_to_humans_only():
     assert creator.timebank_seconds == 6
     assert guest.timebank_seconds == 6
     assert bot.timebank_seconds == 0
+    assert sitting_out.timebank_seconds == 2
+    assert spectator.timebank_seconds == 2
+    assert busted.timebank_seconds == 2
+    assert not_dealt.timebank_seconds == 2
+
+    server.record_completed_hand(room)
+
+    assert creator.timebank_seconds == 6
+    assert guest.timebank_seconds == 6
 
 
 def test_auto_deal_default_delay_is_five_seconds():

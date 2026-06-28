@@ -2732,8 +2732,15 @@ class PokerServer:
             return
 
         for p in room.seated_players():
-            if p.player_id not in self.bots:
-                p.timebank_seconds = max(0, int(getattr(p, "timebank_seconds", 0))) + gain
+            if (
+                p.player_id in self.bots
+                or p.is_spectator
+                or p.sitting_out
+                or p.stack <= 0
+                or not p.cards
+            ):
+                continue
+            p.timebank_seconds = max(0, int(getattr(p, "timebank_seconds", 0))) + gain
 
         room.timebank_awarded_hand_number = hand_number
 
