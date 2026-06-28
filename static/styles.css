@@ -7183,20 +7183,18 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
   gap: 3px !important;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-cards .playing-card,
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards .playing-card {
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-secondary-row .post-hand-cards .playing-card {
   width: 24px !important;
   height: 34px !important;
   min-width: 24px !important;
   font-size: 9px !important;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards .playing-card,
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards .playing-card {
-  width: 27px !important;
-  height: 38px !important;
-  min-width: 27px !important;
-  font-size: 10px !important;
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-primary-row .post-hand-cards .playing-card {
+  width: 52px !important;
+  height: 74px !important;
+  min-width: 52px !important;
+  font-size: 19px !important;
 }
 
 .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-actions {
@@ -7242,19 +7240,18 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
     grid-column: 1 / -1;
   }
 
-  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-cards .playing-card {
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-secondary-row .post-hand-cards .playing-card {
     width: 21px !important;
     height: 30px !important;
     min-width: 21px !important;
     font-size: 8px !important;
   }
 
-  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards .playing-card,
-  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards .playing-card {
-    width: 24px !important;
-    height: 34px !important;
-    min-width: 24px !important;
-    font-size: 9px !important;
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-primary-row .post-hand-cards .playing-card {
+    width: 46px !important;
+    height: 64px !important;
+    min-width: 46px !important;
+    font-size: 16px !important;
   }
 }
 
@@ -7319,31 +7316,27 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
   font-size: 8px !important;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards,
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards {
-  max-width: 148px;
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-primary-row .post-hand-cards {
+  max-width: none;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards .playing-card,
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards .playing-card {
-  width: 25px !important;
-  height: 35px !important;
-  min-width: 25px !important;
-  font-size: 9px !important;
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-primary-row .post-hand-cards .playing-card {
+  width: 52px !important;
+  height: 74px !important;
+  min-width: 52px !important;
+  font-size: 19px !important;
 }
 
 @media (max-height: 720px), (max-width: 600px) {
-  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards,
-  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards {
-    max-width: 126px;
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-primary-row .post-hand-cards {
+    max-width: none;
   }
 
-  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards .playing-card,
-  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards .playing-card {
-    width: 22px !important;
-    height: 31px !important;
-    min-width: 22px !important;
-    font-size: 8px !important;
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-primary-row .post-hand-cards .playing-card {
+    width: 46px !important;
+    height: 64px !important;
+    min-width: 46px !important;
+    font-size: 16px !important;
   }
 }
 
@@ -7450,61 +7443,54 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
   gap: 8px !important;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner,
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child {
-  grid-template-columns: minmax(104px, 0.78fr) minmax(134px, auto) minmax(0, 1fr) minmax(46px, auto) !important;
-  min-height: 50px !important;
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-primary-row {
+  grid-template-columns: minmax(150px, 0.85fr) minmax(260px, auto) minmax(0, 1fr) minmax(62px, auto) !important;
+  min-height: 86px !important;
   height: auto !important;
   align-items: center !important;
   overflow: hidden !important;
-  padding: 5px 8px !important;
-  gap: 6px !important;
+  padding: 10px 12px !important;
+  gap: 10px !important;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-player,
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-player,
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-detail,
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-detail {
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-primary-row .post-hand-player,
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-primary-row .post-hand-detail {
   min-width: 0;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards,
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards {
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-primary-row .post-hand-cards {
   display: flex !important;
   flex-wrap: nowrap !important;
   justify-content: center;
   align-items: center;
-  gap: 2px !important;
+  gap: 6px !important;
   min-width: 0;
-  max-width: 146px;
-  overflow: hidden;
+  max-width: none;
+  overflow: visible;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards .playing-card,
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards .playing-card {
-  width: 26px !important;
-  height: 38px !important;
-  min-width: 26px !important;
-  max-width: 26px !important;
-  min-height: 38px !important;
-  max-height: 38px !important;
-  font-size: 9px !important;
-  flex: 0 0 26px !important;
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-primary-row .post-hand-cards .playing-card {
+  width: 52px !important;
+  height: 74px !important;
+  min-width: 52px !important;
+  max-width: 52px !important;
+  min-height: 74px !important;
+  max-height: 74px !important;
+  font-size: 19px !important;
+  flex: 0 0 52px !important;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-detail,
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-detail {
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-primary-row .post-hand-detail {
   grid-column: auto !important;
-  white-space: nowrap !important;
+  white-space: normal !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
-  font-size: 10px !important;
+  font-size: 12px !important;
 }
 
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-amount,
-.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-amount {
+.post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-primary-row .post-hand-amount {
   justify-self: end;
-  min-width: 42px;
+  min-width: 58px;
   padding: 2px 6px;
   border-radius: 999px;
   background: rgba(46, 125, 50, 0.24);
@@ -7515,30 +7501,27 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
     font-size: clamp(14px, 4vw, 16px) !important;
   }
 
-  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner,
-  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child {
-    grid-template-columns: minmax(78px, 0.9fr) minmax(112px, auto) minmax(0, 1fr) minmax(38px, auto) !important;
-    min-height: 44px !important;
-    padding: 4px 6px !important;
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-primary-row {
+    grid-template-columns: minmax(104px, 0.9fr) minmax(230px, auto) minmax(0, 1fr) minmax(48px, auto) !important;
+    min-height: 76px !important;
+    padding: 8px 10px !important;
+    gap: 8px !important;
+  }
+
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-primary-row .post-hand-cards {
+    max-width: none;
     gap: 4px !important;
   }
 
-  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards,
-  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards {
-    max-width: 116px;
-    gap: 1px !important;
-  }
-
-  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards .playing-card,
-  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row:first-child .post-hand-cards .playing-card {
-    width: 22px !important;
-    height: 31px !important;
-    min-width: 22px !important;
-    max-width: 22px !important;
-    min-height: 31px !important;
-    max-height: 31px !important;
-    font-size: 8px !important;
-    flex-basis: 22px !important;
+  .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.post-hand-primary-row .post-hand-cards .playing-card {
+    width: 46px !important;
+    height: 64px !important;
+    min-width: 46px !important;
+    max-width: 46px !important;
+    min-height: 64px !important;
+    max-height: 64px !important;
+    font-size: 16px !important;
+    flex-basis: 46px !important;
   }
 }
 
@@ -7854,13 +7837,13 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
 }
 
 .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards .playing-card {
-  width: 27px !important;
-  height: 39px !important;
-  min-width: 27px !important;
-  max-width: 27px !important;
-  min-height: 39px !important;
-  max-height: 39px !important;
-  flex: 0 0 27px !important;
+  width: 52px !important;
+  height: 74px !important;
+  min-width: 52px !important;
+  max-width: 52px !important;
+  min-height: 74px !important;
+  max-height: 74px !important;
+  flex: 0 0 52px !important;
 }
 
 .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-amount {
@@ -7882,13 +7865,13 @@ body.history-review-open.history-review-cinema #postHandPanel.history-review-mod
   }
 
   .post-hand-panel.post-hand-modal.post-hand-compact .post-hand-row.winner .post-hand-cards .playing-card {
-    width: 22px !important;
-    height: 32px !important;
-    min-width: 22px !important;
-    max-width: 22px !important;
-    min-height: 32px !important;
-    max-height: 32px !important;
-    flex-basis: 22px !important;
+    width: 46px !important;
+    height: 64px !important;
+    min-width: 46px !important;
+    max-width: 46px !important;
+    min-height: 64px !important;
+    max-height: 64px !important;
+    flex-basis: 46px !important;
   }
 }
 

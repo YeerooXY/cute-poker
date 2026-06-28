@@ -3211,10 +3211,11 @@ function renderPostHandPanel(state) {
       return String(a.name).localeCompare(String(b.name));
     });
 
-  const visibleResultRowCount = revealedPlayers.length + foldedPlayers.length;
-  const densePostHandRows = visibleResultRowCount >= 3;
-  const manyPlayerPostHandRows = visibleResultRowCount >= 5;
-  const compactPostHandRows = densePostHandRows || (window.innerHeight <= 720 && visibleResultRowCount >= 4);
+  const shownResultRowCount = revealedPlayers.length;
+  const visibleResultRowCount = shownResultRowCount + foldedPlayers.length;
+  const densePostHandRows = shownResultRowCount >= 3;
+  const manyPlayerPostHandRows = shownResultRowCount >= 5;
+  const compactPostHandRows = densePostHandRows || (window.innerHeight <= 720 && shownResultRowCount >= 4);
   els.postHandPanel.classList.toggle("post-hand-small", visibleResultRowCount > 0 && visibleResultRowCount <= 2);
   els.postHandPanel.classList.toggle("post-hand-dense", densePostHandRows);
   els.postHandPanel.classList.toggle("post-hand-many-players", manyPlayerPostHandRows);

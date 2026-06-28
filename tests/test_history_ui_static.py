@@ -609,9 +609,10 @@ def test_showdown_compact_mode_has_responsive_scrollable_body():
     app = read_static("app.js")
     css = read_static("styles.css")
 
-    assert "const visibleResultRowCount = revealedPlayers.length + foldedPlayers.length;" in app
-    assert "const densePostHandRows = visibleResultRowCount >= 3;" in app
-    assert "const manyPlayerPostHandRows = visibleResultRowCount >= 5;" in app
+    assert "const shownResultRowCount = revealedPlayers.length;" in app
+    assert "const visibleResultRowCount = shownResultRowCount + foldedPlayers.length;" in app
+    assert "const densePostHandRows = shownResultRowCount >= 3;" in app
+    assert "const manyPlayerPostHandRows = shownResultRowCount >= 5;" in app
     assert "window.innerHeight <= 720" in app
     assert 'els.postHandPanel.classList.toggle("post-hand-small", visibleResultRowCount > 0 && visibleResultRowCount <= 2);' in app
     assert 'els.postHandPanel.classList.toggle("post-hand-dense", densePostHandRows);' in app
@@ -673,16 +674,16 @@ def test_compact_post_hand_winner_rows_have_stable_card_layout():
     assert ".post-hand-panel.post-hand-modal.post-hand-compact .post-hand-title" in css
     assert "-webkit-line-clamp: 2" in css
     assert "font-size: clamp(15px, 1.45vw, 19px)" in css
-    assert "grid-template-columns: minmax(104px, 0.78fr) minmax(134px, auto) minmax(0, 1fr) minmax(46px, auto)" in css
-    assert "min-height: 50px !important" in css
-    assert "max-width: 146px" in css
-    assert "height: 38px !important" in css
-    assert "flex: 0 0 26px !important" in css
+    assert "grid-template-columns: minmax(150px, 0.85fr) minmax(260px, auto) minmax(0, 1fr) minmax(62px, auto)" in css
+    assert "min-height: 86px !important" in css
+    assert "max-width: none" in css
+    assert "height: 74px !important" in css
+    assert "flex: 0 0 52px !important" in css
     assert "grid-column: auto !important" in css
-    assert "max-height: 38px !important" in css
+    assert "max-height: 74px !important" in css
     assert "@media (max-height: 720px), (max-width: 600px)" in css
-    assert "grid-template-columns: minmax(78px, 0.9fr) minmax(112px, auto) minmax(0, 1fr) minmax(38px, auto)" in css
-    assert "height: 31px !important" in css
+    assert "grid-template-columns: minmax(104px, 0.9fr) minmax(230px, auto) minmax(0, 1fr) minmax(48px, auto)" in css
+    assert "height: 64px !important" in css
 
 def test_acting_player_outline_is_robust_and_visible():
     app = read_static("app.js")
