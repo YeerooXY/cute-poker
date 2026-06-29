@@ -1,0 +1,1329 @@
+{
+  "hand_number": 10,
+  "timestamp": "2026-06-29T15:15:49.307999+00:00",
+  "room_id": "5HZQG",
+  "players": [
+    {
+      "name": "Szab",
+      "seat": 1,
+      "hole_cards": [],
+      "stack_after": 2959,
+      "total_invested": 0,
+      "folded": false,
+      "all_in": false
+    },
+    {
+      "name": "Dindybot",
+      "seat": 2,
+      "hole_cards": [
+        "QC",
+        "QH"
+      ],
+      "stack_after": 2003,
+      "total_invested": 990,
+      "folded": false,
+      "all_in": true
+    },
+    {
+      "name": "Jerobot",
+      "seat": 3,
+      "hole_cards": [
+        "2C",
+        "JH"
+      ],
+      "stack_after": 1349,
+      "total_invested": 1,
+      "folded": true,
+      "all_in": false
+    },
+    {
+      "name": "Lamobot",
+      "seat": 4,
+      "hole_cards": [
+        "5C",
+        "3C"
+      ],
+      "stack_after": 0,
+      "total_invested": 956,
+      "folded": false,
+      "all_in": true
+    },
+    {
+      "name": "Papperbot",
+      "seat": 5,
+      "hole_cards": [
+        "KC",
+        "JD"
+      ],
+      "stack_after": 29,
+      "total_invested": 999,
+      "folded": false,
+      "all_in": false
+    },
+    {
+      "name": "Jerobot",
+      "seat": 6,
+      "hole_cards": [
+        "8H",
+        "TS"
+      ],
+      "stack_after": 2546,
+      "total_invested": 1,
+      "folded": true,
+      "all_in": false
+    },
+    {
+      "name": "Dindybot",
+      "seat": 7,
+      "hole_cards": [
+        "QD",
+        "QS"
+      ],
+      "stack_after": 2021,
+      "total_invested": 999,
+      "folded": false,
+      "all_in": true
+    },
+    {
+      "name": "Giddybot",
+      "seat": 8,
+      "hole_cards": [
+        "6C",
+        "5H"
+      ],
+      "stack_after": 4093,
+      "total_invested": 78,
+      "folded": true,
+      "all_in": false
+    }
+  ],
+  "community_cards": {
+    "flop": [
+      "8C",
+      "8S",
+      "TC"
+    ],
+    "turn": [
+      "3D"
+    ],
+    "river": [
+      "9H"
+    ]
+  },
+  "pot": 4024,
+  "winners": [
+    {
+      "name": "Dindybot",
+      "amount": 2003,
+      "reason": "Best hand at showdown",
+      "hand_name": "Two pair"
+    },
+    {
+      "name": "Dindybot",
+      "amount": 2021,
+      "reason": "Best hand at showdown",
+      "hand_name": "Two pair"
+    }
+  ],
+  "actions": [
+    {
+      "player": "Dindybot",
+      "action": "ante",
+      "amount": 1,
+      "phase": "preflop",
+      "is_all_in": false
+    },
+    {
+      "player": "Jerobot",
+      "action": "ante",
+      "amount": 1,
+      "phase": "preflop",
+      "is_all_in": false
+    },
+    {
+      "player": "Lamobot",
+      "action": "ante",
+      "amount": 1,
+      "phase": "preflop",
+      "is_all_in": false
+    },
+    {
+      "player": "Papperbot",
+      "action": "ante",
+      "amount": 1,
+      "phase": "preflop",
+      "is_all_in": false
+    },
+    {
+      "player": "Jerobot",
+      "action": "ante",
+      "amount": 1,
+      "phase": "preflop",
+      "is_all_in": false
+    },
+    {
+      "player": "Dindybot",
+      "action": "ante",
+      "amount": 1,
+      "phase": "preflop",
+      "is_all_in": false
+    },
+    {
+      "player": "Giddybot",
+      "action": "ante",
+      "amount": 1,
+      "phase": "preflop",
+      "is_all_in": false
+    },
+    {
+      "player": "Lamobot",
+      "action": "small_blind",
+      "amount": 8,
+      "phase": "preflop",
+      "is_all_in": false
+    },
+    {
+      "player": "Papperbot",
+      "action": "big_blind",
+      "amount": 15,
+      "phase": "preflop",
+      "is_all_in": false
+    },
+    {
+      "player": "Jerobot",
+      "is_bot": true,
+      "phase": "preflop",
+      "hole_cards": [
+        "8H",
+        "TS"
+      ],
+      "community": [],
+      "pot": 30,
+      "current_bet": 16,
+      "committed": 1,
+      "committed_before": 1,
+      "stack": 2546,
+      "to_call": 15,
+      "action": "fold",
+      "amount": 0,
+      "ai_debug": {
+        "equity": null,
+        "pot_odds": null,
+        "base_scores": {},
+        "final_scores": {},
+        "chosen_internal_action": "fold",
+        "final_action": "fold",
+        "bet_amount": 0,
+        "personality_style": "Balanced",
+        "style": "Balanced",
+        "difficulty": "MEDIUM",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "UTG1",
+        "phase": "preflop",
+        "street": "preflop",
+        "facing_action": "unopened",
+        "facing_amount": 15,
+        "chart_action": "fold",
+        "chart_payload": {},
+        "decision_reason": "preflop_chart",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0
+      },
+      "is_all_in": false
+    },
+    {
+      "player": "Dindybot",
+      "is_bot": true,
+      "phase": "preflop",
+      "hole_cards": [
+        "QD",
+        "QS"
+      ],
+      "community": [],
+      "pot": 30,
+      "current_bet": 16,
+      "committed": 1,
+      "committed_before": 1,
+      "stack": 998,
+      "to_call": 15,
+      "action": "check_call",
+      "amount": 15,
+      "ai_debug": {
+        "equity": 0.5731,
+        "pot_odds": 0.3333,
+        "base_scores": {
+          "fold": 0.0,
+          "check": -1000000000.0,
+          "call": 10.7895,
+          "bet": -1000000000.0,
+          "raise_": 6.8772
+        },
+        "final_scores": {
+          "fold": -0.0806,
+          "check": -1000000000.0,
+          "call": 10.5657,
+          "bet": -1000000000.0,
+          "raise_": 6.5046
+        },
+        "chosen_internal_action": "call",
+        "final_action": "check_call",
+        "bet_amount": 0,
+        "personality_style": "Balanced",
+        "difficulty": "EASY",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "MP",
+        "facing_action": "unopened",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0.16,
+        "decision_reason": "scored_action"
+      },
+      "is_all_in": false
+    },
+    {
+      "player": "Giddybot",
+      "is_bot": true,
+      "phase": "preflop",
+      "hole_cards": [
+        "6C",
+        "5H"
+      ],
+      "community": [],
+      "pot": 45,
+      "current_bet": 16,
+      "committed": 1,
+      "committed_before": 1,
+      "stack": 4170,
+      "to_call": 15,
+      "action": "check_call",
+      "amount": 15,
+      "ai_debug": {
+        "equity": 0.308,
+        "pot_odds": 0.25,
+        "base_scores": {
+          "fold": 0.0,
+          "check": -1000000000.0,
+          "call": 3.48,
+          "bet": -1000000000.0,
+          "raise_": -2.7225
+        },
+        "final_scores": {
+          "fold": -0.5053,
+          "check": -1000000000.0,
+          "call": 3.5985,
+          "bet": -1000000000.0,
+          "raise_": -2.2951
+        },
+        "chosen_internal_action": "call",
+        "final_action": "check_call",
+        "bet_amount": 0,
+        "personality_style": "Balanced",
+        "difficulty": "EASY",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "HJ",
+        "facing_action": "unopened",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0.16,
+        "decision_reason": "scored_action"
+      },
+      "is_all_in": false
+    },
+    {
+      "player": "Dindybot",
+      "is_bot": true,
+      "phase": "preflop",
+      "hole_cards": [
+        "QC",
+        "QH"
+      ],
+      "community": [],
+      "pot": 60,
+      "current_bet": 16,
+      "committed": 1,
+      "committed_before": 1,
+      "stack": 989,
+      "to_call": 15,
+      "action": "bet_raise",
+      "amount": 78,
+      "ai_debug": {
+        "equity": null,
+        "pot_odds": null,
+        "base_scores": {},
+        "final_scores": {},
+        "chosen_internal_action": "raise",
+        "final_action": "bet_raise",
+        "bet_amount": 78,
+        "personality_style": "Balanced",
+        "style": "Balanced",
+        "difficulty": "EXPERT",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "CO",
+        "phase": "preflop",
+        "street": "preflop",
+        "facing_action": "unopened",
+        "facing_amount": 15,
+        "chart_action": "raise",
+        "chart_payload": {
+          "amount": 62
+        },
+        "decision_reason": "preflop_chart",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0
+      },
+      "is_all_in": false
+    },
+    {
+      "player": "Jerobot",
+      "is_bot": true,
+      "phase": "preflop",
+      "hole_cards": [
+        "2C",
+        "JH"
+      ],
+      "community": [],
+      "pot": 137,
+      "current_bet": 78,
+      "committed": 1,
+      "committed_before": 1,
+      "stack": 1349,
+      "to_call": 77,
+      "action": "fold",
+      "amount": 0,
+      "ai_debug": {
+        "equity": null,
+        "pot_odds": null,
+        "base_scores": {},
+        "final_scores": {},
+        "chosen_internal_action": "fold",
+        "final_action": "fold",
+        "bet_amount": 0,
+        "personality_style": "Balanced",
+        "style": "Balanced",
+        "difficulty": "HARD",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "BTN",
+        "phase": "preflop",
+        "street": "preflop",
+        "facing_action": "raise",
+        "facing_amount": 77,
+        "chart_action": "fold",
+        "chart_payload": {},
+        "decision_reason": "preflop_chart",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0
+      },
+      "is_all_in": false
+    },
+    {
+      "player": "Lamobot",
+      "is_bot": true,
+      "phase": "preflop",
+      "hole_cards": [
+        "5C",
+        "3C"
+      ],
+      "community": [],
+      "pot": 137,
+      "current_bet": 78,
+      "committed": 9,
+      "committed_before": 9,
+      "stack": 947,
+      "to_call": 69,
+      "action": "check_call",
+      "amount": 69,
+      "ai_debug": {
+        "equity": null,
+        "pot_odds": null,
+        "base_scores": {},
+        "final_scores": {},
+        "chosen_internal_action": "call",
+        "final_action": "check_call",
+        "bet_amount": 0,
+        "personality_style": "Balanced",
+        "style": "Balanced",
+        "difficulty": "HARD",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "SB",
+        "phase": "preflop",
+        "street": "preflop",
+        "facing_action": "raise",
+        "facing_amount": 69,
+        "chart_action": "call",
+        "chart_payload": {},
+        "decision_reason": "preflop_chart",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0
+      },
+      "is_all_in": false
+    },
+    {
+      "player": "Papperbot",
+      "is_bot": true,
+      "phase": "preflop",
+      "hole_cards": [
+        "KC",
+        "JD"
+      ],
+      "community": [],
+      "pot": 206,
+      "current_bet": 78,
+      "committed": 16,
+      "committed_before": 16,
+      "stack": 1012,
+      "to_call": 62,
+      "action": "check_call",
+      "amount": 62,
+      "ai_debug": {
+        "equity": null,
+        "pot_odds": null,
+        "base_scores": {},
+        "final_scores": {},
+        "chosen_internal_action": "call",
+        "final_action": "check_call",
+        "bet_amount": 0,
+        "personality_style": "Balanced",
+        "style": "Balanced",
+        "difficulty": "MEDIUM",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "BB",
+        "phase": "preflop",
+        "street": "preflop",
+        "facing_action": "raise",
+        "facing_amount": 62,
+        "chart_action": "call",
+        "chart_payload": {},
+        "decision_reason": "preflop_chart",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0
+      },
+      "is_all_in": false
+    },
+    {
+      "player": "Dindybot",
+      "is_bot": true,
+      "phase": "preflop",
+      "hole_cards": [
+        "QD",
+        "QS"
+      ],
+      "community": [],
+      "pot": 268,
+      "current_bet": 78,
+      "committed": 16,
+      "committed_before": 16,
+      "stack": 983,
+      "to_call": 62,
+      "action": "check_call",
+      "amount": 62,
+      "ai_debug": {
+        "equity": 0.623,
+        "pot_odds": 0.1879,
+        "base_scores": {
+          "fold": 0.0,
+          "check": -1000000000.0,
+          "call": 143.59,
+          "bet": -1000000000.0,
+          "raise_": 66.7856
+        },
+        "final_scores": {
+          "fold": -0.0537,
+          "check": -1000000000.0,
+          "call": 140.7989,
+          "bet": -1000000000.0,
+          "raise_": 64.2734
+        },
+        "chosen_internal_action": "call",
+        "final_action": "check_call",
+        "bet_amount": 0,
+        "personality_style": "Balanced",
+        "difficulty": "EASY",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "HJ",
+        "facing_action": "raise",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0.16,
+        "decision_reason": "scored_action"
+      },
+      "is_all_in": false
+    },
+    {
+      "player": "Giddybot",
+      "is_bot": true,
+      "phase": "preflop",
+      "hole_cards": [
+        "6C",
+        "5H"
+      ],
+      "community": [],
+      "pot": 330,
+      "current_bet": 78,
+      "committed": 16,
+      "committed_before": 16,
+      "stack": 4155,
+      "to_call": 62,
+      "action": "check_call",
+      "amount": 62,
+      "ai_debug": {
+        "equity": 0.3348,
+        "pot_odds": 0.1582,
+        "base_scores": {
+          "fold": 0.0,
+          "check": -1000000000.0,
+          "call": 69.2416,
+          "bet": -1000000000.0,
+          "raise_": -17.754
+        },
+        "final_scores": {
+          "fold": -3.7612,
+          "check": -1000000000.0,
+          "call": 69.2988,
+          "bet": -1000000000.0,
+          "raise_": -18.7309
+        },
+        "chosen_internal_action": "call",
+        "final_action": "check_call",
+        "bet_amount": 0,
+        "personality_style": "Balanced",
+        "difficulty": "EASY",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "CO",
+        "facing_action": "raise",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0.16,
+        "decision_reason": "scored_action"
+      },
+      "is_all_in": false
+    },
+    {
+      "player": "Lamobot",
+      "is_bot": true,
+      "phase": "flop",
+      "hole_cards": [
+        "5C",
+        "3C"
+      ],
+      "community": [
+        "8C",
+        "8S",
+        "TC"
+      ],
+      "pot": 392,
+      "current_bet": 0,
+      "committed": 0,
+      "committed_before": 0,
+      "stack": 878,
+      "to_call": 0,
+      "action": "bet_raise",
+      "amount": 271,
+      "ai_debug": {
+        "equity": 0.24,
+        "pot_odds": 0.0,
+        "base_scores": {
+          "fold": -1000000000.0,
+          "check": 0.0,
+          "call": -1000000000.0,
+          "bet": 129.3923,
+          "raise_": -1000000000.0
+        },
+        "final_scores": {
+          "fold": -1000000000.0,
+          "check": -0.2561,
+          "call": -1000000000.0,
+          "bet": 129.6307,
+          "raise_": -1000000000.0
+        },
+        "chosen_internal_action": "bet",
+        "final_action": "bet_raise",
+        "bet_amount": 271,
+        "personality_style": "Balanced",
+        "difficulty": "HARD",
+        "legal_actions": [
+          "check",
+          "bet"
+        ],
+        "bluff_score_total": 0,
+        "position": "SB",
+        "facing_action": "unopened",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0.08,
+        "decision_reason": "scored_action"
+      },
+      "is_all_in": false
+    },
+    {
+      "player": "Papperbot",
+      "is_bot": true,
+      "phase": "flop",
+      "hole_cards": [
+        "KC",
+        "JD"
+      ],
+      "community": [
+        "8C",
+        "8S",
+        "TC"
+      ],
+      "pot": 663,
+      "current_bet": 271,
+      "committed": 0,
+      "committed_before": 0,
+      "stack": 950,
+      "to_call": 271,
+      "action": "bet_raise",
+      "amount": 542,
+      "ai_debug": {
+        "equity": 0.2147,
+        "pot_odds": 0.2901,
+        "base_scores": {
+          "fold": 0.0,
+          "check": -1000000000.0,
+          "call": -70.4702,
+          "bet": -1000000000.0,
+          "raise_": 183.9686
+        },
+        "final_scores": {
+          "fold": 6.922,
+          "check": -1000000000.0,
+          "call": -67.8764,
+          "bet": -1000000000.0,
+          "raise_": 184.835
+        },
+        "chosen_internal_action": "raise",
+        "final_action": "bet_raise",
+        "bet_amount": 299,
+        "personality_style": "Balanced",
+        "difficulty": "MEDIUM",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "BB",
+        "facing_action": "raise",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0.12,
+        "decision_reason": "scored_action"
+      },
+      "is_all_in": false
+    },
+    {
+      "player": "Dindybot",
+      "is_bot": true,
+      "phase": "flop",
+      "hole_cards": [
+        "QD",
+        "QS"
+      ],
+      "community": [
+        "8C",
+        "8S",
+        "TC"
+      ],
+      "pot": 1205,
+      "current_bet": 542,
+      "committed": 0,
+      "committed_before": 0,
+      "stack": 921,
+      "to_call": 542,
+      "action": "check_call",
+      "amount": 542,
+      "ai_debug": {
+        "equity": 0.4433,
+        "pot_odds": 0.3102,
+        "base_scores": {
+          "fold": 0.0,
+          "check": -1000000000.0,
+          "call": 232.4451,
+          "bet": -1000000000.0,
+          "raise_": -32.1434
+        },
+        "final_scores": {
+          "fold": -1000000000.0,
+          "check": -1000000000.0,
+          "call": 395.9569,
+          "bet": -1000000000.0,
+          "raise_": -1000000000.0
+        },
+        "chosen_internal_action": "call",
+        "final_action": "check_call",
+        "bet_amount": 0,
+        "personality_style": "Balanced",
+        "difficulty": "EASY",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "HJ",
+        "facing_action": "raise",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0.16,
+        "decision_reason": "scored_action"
+      },
+      "is_all_in": false
+    },
+    {
+      "player": "Giddybot",
+      "is_bot": true,
+      "phase": "flop",
+      "hole_cards": [
+        "6C",
+        "5H"
+      ],
+      "community": [
+        "8C",
+        "8S",
+        "TC"
+      ],
+      "pot": 1747,
+      "current_bet": 542,
+      "committed": 0,
+      "committed_before": 0,
+      "stack": 4093,
+      "to_call": 542,
+      "action": "fold",
+      "amount": 0,
+      "ai_debug": {
+        "equity": 0.0433,
+        "pot_odds": 0.2368,
+        "base_scores": {
+          "fold": 0.0,
+          "check": -1000000000.0,
+          "call": -442.8863,
+          "bet": -1000000000.0,
+          "raise_": -221.3012
+        },
+        "final_scores": {
+          "fold": 9.0756,
+          "check": -1000000000.0,
+          "call": -443.1667,
+          "bet": -1000000000.0,
+          "raise_": -1000000436.75
+        },
+        "chosen_internal_action": "fold",
+        "final_action": "fold",
+        "bet_amount": 0,
+        "personality_style": "Balanced",
+        "difficulty": "EASY",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "CO",
+        "facing_action": "raise",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0.16,
+        "decision_reason": "scored_action"
+      },
+      "is_all_in": false
+    },
+    {
+      "player": "Dindybot",
+      "is_bot": true,
+      "phase": "flop",
+      "hole_cards": [
+        "QC",
+        "QH"
+      ],
+      "community": [
+        "8C",
+        "8S",
+        "TC"
+      ],
+      "pot": 1747,
+      "current_bet": 542,
+      "committed": 0,
+      "committed_before": 0,
+      "stack": 912,
+      "to_call": 542,
+      "action": "bet_raise",
+      "amount": 875,
+      "ai_debug": {
+        "equity": 0.5733,
+        "pot_odds": 0.2368,
+        "base_scores": {
+          "fold": 0.0,
+          "check": -1000000000.0,
+          "call": 770.2837,
+          "bet": -1000000000.0,
+          "raise_": 2162.3477
+        },
+        "final_scores": {
+          "fold": -1000000000.0,
+          "check": -1000000000.0,
+          "call": 1037.9286,
+          "bet": -1000000000.0,
+          "raise_": 2173.1081
+        },
+        "chosen_internal_action": "raise",
+        "final_action": "bet_raise",
+        "bet_amount": 875,
+        "personality_style": "Balanced",
+        "difficulty": "EXPERT",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "BTN",
+        "facing_action": "raise",
+        "is_preflop_aggressor": true,
+        "noise_exploitability": 0.08,
+        "decision_reason": "scored_action"
+      },
+      "is_all_in": false
+    },
+    {
+      "player": "Lamobot",
+      "is_bot": true,
+      "phase": "flop",
+      "hole_cards": [
+        "5C",
+        "3C"
+      ],
+      "community": [
+        "8C",
+        "8S",
+        "TC"
+      ],
+      "pot": 2622,
+      "current_bet": 875,
+      "committed": 271,
+      "committed_before": 271,
+      "stack": 607,
+      "to_call": 604,
+      "action": "check_call",
+      "amount": 604,
+      "ai_debug": {
+        "equity": 0.1989,
+        "pot_odds": 0.1872,
+        "base_scores": {
+          "fold": 0.0,
+          "check": -1000000000.0,
+          "call": 37.6514,
+          "bet": -1000000000.0,
+          "raise_": 230.0453
+        },
+        "final_scores": {
+          "fold": -10.9121,
+          "check": -1000000000.0,
+          "call": 43.1207,
+          "bet": -1000000000.0,
+          "raise_": -1000000655.5
+        },
+        "chosen_internal_action": "call",
+        "final_action": "check_call",
+        "bet_amount": 0,
+        "personality_style": "Balanced",
+        "difficulty": "HARD",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "SB",
+        "facing_action": "raise",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0.08,
+        "decision_reason": "scored_action"
+      },
+      "is_all_in": false
+    },
+    {
+      "player": "Papperbot",
+      "is_bot": true,
+      "phase": "flop",
+      "hole_cards": [
+        "KC",
+        "JD"
+      ],
+      "community": [
+        "8C",
+        "8S",
+        "TC"
+      ],
+      "pot": 3226,
+      "current_bet": 875,
+      "committed": 542,
+      "committed_before": 542,
+      "stack": 408,
+      "to_call": 333,
+      "action": "check_call",
+      "amount": 333,
+      "ai_debug": {
+        "equity": 0.2433,
+        "pot_odds": 0.0936,
+        "base_scores": {
+          "fold": 0.0,
+          "check": -1000000000.0,
+          "call": 532.9047,
+          "bet": -1000000000.0,
+          "raise_": 865.1802
+        },
+        "final_scores": {
+          "fold": -1000000000.0,
+          "check": -1000000000.0,
+          "call": 514.4607,
+          "bet": -1000000000.0,
+          "raise_": -1000000806.5
+        },
+        "chosen_internal_action": "call",
+        "final_action": "check_call",
+        "bet_amount": 0,
+        "personality_style": "Balanced",
+        "difficulty": "MEDIUM",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "BB",
+        "facing_action": "raise",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0.12,
+        "decision_reason": "scored_action"
+      },
+      "is_all_in": false
+    },
+    {
+      "player": "Dindybot",
+      "is_bot": true,
+      "phase": "flop",
+      "hole_cards": [
+        "QD",
+        "QS"
+      ],
+      "community": [
+        "8C",
+        "8S",
+        "TC"
+      ],
+      "pot": 3559,
+      "current_bet": 875,
+      "committed": 542,
+      "committed_before": 542,
+      "stack": 379,
+      "to_call": 333,
+      "action": "check_call",
+      "amount": 333,
+      "ai_debug": {
+        "equity": 0.5533,
+        "pot_odds": 0.0856,
+        "base_scores": {
+          "fold": 0.0,
+          "check": -1000000000.0,
+          "call": 1820.4436,
+          "bet": -1000000000.0,
+          "raise_": 787.6779
+        },
+        "final_scores": {
+          "fold": -1000000000.0,
+          "check": -1000000000.0,
+          "call": 2331.7618,
+          "bet": -1000000000.0,
+          "raise_": 783.4412
+        },
+        "chosen_internal_action": "call",
+        "final_action": "check_call",
+        "bet_amount": 0,
+        "personality_style": "Balanced",
+        "difficulty": "EASY",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "CO",
+        "facing_action": "raise",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0.16,
+        "decision_reason": "scored_action"
+      },
+      "is_all_in": false
+    },
+    {
+      "player": "Lamobot",
+      "is_bot": true,
+      "phase": "turn",
+      "hole_cards": [
+        "5C",
+        "3C"
+      ],
+      "community": [
+        "8C",
+        "8S",
+        "TC",
+        "3D"
+      ],
+      "pot": 3892,
+      "current_bet": 0,
+      "committed": 0,
+      "committed_before": 0,
+      "stack": 3,
+      "to_call": 0,
+      "action": "bet_raise",
+      "amount": 3,
+      "ai_debug": {
+        "equity": 0.3567,
+        "pot_odds": 0.0,
+        "base_scores": {
+          "fold": -1000000000.0,
+          "check": 0.0,
+          "call": -1000000000.0,
+          "bet": 1272.3161,
+          "raise_": -1000000000.0
+        },
+        "final_scores": {
+          "fold": -1000000000.0,
+          "check": 0.1178,
+          "call": -999999416.2,
+          "bet": 1252.5632,
+          "raise_": -999999221.6
+        },
+        "chosen_internal_action": "bet",
+        "final_action": "bet_raise",
+        "bet_amount": 25,
+        "personality_style": "Balanced",
+        "difficulty": "HARD",
+        "legal_actions": [
+          "check",
+          "bet"
+        ],
+        "bluff_score_total": 0,
+        "position": "SB",
+        "facing_action": "unopened",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0.08,
+        "decision_reason": "scored_action"
+      },
+      "is_all_in": true
+    },
+    {
+      "player": "Papperbot",
+      "is_bot": true,
+      "phase": "turn",
+      "hole_cards": [
+        "KC",
+        "JD"
+      ],
+      "community": [
+        "8C",
+        "8S",
+        "TC",
+        "3D"
+      ],
+      "pot": 3895,
+      "current_bet": 3,
+      "committed": 46,
+      "committed_before": 0,
+      "stack": 29,
+      "to_call": 3,
+      "action": "check_call",
+      "amount": 46,
+      "ai_debug": {
+        "equity": 0.1,
+        "pot_odds": 0.0008,
+        "base_scores": {
+          "fold": 0.0,
+          "check": -1000000000.0,
+          "call": 386.8,
+          "bet": -1000000000.0,
+          "raise_": 496.7277
+        },
+        "final_scores": {
+          "fold": 15.5313,
+          "check": -1000000000.0,
+          "call": 413.4325,
+          "bet": -1000000000.0,
+          "raise_": 475.9706
+        },
+        "chosen_internal_action": "raise",
+        "final_action": "bet_raise",
+        "bet_amount": 75,
+        "personality_style": "Balanced",
+        "difficulty": "MEDIUM",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "BB",
+        "facing_action": "raise",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0.12,
+        "decision_reason": "scored_action"
+      },
+      "is_all_in": false,
+      "note": "uncalled excess returned"
+    },
+    {
+      "player": "Dindybot",
+      "is_bot": true,
+      "phase": "turn",
+      "hole_cards": [
+        "QD",
+        "QS"
+      ],
+      "community": [
+        "8C",
+        "8S",
+        "TC",
+        "3D"
+      ],
+      "pot": 3970,
+      "current_bet": 75,
+      "committed": 0,
+      "committed_before": 0,
+      "stack": 46,
+      "to_call": 75,
+      "action": "check_call",
+      "amount": 75,
+      "ai_debug": {
+        "equity": 0.62,
+        "pot_odds": 0.0185,
+        "base_scores": {
+          "fold": 0.0,
+          "check": -1000000000.0,
+          "call": 2432.9,
+          "bet": -1000000000.0,
+          "raise_": 984.56
+        },
+        "final_scores": {
+          "fold": -1000000000.0,
+          "check": -1000000000.0,
+          "call": 3001.2841,
+          "bet": -1000000000.0,
+          "raise_": 1748.0641
+        },
+        "chosen_internal_action": "call",
+        "final_action": "check_call",
+        "bet_amount": 0,
+        "personality_style": "Balanced",
+        "difficulty": "EASY",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "CO",
+        "facing_action": "raise",
+        "is_preflop_aggressor": false,
+        "noise_exploitability": 0.16,
+        "decision_reason": "scored_action"
+      },
+      "is_all_in": true
+    },
+    {
+      "player": "Dindybot",
+      "is_bot": true,
+      "phase": "turn",
+      "hole_cards": [
+        "QC",
+        "QH"
+      ],
+      "community": [
+        "8C",
+        "8S",
+        "TC",
+        "3D"
+      ],
+      "pot": 4016,
+      "current_bet": 75,
+      "committed": 0,
+      "committed_before": 0,
+      "stack": 37,
+      "to_call": 75,
+      "action": "check_call",
+      "amount": 75,
+      "ai_debug": {
+        "equity": 0.5533,
+        "pot_odds": 0.0183,
+        "base_scores": {
+          "fold": 0.0,
+          "check": -1000000000.0,
+          "call": 2188.5503,
+          "bet": -1000000000.0,
+          "raise_": 2382.5735
+        },
+        "final_scores": {
+          "fold": -1000000000.0,
+          "check": -1000000000.0,
+          "call": 2801.646,
+          "bet": -1000000000.0,
+          "raise_": 2562.9623
+        },
+        "chosen_internal_action": "call",
+        "final_action": "check_call",
+        "bet_amount": 0,
+        "personality_style": "Balanced",
+        "difficulty": "EXPERT",
+        "legal_actions": [
+          "fold",
+          "call",
+          "raise"
+        ],
+        "bluff_score_total": 0,
+        "position": "BTN",
+        "facing_action": "raise",
+        "is_preflop_aggressor": true,
+        "noise_exploitability": 0.08,
+        "decision_reason": "scored_action"
+      },
+      "is_all_in": true
+    }
+  ]
+}
