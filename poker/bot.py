@@ -89,8 +89,8 @@ class BotConfig:
     style: str
     name: str
     avatar: str
-    think_time_min: float = 0.1
-    think_time_max: float = 0.4
+    think_time_min: float = 0.15
+    think_time_max: float = 0.35
     last_trash_talk_hand: int = -1
     was_preflop_aggressor: bool = False
     use_advanced_ai: bool = False
@@ -101,9 +101,9 @@ def calculate_think_time(config: BotConfig, equity: float, is_nuts: bool, to_cal
     """
     Calculate context-aware think time for a bot decision.
 
-    - Nuts or obvious fold (equity < 0.15 facing a bet): 0.2-0.5s
-    - Normal decisions: config.think_time_min to config.think_time_max (0.3-1.0s)
-    - Plus random jitter up to 0.2s
+    - Nuts or obvious fold (equity < 0.15 facing a bet): 0.05-0.25s
+    - Normal decisions: config.think_time_min to config.think_time_max
+    - Plus random jitter up to 0.1s
     """
     # Clamp equity to valid range
     equity = max(0.0, min(1.0, equity))

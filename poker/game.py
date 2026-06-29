@@ -44,6 +44,7 @@ AUTO_DEAL_DEFAULT_DELAY_SECONDS = 5
 ACTION_TIMER_DEFAULT_SECONDS = 10
 STARTING_TIMEBANK_DEFAULT_SECONDS = 100
 TIMEBANK_GAIN_DEFAULT_SECONDS = 1
+BOT_LOOP_POLL_INTERVAL_SECONDS = 0.15
 _SIMULATION_MODE = os.getenv("POKER_SIMULATION") == "1"
 
 # ─── Action log sanitization ──────────────────────────────────────────────────
@@ -656,7 +657,7 @@ class PokerServer:
 
         try:
             while True:
-                await asyncio.sleep(1)
+                await asyncio.sleep(BOT_LOOP_POLL_INTERVAL_SECONDS)
 
                 room = self.rooms.get(room_id)
                 if not room:
