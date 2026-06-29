@@ -866,6 +866,79 @@ def test_auto_check_fold_repeated_render_guard_exists_for_same_turn():
     assert "autoCheckFoldConsumedTurnKey = turnKey;" in app
     assert "maybeFireAutoCheckFold(state, isMyTurn, showdownDisplay);" in app
 
+
+def test_betting_hotkeys_default_off_and_toggle_exists_near_action_controls():
+    html = read_static("index.html")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
+
+    assert "let hotkeysEnabled = false;" in app
+    assert "let actionHotkeyListenerRegistered = false;" in app
+    assert '<button id="hotkeysToggleBtn"' in html
+    assert "Hotkeys" in html
+    assert "hotkeysToggleBtn" in app
+    assert ".hotkeys-toggle.is-enabled" in css
+    action_options = html.split('<div class="action-row-options">', 1)[1].split("</div>", 1)[0]
+    assert "hotkeysToggleBtn" in action_options
+
+
+def test_betting_hotkeys_ignore_inputs_chat_bet_fields_and_repeated_keydowns():
+    app = read_static_js_bundle()
+    input_body = app.split("function isHotkeyInputTarget", 1)[1].split("function isElementVisibleForHotkey", 1)[0]
+    handler_body = app.split("function handleActionHotkey", 1)[1].split("function ensureActionHotkeyListener", 1)[0]
+
+    assert "element.closest(\"[contenteditable]\")" in input_body
+    assert 'element.closest("input, textarea, select")' in input_body
+    assert 'element.closest("#chatInput")' in input_body
+    assert 'element.closest("#customBetInput")' in input_body
+    assert "if (!event || event.repeat) return;" in handler_body
+    assert "if (isHotkeyInputTarget(event.target)) return;" in handler_body
+
+
+def test_betting_hotkey_mappings_click_existing_action_buttons():
+    app = read_static_js_bundle()
+    handler_body = app.split("function handleActionHotkey", 1)[1].split("function ensureActionHotkeyListener", 1)[0]
+
+    assert 'key === "f"' in handler_body
+    assert "triggerButtonIfUsable(els.foldBtn)" in handler_body
+    assert 'key === "c"' in handler_body
+    assert "triggerButtonIfUsable(els.checkCallBtn)" in handler_body
+    assert 'key === "r"' in handler_body
+    assert "triggerButtonIfUsable(els.customBetBtn)" in handler_body
+    assert "triggerButtonIfUsable(els.betHalfPotBtn)" in handler_body
+    assert "triggerButtonIfUsable(els.betPotBtn)" in handler_body
+    assert 'key === "a"' in handler_body
+    assert "triggerButtonIfUsable(els.betAllInBtn)" in handler_body
+    assert 'key === "x" || key === "escape"' in handler_body
+    assert "clearHotkeyCancellableState()" in handler_body
+
+
+def test_betting_hotkeys_never_trigger_hidden_or_disabled_buttons():
+    app = read_static_js_bundle()
+    trigger_body = app.split("function triggerButtonIfUsable", 1)[1].split("function clearHotkeyCancellableState", 1)[0]
+    visible_body = app.split("function isElementVisibleForHotkey", 1)[1].split("function triggerButtonIfUsable", 1)[0]
+
+    assert "if (!button) return false;" in trigger_body
+    assert "if (button.disabled) return false;" in trigger_body
+    assert 'button.getAttribute("aria-disabled") === "true"' in trigger_body
+    assert "if (!isElementVisibleForHotkey(button)) return false;" in trigger_body
+    assert "button.click();" in trigger_body
+    assert "element.hidden" in visible_body
+    assert "element.getClientRects().length === 0" in visible_body
+    assert 'style.display === "none"' in visible_body
+    assert 'style.visibility === "hidden"' in visible_body
+
+
+def test_betting_hotkeys_are_not_persisted_to_local_storage():
+    app = read_static_js_bundle()
+    hotkey_section = app.split("function syncHotkeysToggleControl", 1)[1].split("function leaveGame", 1)[0]
+
+    assert "localStorage" not in hotkey_section
+    assert "safeSetItem" not in hotkey_section
+    assert "safeGetItem" not in hotkey_section
+    assert "document.addEventListener(\"keydown\", handleActionHotkey);" in app
+    assert "if (actionHotkeyListenerRegistered) return;" in app
+
 def test_stack_zero_live_all_in_players_are_not_labeled_busted_frontend():
     app = read_static_js_bundle()
     game = (ROOT / "poker" / "game.py").read_text(encoding="utf-8")

@@ -825,6 +825,11 @@ html, body {
   background: rgba(200,164,21,0.22);
   color: var(--gold-light);
 }
+.hotkeys-toggle.is-enabled {
+  border-color: rgba(200,164,21,0.75);
+  background: rgba(200,164,21,0.18);
+  color: var(--gold-light);
+}
 
 /* ═══ Chat ═══ */
 .chat-panel {

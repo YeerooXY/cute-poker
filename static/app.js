@@ -13,7 +13,7 @@ const els = {};
 "customBetBtn","autoCheckFoldBtn","resetBtn","adminActions","copyRoomBtn","leaveBtn","chatToggle","chatClose",
 "chatPanel","chatMessages","chatInput","chatBtn","actionBar","turnInfo",
 "pauseBtn","sitOutBtn","sitInBtn","rebuyBtn","spectateBtn","addBotBtn","botDifficultySelect",
-"hintsToggle","handHistoryToggle","handHistoryPanel","handHistoryClose","handHistoryBody","handHistoryCount","bbToggleBtn","potChips","autoDealToggle","autoDealCountdown","outsBox",
+"hintsToggle","handHistoryToggle","handHistoryPanel","handHistoryClose","handHistoryBody","handHistoryCount","bbToggleBtn","potChips","autoDealToggle","autoDealCountdown","hotkeysToggleBtn","outsBox",
 "actionLogHandNum","actionLogBody","actionLogPanel","actionLogToggle","adminPlayerList","postHandPanel","showdownTray",
 "postHandKicker","postHandTitle","postHandPot","postHandBody","postHandDealBtn"
 ].forEach(id => { els[id] = $(id); });
@@ -35,6 +35,8 @@ let defaultPanelsRoomId = null;
 let autoCheckFoldPending = false;
 let autoCheckFoldHandKey = null;
 let autoCheckFoldConsumedTurnKey = null;
+let hotkeysEnabled = false;
+let actionHotkeyListenerRegistered = false;
 
 let autoDealEnabled = true;
 
@@ -855,6 +857,98 @@ function maybeFireAutoCheckFold(state, isMyTurn, showdownDisplay) {
   syncAutoCheckFoldControl(state, showdownDisplay);
 }
 
+function syncHotkeysToggleControl() {
+  if (!els.hotkeysToggleBtn) return;
+  els.hotkeysToggleBtn.classList.toggle("is-enabled", hotkeysEnabled);
+  els.hotkeysToggleBtn.setAttribute("aria-pressed", hotkeysEnabled ? "true" : "false");
+  els.hotkeysToggleBtn.textContent = hotkeysEnabled ? "Hotkeys: ON" : "Hotkeys";
+}
+
+function toggleHotkeys() {
+  hotkeysEnabled = !hotkeysEnabled;
+  syncHotkeysToggleControl();
+}
+
+function isHotkeyInputTarget(target) {
+  if (!target) return false;
+  const element = target.nodeType === Node.ELEMENT_NODE ? target : target.parentElement;
+  if (!element) return false;
+  if (element.closest("[contenteditable]")) return true;
+  const editable = element.closest("input, textarea, select");
+  if (editable) return true;
+  if (els.chatInput && element.closest && element.closest("#chatInput")) return true;
+  if (els.customBetInput && element.closest && element.closest("#customBetInput")) return true;
+  return false;
+}
+
+function isElementVisibleForHotkey(element) {
+  if (!element) return false;
+  if (element.hidden) return false;
+  if (typeof element.getClientRects === "function" && element.getClientRects().length === 0) return false;
+  if (typeof window !== "undefined" && typeof window.getComputedStyle === "function") {
+    const style = window.getComputedStyle(element);
+    if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse") return false;
+  }
+  return true;
+}
+
+function triggerButtonIfUsable(button) {
+  if (!button) return false;
+  if (button.disabled) return false;
+  if (button.getAttribute("aria-disabled") === "true") return false;
+  if (!isElementVisibleForHotkey(button)) return false;
+  button.click();
+  return true;
+}
+
+function clearHotkeyCancellableState() {
+  let cleared = false;
+  if (autoCheckFoldPending) {
+    clearAutoCheckFoldPending();
+    syncAutoCheckFoldControl(lastState, Boolean(lastState && (lastState.phase === "showdown" || lastState.showdown_mode)));
+    cleared = true;
+  }
+  if (els.customBetInput && els.customBetInput.value) {
+    els.customBetInput.value = "";
+    cleared = true;
+  }
+  return cleared;
+}
+
+function handleActionHotkey(event) {
+  if (!hotkeysEnabled) return;
+  if (!event || event.repeat) return;
+  if (isHotkeyInputTarget(event.target)) return;
+
+  const key = String(event.key || "").toLowerCase();
+  let handled = false;
+
+  if (key === "f") {
+    handled = triggerButtonIfUsable(els.foldBtn);
+  } else if (key === "c") {
+    handled = triggerButtonIfUsable(els.checkCallBtn);
+  } else if (key === "r") {
+    handled = Boolean(els.customBetInput && els.customBetInput.value && triggerButtonIfUsable(els.customBetBtn))
+      || triggerButtonIfUsable(els.betHalfPotBtn)
+      || triggerButtonIfUsable(els.betPotBtn);
+  } else if (key === "a") {
+    handled = triggerButtonIfUsable(els.betAllInBtn);
+  } else if (key === "x" || key === "escape") {
+    handled = clearHotkeyCancellableState();
+  }
+
+  if (handled) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}
+
+function ensureActionHotkeyListener() {
+  if (actionHotkeyListenerRegistered) return;
+  document.addEventListener("keydown", handleActionHotkey);
+  actionHotkeyListenerRegistered = true;
+}
+
 function leaveGame() {
   clearAutoCheckFoldPending();
   intentionalDisconnect = true;
@@ -1557,6 +1651,7 @@ function syncPostHandSitInButton(state, viewerData) {
 }
 
 function renderState(state) {
+  ensureActionHotkeyListener();
   window.__pokerLastState = state;
   const previousState = lastState;
   lastState = state;
@@ -1742,6 +1837,7 @@ function renderState(state) {
   syncActionConsoleBank(state);
   syncBettingControls(state, isMyTurn, showdownDisplay);
   maybeFireAutoCheckFold(state, isMyTurn, showdownDisplay);
+  syncHotkeysToggleControl();
 
   // Hide outs box (removed feature)
   if (els.outsBox) els.outsBox.classList.add("hidden");
@@ -2462,6 +2558,7 @@ els.customBetBtn.onclick = () => {
 };
 els.customBetInput.onkeydown = ev => { if (ev.key === "Enter") els.customBetBtn.click(); };
 if (els.autoCheckFoldBtn) els.autoCheckFoldBtn.onclick = toggleAutoCheckFold;
+if (els.hotkeysToggleBtn) els.hotkeysToggleBtn.onclick = toggleHotkeys;
 els.resetBtn.onclick = () => action("reset_stacks");
 els.pauseBtn.onclick = () => action("toggle_pause");
 els.addBotBtn.onclick = () => {
