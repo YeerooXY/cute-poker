@@ -1849,7 +1849,12 @@ class PokerServer:
         if bb:
             bb_amount = min(room.big_blind, bb.stack)
             self.commit_chips(room, bb, room.big_blind)
-            room.current_bet = bb.committed
+            # Big Blind Ante is dead money: it contributes to pot/accounting,
+            # but it must not increase the live preflop bet others have to call.
+            if room.ante > 0 and room.ante_mode == "bba":
+                room.current_bet = bb_amount
+            else:
+                room.current_bet = bb.committed
             room.bb_seat = bb.seat
             room.action_log.append({
                 "player": bb.name,
@@ -1869,8 +1874,10 @@ class PokerServer:
                 room.big_blind = bb_val
                 room.min_raise = bb_val
 
-                # Auto-scale ante to ~10% of new BB (if auto_ante enabled)
-                if room.auto_ante and room.ante > 0:
+                # Auto-scale classic ante to ~10% of new BB.
+                # This intentionally allows auto_ante=True to enable antes from 0.
+                # BBA amount is derived from the big blind, so its ante flag is left alone.
+                if room.auto_ante and room.ante_mode == "classic":
                     room.ante = max(1, bb_val // 10)
 
                 # Store notification for clients

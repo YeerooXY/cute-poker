@@ -151,9 +151,11 @@ async def test_big_blind_ante_posts_from_big_blind_not_dealer() -> None:
 
     assert room.pot == room.small_blind + room.big_blind + room.big_blind
 
-    # The table ante is not something others must call. Current bet is whatever
-    # the big blind has committed, including the posted BBA.
-    assert room.current_bet == big_blind.committed
+    # The table ante is dead money, not part of the live bet others must call.
+    assert room.current_bet == room.big_blind
+    assert room.current_bet - dealer.committed == room.big_blind
+    assert room.current_bet - small_blind.committed == room.big_blind - room.small_blind
+    assert room.current_bet - big_blind.committed <= 0
 
 
 @pytest.mark.asyncio
@@ -192,7 +194,11 @@ async def test_short_big_blind_ante_and_blind_are_capped_by_stack() -> None:
     assert big_blind.all_in is True
 
     assert room.pot == room.small_blind + 35
-    assert room.current_bet == 35
+    # Only the actually posted blind portion is live; BBA remains dead money.
+    assert room.current_bet == 5
+    assert room.current_bet - dealer.committed == 5
+    assert room.current_bet - small_blind.committed <= 0
+    assert room.current_bet - big_blind.committed <= 0
 
 
 @pytest.mark.asyncio
@@ -251,3 +257,46 @@ async def test_auto_ante_scales_when_blinds_increase() -> None:
 
     assert room.messages[-1].name == "⚡ Blinds Up"
     assert f"ante {room.ante}" in room.messages[-1].text
+
+
+@pytest.mark.asyncio
+async def test_auto_ante_can_scale_from_zero_when_blinds_increase() -> None:
+    server = PokerServer()
+
+    p1 = make_player("p1", "P1", seat=1)
+    p2 = make_player("p2", "P2", seat=2)
+    p3 = make_player("p3", "P3", seat=3)
+
+    room = make_room(p1, p2, p3)
+    room.blind_increase_hands = 1
+    room.auto_ante = True
+    room.ante = 0
+    room.ante_mode = "classic"
+
+    await server.start_hand(room)
+
+    next_big_blind = room.blind_levels[1][1]
+
+    assert room.current_blind_level == 1
+    assert room.big_blind == next_big_blind
+    assert room.ante == max(1, next_big_blind // 10)
+
+
+@pytest.mark.asyncio
+async def test_auto_ante_disabled_keeps_zero_ante_when_blinds_increase() -> None:
+    server = PokerServer()
+
+    p1 = make_player("p1", "P1", seat=1)
+    p2 = make_player("p2", "P2", seat=2)
+    p3 = make_player("p3", "P3", seat=3)
+
+    room = make_room(p1, p2, p3)
+    room.blind_increase_hands = 1
+    room.auto_ante = False
+    room.ante = 0
+    room.ante_mode = "classic"
+
+    await server.start_hand(room)
+
+    assert room.current_blind_level == 1
+    assert room.ante == 0

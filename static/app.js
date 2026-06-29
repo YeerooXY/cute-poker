@@ -1685,7 +1685,7 @@ function renderState(state) {
   const blindEl = document.getElementById("blindInfo");
   if (blindEl) {
     let txt = `${state.small_blind}/${state.big_blind}`;
-    if (state.ante > 0) txt += state.ante_mode === "bba" ? " +BBA" : ` +${state.ante}a`;
+    if (state.ante > 0) txt += state.ante_mode === "bba" ? ` +${state.big_blind} BBA` : ` +${state.ante}a`;
     if (state.blind_increase_hands > 0) {
       const until = state.blind_increase_hands - (state.hands_played % state.blind_increase_hands);
       txt += ` · ↑${until}h`;
