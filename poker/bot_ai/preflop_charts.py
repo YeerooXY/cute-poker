@@ -388,14 +388,36 @@ def maybe_mix_preflop_decision(
     excellent_pot_odds = to_call > 0 and pot > 0 and (to_call / max(1, pot + to_call)) <= 0.20
     can_check_free = to_call == 0 and position == "BB"
 
+    if large_pressure:
+        if is_weak_offsuit_trash(hand):
+            return "fold", {}, None
+
+        if is_set_mining_pair(hand):
+            if chart_action == "raise":
+                if (
+                    to_call > 0
+                    and to_call <= big_blind * 3
+                    and facing_action == "raise"
+                    and not all_in_pressure
+                ):
+                    return "call", {}, None
+                return "fold", {}, None
+
+            if chart_action == "call" and to_call > big_blind * 3:
+                return "fold", {}, None
+
     if chart_action == "raise" and hand in PREMIUM_HANDS and facing_action in {"unopened", "raise"}:
         if to_call > 0 and to_call <= big_blind * 3 and rng() < 0.12:
             return "call", {}, "premium_flat_mix"
 
-    if chart_action != "fold" or large_pressure:
+    if chart_action != "fold":
         return chart_action, chart_payload, None
 
-    if is_speculative_hand(hand) and (can_check_free or blind_tiny_price or excellent_pot_odds):
+    if (
+        to_call > 0
+        and is_speculative_hand(hand)
+        and (blind_tiny_price or excellent_pot_odds)
+    ):
         continue_chance = 0.35 if (blind_tiny_price or can_check_free) else 0.18
         if rng() < continue_chance:
             return "call", {}, "speculative_defend"
@@ -423,6 +445,21 @@ def is_speculative_hand(hand: str) -> bool:
         return True
 
     return False
+
+
+def is_weak_offsuit_trash(hand: str) -> bool:
+    """Return True for offsuit junk that should not continue versus large pressure."""
+    if len(hand) != 3 or hand[2] != "o":
+        return False
+
+    high = hand[0]
+    low = hand[1]
+    return high in "JT9876" and low in "765432"
+
+
+def is_set_mining_pair(hand: str) -> bool:
+    """Return True for low pocket pairs that can sometimes continue as set-mines."""
+    return len(hand) == 2 and hand[0] == hand[1] and hand[0] in "234567"
 
 
 def _decide_action(

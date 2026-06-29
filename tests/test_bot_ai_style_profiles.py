@@ -95,7 +95,7 @@ def test_preflop_chart_debug_final_action_matches_returned_action():
 
 def test_weak_offsuit_trash_still_folds_versus_meaningful_raise():
     action, payload, reason = maybe_mix_preflop_decision(
-        hole_cards=["7D", "2C"],
+        hole_cards=["JH", "3C"],
         position="SB",
         facing_action="raise",
         big_blind=10,
@@ -109,6 +109,45 @@ def test_weak_offsuit_trash_still_folds_versus_meaningful_raise():
     )
 
     assert (action, payload, reason) == ("fold", {}, None)
+
+
+def test_weak_offsuit_trash_does_not_continue_vs_large_pressure():
+    action, payload, reason = maybe_mix_preflop_decision(
+        hole_cards=["TC", "2S"],
+        position="BB",
+        facing_action="4bet",
+        big_blind=10,
+        current_bet=120,
+        committed=10,
+        stack=995,
+        pot=130,
+        chart_action="call",
+        chart_payload={},
+        rng=lambda: 0.0,
+    )
+
+    assert (action, payload, reason) == ("fold", {}, None)
+
+
+def test_low_pair_does_not_huge_raise_versus_large_pressure():
+    action, payload, reason = maybe_mix_preflop_decision(
+        hole_cards=["3H", "3D"],
+        position="CO",
+        facing_action="raise",
+        big_blind=50,
+        current_bet=850,
+        committed=50,
+        stack=4950,
+        pot=900,
+        chart_action="raise",
+        chart_payload={"amount": 200},
+        rng=lambda: 0.0,
+    )
+
+    assert action in {"fold", "call"}
+    assert action != "raise"
+    assert payload == {}
+    assert reason is None
 
 
 def test_low_suited_speculative_hand_can_continue_only_for_tiny_blind_price():
@@ -189,6 +228,26 @@ def test_premium_hand_usually_raises_but_has_controlled_flat_path():
 
     assert flat == ("call", {}, "premium_flat_mix")
     assert normal == ("raise", {"amount": 30}, None)
+
+
+def test_aks_with_zero_to_call_is_not_labeled_speculative_defend():
+    action, payload, reason = maybe_mix_preflop_decision(
+        hole_cards=["AS", "KS"],
+        position="BB",
+        facing_action="unopened",
+        big_blind=10,
+        current_bet=10,
+        committed=10,
+        stack=990,
+        pot=15,
+        chart_action="raise",
+        chart_payload={"amount": 25},
+        rng=lambda: 0.0,
+    )
+
+    assert action == "raise"
+    assert payload == {"amount": 25}
+    assert reason is None
 
 
 def test_very_strong_postflop_hand_has_possible_check_trap_path():
