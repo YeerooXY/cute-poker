@@ -14,6 +14,7 @@ const els = {};
 "chatPanel","chatMessages","chatInput","chatBtn","actionBar","turnInfo",
 "pauseBtn","sitOutBtn","sitInBtn","rebuyBtn","spectateBtn","addBotBtn","botDifficultySelect",
 "hintsToggle","handHistoryToggle","handHistoryPanel","handHistoryClose","handHistoryBody","handHistoryCount","bbToggleBtn","potChips","autoDealToggle","autoDealCountdown","hotkeysToggleBtn","outsBox",
+"soundEnabledCheck","soundVolumeInput","soundVolumeValue",
 "actionLogHandNum","actionLogBody","actionLogPanel","actionLogToggle","adminPlayerList","postHandPanel","showdownTray",
 "postHandKicker","postHandTitle","postHandPot","postHandBody","postHandDealBtn"
 ].forEach(id => { els[id] = $(id); });
@@ -1832,6 +1833,13 @@ function renderState(state) {
   syncPostHandRecoveryButtons(state, viewerData);
   renderHandHistory(state);
   syncDealControls(state);
+  if (window.PokerSfx && typeof window.PokerSfx.processState === "function") {
+    window.PokerSfx.processState(state, {
+      previousState,
+      historyReviewDisplay,
+      showdownDisplay,
+    });
+  }
 
   // ─── Action button labels / enabled state ───
   syncActionConsoleBank(state);
@@ -2559,6 +2567,13 @@ els.customBetBtn.onclick = () => {
 els.customBetInput.onkeydown = ev => { if (ev.key === "Enter") els.customBetBtn.click(); };
 if (els.autoCheckFoldBtn) els.autoCheckFoldBtn.onclick = toggleAutoCheckFold;
 if (els.hotkeysToggleBtn) els.hotkeysToggleBtn.onclick = toggleHotkeys;
+if (window.PokerSfx && typeof window.PokerSfx.bindControls === "function") {
+  window.PokerSfx.bindControls({
+    enabledInput: els.soundEnabledCheck,
+    volumeInput: els.soundVolumeInput,
+    volumeValue: els.soundVolumeValue,
+  });
+}
 els.resetBtn.onclick = () => action("reset_stacks");
 els.pauseBtn.onclick = () => action("toggle_pause");
 els.addBotBtn.onclick = () => {

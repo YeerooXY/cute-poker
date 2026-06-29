@@ -113,6 +113,29 @@ html, body {
   border-radius: 8px;
 }
 .setting-value span { font-size: 11px; color: var(--text-dim); }
+.sound-controls { flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.sound-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 0;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+}
+.sound-toggle input { width: auto; margin: 0; }
+.sound-volume {
+  width: 120px;
+  margin-bottom: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  text-align: left;
+}
+.sound-volume-value {
+  min-width: 34px;
+  text-align: right;
+}
 .setting-hint { font-size: 11px; color: var(--text-dim); margin: 4px 0 0; font-style: italic; }
 
 /* Blind Info Badge (in-game HUD) */

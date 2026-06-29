@@ -195,6 +195,7 @@ def test_static_assets_are_cache_busted():
     html = read_static("index.html")
 
     assert "/static/styles.css?v=" in html
+    assert "/static/sfx.js?v=" in html
     assert "/static/app.js?v=" in html
 
 
@@ -938,6 +939,28 @@ def test_betting_hotkeys_are_not_persisted_to_local_storage():
     assert "safeGetItem" not in hotkey_section
     assert "document.addEventListener(\"keydown\", handleActionHotkey);" in app
     assert "if (actionHotkeyListenerRegistered) return;" in app
+
+
+def test_table_sound_effect_controls_and_manager_bundle_are_wired():
+    html = read_static("index.html")
+    app = read_static_js_bundle()
+    sfx = read_static("sfx.js")
+    css = read_static_css_bundle()
+
+    assert '<script src="/static/sfx.js?v=v=21"></script>' in html
+    assert 'id="soundEnabledCheck"' in html
+    assert 'id="soundVolumeInput"' in html
+    assert 'id="soundVolumeValue"' in html
+    assert "sound-controls" in css
+    assert "sound-toggle" in css
+    assert "sound-volume" in css
+    assert "function createPokerSfx" in sfx
+    assert 'const STORAGE_ENABLED = "poker_sfx_enabled"' in sfx
+    assert 'const STORAGE_VOLUME = "poker_sfx_volume"' in sfx
+    assert "function mapActionToSound(entry)" in sfx
+    assert "function processState(state, options = {})" in sfx
+    assert "window.PokerSfx.processState(state, {" in app
+    assert "window.PokerSfx.bindControls({" in app
 
 def test_stack_zero_live_all_in_players_are_not_labeled_busted_frontend():
     app = read_static_js_bundle()
