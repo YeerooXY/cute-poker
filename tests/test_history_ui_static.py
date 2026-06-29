@@ -957,6 +957,7 @@ def test_table_sound_effect_controls_and_manager_bundle_are_wired():
     assert "function createPokerSfx" in sfx
     assert 'const STORAGE_ENABLED = "poker_sfx_enabled"' in sfx
     assert 'const STORAGE_VOLUME = "poker_sfx_volume"' in sfx
+    assert 'const SOUND_BASE_URL = "/sound/"' in sfx
     assert "function mapActionToSound(entry)" in sfx
     assert "function processState(state, options = {})" in sfx
     assert "window.PokerSfx.processState(state, {" in app

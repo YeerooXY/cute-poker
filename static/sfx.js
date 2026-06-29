@@ -10,8 +10,21 @@
   const STORAGE_ENABLED = "poker_sfx_enabled";
   const STORAGE_VOLUME = "poker_sfx_volume";
   const DEFAULT_ENABLED = true;
-  const DEFAULT_VOLUME = 0.6;
+  const DEFAULT_VOLUME = 0.25;
+  const SOUND_BASE_URL = "/sound/";
   const TIMER_WARNING_THRESHOLD = 5;
+  const SAMPLE_LIBRARY = {
+    deal: ["817580__silverdubloons__slidecard05.wav", "240776__f4ngy__card-flip.wav"],
+    chip_quiet: ["623175__aphom000__button-click-selection.wav", "201804__fartheststar__poker_chips4.wav"],
+    check: ["623175__aphom000__button-click-selection.wav"],
+    call: ["poker_sfx_chip_call_250ms_crop.mp3", "poker_sfx_chip_call_350ms_compressed.mp3", "201805__fartheststar__poker_chips3.wav"],
+    bet_raise: ["201809__fartheststar__poker_chips5.wav", "201806__fartheststar__poker_chips2.wav"],
+    fold: ["571581__el_boss__playing-card-slide-right.wav", "240776__f4ngy__card-flip.wav"],
+    all_in: ["151309__tcpp__beep1-resonant-error-beep.wav"],
+    showdown: ["208790__ueffects__cards-sounds.wav"],
+    pot_win: ["201804__fartheststar__poker_chips4.wav", "201805__fartheststar__poker_chips3.wav"],
+    timer_warning: ["151309__tcpp__beep1-resonant-error-beep.wav"],
+  };
 
   function safeGet(storage, key) {
     try {
@@ -176,6 +189,33 @@
     };
   }
 
+  function playSampleAsset(url, volume) {
+    const AudioCtor = root.Audio;
+    if (typeof AudioCtor !== "function") return false;
+    try {
+      const audio = new AudioCtor(url);
+      audio.preload = "auto";
+      audio.volume = Math.max(0, Math.min(1, volume));
+      const promise = audio.play();
+      if (promise && typeof promise.catch === "function") {
+        promise.catch(() => {});
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function playSampleForEvent(eventName, volume) {
+    const files = SAMPLE_LIBRARY[eventName];
+    if (!Array.isArray(files) || files.length === 0) return false;
+    for (const fileName of files) {
+      const ok = playSampleAsset(`${SOUND_BASE_URL}${encodeURIComponent(fileName)}`, volume);
+      if (ok) return true;
+    }
+    return false;
+  }
+
   function createPokerSfx(options = {}) {
     const storage = options.storage || root.localStorage || null;
     const doc = options.document || root.document || null;
@@ -264,8 +304,12 @@
         playback(eventName, meta);
         return true;
       }
+      if (!unlocked) return false;
+      if (playSampleForEvent(eventName, volume)) {
+        return true;
+      }
       const audio = ensureContext();
-      if (!audio || !unlocked) return false;
+      if (!audio) return false;
       const fn = synth[eventName];
       if (typeof fn !== "function") return false;
       try {

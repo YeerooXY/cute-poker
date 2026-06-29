@@ -25,9 +25,11 @@ logger = logging.getLogger("poker")
 
 
 STATIC_DIR = Path(__file__).parent / "static"
+SOUND_DIR = Path(__file__).parent / "sound"
 
 app = FastAPI(title="Cute Poker Modular Starter")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/sound", StaticFiles(directory=str(SOUND_DIR)), name="sound")
 
 server = PokerServer()
 
