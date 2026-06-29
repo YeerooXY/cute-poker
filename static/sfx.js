@@ -10,7 +10,7 @@
   const STORAGE_ENABLED = "poker_sfx_enabled";
   const STORAGE_VOLUME = "poker_sfx_volume";
   const DEFAULT_ENABLED = true;
-  const DEFAULT_VOLUME = 0.25;
+  const DEFAULT_VOLUME = 0.6;
   const TIMER_WARNING_THRESHOLD = 5;
 
   function safeGet(storage, key) {
@@ -371,18 +371,33 @@
     installUnlockListeners();
     syncControls();
 
+    function playTestSound() {
+      if (!enabled) setEnabled(true);
+      if (volume <= 0) setVolume(0.7);
+      unlock();
+      // Slight delay gives suspended AudioContext.resume() a moment to settle.
+      setTimeout(() => playSound("call", { test: true }, true), 25);
+      return true;
+    }
+
     return {
       bindControls,
       processState,
       setEnabled,
       setVolume,
       unlock,
+      playSound: (eventName, meta = {}) => {
+        unlock();
+        return playSound(eventName, meta, true);
+      },
+      playTestSound,
       isEnabled: () => enabled,
       getVolume: () => volume,
       getState: () => ({
         enabled,
         volume,
         unlocked,
+        audioState: ctx ? ctx.state : "none",
         handKey: lastHandKey,
         actionCount: lastActionCount,
       }),
@@ -391,14 +406,63 @@
     };
   }
 
+  let browserInstance = null;
+
+  function getInstance() {
+    if (!browserInstance && root && root.document) {
+      browserInstance = createPokerSfx({ document: root.document, storage: root.localStorage || null });
+      root.pokerSfxDebug = browserInstance;
+      root.PokerSfxInstance = browserInstance;
+    }
+    return browserInstance;
+  }
+
+  function installTestButton() {
+    const inst = getInstance();
+    const doc = root && root.document;
+    if (!inst || !doc || doc.getElementById("soundTestBtn")) return;
+
+    const volumeInput = doc.getElementById("soundVolumeInput");
+    if (!volumeInput) return;
+
+    const btn = doc.createElement("button");
+    btn.id = "soundTestBtn";
+    btn.type = "button";
+    btn.className = "mini-btn sound-test-btn";
+    btn.textContent = "Test sound";
+    volumeInput.insertAdjacentElement("afterend", btn);
+
+    btn.addEventListener("click", async () => {
+      inst.setEnabled(true);
+      if (inst.getVolume() <= 0) inst.setVolume(0.7);
+      await inst.unlock();
+      inst.playTestSound();
+      console.log("[sfx] test", inst.getState());
+    });
+  }
+
   const api = {
     createPokerSfx,
     mapActionToSound,
     handKeyFromState,
+    getInstance,
+    bindControls: (...args) => getInstance() && getInstance().bindControls(...args),
+    processState: (...args) => getInstance() && getInstance().processState(...args),
+    setEnabled: (...args) => getInstance() && getInstance().setEnabled(...args),
+    setVolume: (...args) => getInstance() && getInstance().setVolume(...args),
+    unlock: (...args) => getInstance() && getInstance().unlock(...args),
+    playSound: (...args) => getInstance() && getInstance().playSound(...args),
+    playTestSound: (...args) => getInstance() && getInstance().playTestSound(...args),
+    getState: () => getInstance() && getInstance().getState(),
   };
 
   if (root && root.document) {
-    root.PokerSfx = createPokerSfx({ document: root.document, storage: root.localStorage || null });
+    getInstance();
+    if (root.document.readyState === "loading") {
+      root.document.addEventListener("DOMContentLoaded", installTestButton);
+    } else {
+      installTestButton();
+    }
   }
 
   return api;
