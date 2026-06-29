@@ -10,7 +10,7 @@ const els = {};
 "reconnectBtn","autoDealDelayInput","actionTimeInput","startingTimebankInput","timebankGainInput","roomsList","roomId","phaseBadge","potValue","community","playerPositions",
 "winnerOverlay","winnerContent","yourHandBar","yourCards","handStrength","startBtn",
 "foldBtn","checkCallBtn","betHalfPotBtn","betPotBtn","betAllInBtn","customBetInput",
-"customBetBtn","resetBtn","adminActions","copyRoomBtn","leaveBtn","chatToggle","chatClose",
+"customBetBtn","autoCheckFoldBtn","resetBtn","adminActions","copyRoomBtn","leaveBtn","chatToggle","chatClose",
 "chatPanel","chatMessages","chatInput","chatBtn","actionBar","turnInfo",
 "pauseBtn","sitOutBtn","sitInBtn","rebuyBtn","spectateBtn","addBotBtn","botDifficultySelect",
 "hintsToggle","handHistoryToggle","handHistoryPanel","handHistoryClose","handHistoryBody","handHistoryCount","bbToggleBtn","potChips","autoDealToggle","autoDealCountdown","outsBox",
@@ -32,6 +32,9 @@ let intentionalDisconnect = false;
 let selectedHistoryHandNumber = null;
 let selectedHistoryReviewKey = null;
 let defaultPanelsRoomId = null;
+let autoCheckFoldPending = false;
+let autoCheckFoldHandKey = null;
+let autoCheckFoldConsumedTurnKey = null;
 
 let autoDealEnabled = true;
 
@@ -733,9 +736,127 @@ function reconnectLast() {
   send("reconnect", { room_id: roomId, token });
 }
 
-function action(name, extra = {}) { send("action", { action: name, ...extra }); }
+function autoCheckFoldStateHandKey(state) {
+  if (!state) return "";
+  const hand = state.hand_id || state.hand_number || state.hands_played || 0;
+  return `${state.room_id || ""}:${hand}`;
+}
+
+function autoCheckFoldTurnKey(state) {
+  if (!state) return "";
+  const viewer = state.viewer || {};
+  return [
+    autoCheckFoldStateHandKey(state),
+    viewer.player_id || viewer.id || token || "",
+    state.action_seat || "",
+    state.current_bet || 0,
+    viewer.committed || 0,
+    viewer.to_call || 0,
+  ].join(":");
+}
+
+function clearAutoCheckFoldPending() {
+  autoCheckFoldPending = false;
+  autoCheckFoldHandKey = null;
+  autoCheckFoldConsumedTurnKey = null;
+}
+
+function action(name, extra = {}) {
+  if (["fold", "check_call", "bet_raise"].includes(name)) {
+    clearAutoCheckFoldPending();
+  }
+  send("action", { action: name, ...extra });
+}
+
+function isAutoCheckFoldAvailable(state, showdownDisplay) {
+  const viewerData = state && Array.isArray(state.players)
+    ? state.players.find(p => p && p.is_you)
+    : null;
+  const phase = state && state.phase ? state.phase : "";
+  return Boolean(
+    state
+    && viewerData
+    && ["preflop", "flop", "turn", "river"].includes(phase)
+    && !showdownDisplay
+    && !state.paused
+    && Array.isArray(viewerData.cards)
+    && viewerData.cards.length > 0
+    && !viewerData.folded
+    && !viewerData.all_in
+    && !viewerData.sitting_out
+    && !viewerData.is_spectator
+    && numberOrZero(viewerData.stack) > 0
+  );
+}
+
+function toggleAutoCheckFold() {
+  if (autoCheckFoldPending) {
+    clearAutoCheckFoldPending();
+    syncAutoCheckFoldControl(lastState, false);
+    return;
+  }
+  const showdownDisplay = Boolean(lastState && (lastState.phase === "showdown" || lastState.showdown_mode));
+  if (!isAutoCheckFoldAvailable(lastState, showdownDisplay)) return;
+  autoCheckFoldPending = true;
+  autoCheckFoldHandKey = autoCheckFoldStateHandKey(lastState);
+  autoCheckFoldConsumedTurnKey = null;
+  syncAutoCheckFoldControl(lastState, showdownDisplay);
+}
+
+function syncAutoCheckFoldControl(state, showdownDisplay) {
+  if (!els.autoCheckFoldBtn) return;
+  const available = isAutoCheckFoldAvailable(state, showdownDisplay);
+  els.autoCheckFoldBtn.style.display = available ? "" : "none";
+  els.autoCheckFoldBtn.disabled = !available;
+  els.autoCheckFoldBtn.classList.toggle("is-pending", autoCheckFoldPending && available);
+  els.autoCheckFoldBtn.setAttribute("aria-pressed", autoCheckFoldPending && available ? "true" : "false");
+  els.autoCheckFoldBtn.textContent = autoCheckFoldPending && available
+    ? "Auto Check/Fold: ON"
+    : "Auto Check/Fold";
+}
+
+function maybeFireAutoCheckFold(state, isMyTurn, showdownDisplay) {
+  const available = isAutoCheckFoldAvailable(state, showdownDisplay);
+  const handKey = autoCheckFoldStateHandKey(state);
+
+  if (autoCheckFoldPending && autoCheckFoldHandKey && autoCheckFoldHandKey !== handKey) {
+    clearAutoCheckFoldPending();
+  }
+
+  if (autoCheckFoldPending && !available) {
+    clearAutoCheckFoldPending();
+  }
+
+  syncAutoCheckFoldControl(state, showdownDisplay);
+
+  if (!autoCheckFoldPending || !isMyTurn || !available) return;
+
+  const turnKey = autoCheckFoldTurnKey(state);
+  if (autoCheckFoldConsumedTurnKey === turnKey) return;
+
+  const model = bettingActionModel(state, isMyTurn, showdownDisplay);
+  autoCheckFoldConsumedTurnKey = turnKey;
+
+  if (model.canCheck) {
+    clearAutoCheckFoldPending();
+    action("check_call");
+    syncAutoCheckFoldControl(state, showdownDisplay);
+    return;
+  }
+
+  if (model.canAct) {
+    clearAutoCheckFoldPending();
+    action("fold");
+    syncAutoCheckFoldControl(state, showdownDisplay);
+    return;
+  }
+
+  clearAutoCheckFoldPending();
+  syncAutoCheckFoldControl(state, showdownDisplay);
+}
 
 function leaveGame() {
+  clearAutoCheckFoldPending();
   intentionalDisconnect = true;
   try { send("leave", {}); } catch(e) {}
   setTimeout(leaveToLobby, 200);
@@ -1620,6 +1741,7 @@ function renderState(state) {
   // ─── Action button labels / enabled state ───
   syncActionConsoleBank(state);
   syncBettingControls(state, isMyTurn, showdownDisplay);
+  maybeFireAutoCheckFold(state, isMyTurn, showdownDisplay);
 
   // Hide outs box (removed feature)
   if (els.outsBox) els.outsBox.classList.add("hidden");
@@ -2339,16 +2461,23 @@ els.customBetBtn.onclick = () => {
   if (v > 0) { action("bet_raise", { amount: v }); els.customBetInput.value = ""; }
 };
 els.customBetInput.onkeydown = ev => { if (ev.key === "Enter") els.customBetBtn.click(); };
+if (els.autoCheckFoldBtn) els.autoCheckFoldBtn.onclick = toggleAutoCheckFold;
 els.resetBtn.onclick = () => action("reset_stacks");
 els.pauseBtn.onclick = () => action("toggle_pause");
 els.addBotBtn.onclick = () => {
   const diff = els.botDifficultySelect ? els.botDifficultySelect.value : "hard";
   action("add_bot", { difficulty: diff });
 };
-els.sitOutBtn.onclick = () => action("sit_out", { sitting_out: true });
+els.sitOutBtn.onclick = () => {
+  clearAutoCheckFoldPending();
+  action("sit_out", { sitting_out: true });
+};
 if (els.sitInBtn) els.sitInBtn.onclick = () => action("sit_out", { sitting_out: false });
 if (els.rebuyBtn) els.rebuyBtn.onclick = () => action("rebuy", {});
-els.spectateBtn.onclick = () => action("spectate");
+els.spectateBtn.onclick = () => {
+  clearAutoCheckFoldPending();
+  action("spectate");
+};
 els.copyRoomBtn.onclick = async () => { try { await navigator.clipboard.writeText(roomId); } catch {} };
 
 // Hand history

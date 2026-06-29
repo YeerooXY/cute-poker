@@ -801,6 +801,71 @@ def test_buy_in_count_can_rebuy_and_busted_labels_are_used_in_frontend():
     assert '"buy_in_count": max(1, int(getattr(p, "buy_in_count", 1)))' in game
     assert '"can_rebuy": viewer_can_rebuy if viewer else False' in game
 
+
+def test_auto_check_fold_defaults_off_and_control_exists_in_action_area():
+    html = read_static("index.html")
+    app = read_static_js_bundle()
+    css = read_static_css_bundle()
+
+    assert "let autoCheckFoldPending = false;" in app
+    assert "let autoCheckFoldHandKey = null;" in app
+    assert "let autoCheckFoldConsumedTurnKey = null;" in app
+    assert '<button id="autoCheckFoldBtn"' in html
+    assert "Auto Check/Fold" in html
+    assert "autoCheckFoldBtn" in app
+    assert ".btn-auto-check-fold" in css
+    assert ".btn-auto-check-fold.is-pending" in css
+
+
+def test_auto_check_fold_uses_existing_action_model_and_prefers_check_over_fold():
+    app = read_static_js_bundle()
+    fire_body = app.split("function maybeFireAutoCheckFold", 1)[1].split("function leaveGame", 1)[0]
+
+    assert "const model = bettingActionModel(state, isMyTurn, showdownDisplay);" in fire_body
+    assert 'if (model.canCheck)' in fire_body
+    assert 'action("check_call");' in fire_body
+    assert 'if (model.canAct)' in fire_body
+    assert 'action("fold");' in fire_body
+    assert fire_body.index('if (model.canCheck)') < fire_body.index('action("fold");')
+
+
+def test_auto_check_fold_never_sends_call_bet_or_raise_from_auto_path():
+    app = read_static_js_bundle()
+    fire_body = app.split("function maybeFireAutoCheckFold", 1)[1].split("function leaveGame", 1)[0]
+
+    assert 'action("check_call");' in fire_body
+    assert 'action("fold");' in fire_body
+    assert 'action("call"' not in fire_body
+    assert 'action("bet"' not in fire_body
+    assert 'action("bet_raise"' not in fire_body
+    assert 'action("raise"' not in fire_body
+
+
+def test_auto_check_fold_clears_after_firing_hand_change_and_manual_actions():
+    app = read_static_js_bundle()
+
+    assert "function clearAutoCheckFoldPending()" in app
+    assert "autoCheckFoldPending = false;" in app
+    assert "autoCheckFoldHandKey = null;" in app
+    assert "autoCheckFoldConsumedTurnKey = null;" in app
+    assert "autoCheckFoldHandKey !== handKey" in app
+    assert 'if (["fold", "check_call", "bet_raise"].includes(name))' in app
+    assert "clearAutoCheckFoldPending();\n    action(\"check_call\");" in app
+    assert "clearAutoCheckFoldPending();\n    action(\"fold\");" in app
+    assert "clearAutoCheckFoldPending();\n  action(\"sit_out\", { sitting_out: true });" in app
+    assert "clearAutoCheckFoldPending();\n  action(\"spectate\");" in app
+    assert "clearAutoCheckFoldPending();\n   intentionalDisconnect = true;" not in app
+    assert "clearAutoCheckFoldPending();\n  intentionalDisconnect = true;" in app
+
+
+def test_auto_check_fold_repeated_render_guard_exists_for_same_turn():
+    app = read_static_js_bundle()
+
+    assert "function autoCheckFoldTurnKey(state)" in app
+    assert "autoCheckFoldConsumedTurnKey === turnKey" in app
+    assert "autoCheckFoldConsumedTurnKey = turnKey;" in app
+    assert "maybeFireAutoCheckFold(state, isMyTurn, showdownDisplay);" in app
+
 def test_stack_zero_live_all_in_players_are_not_labeled_busted_frontend():
     app = read_static_js_bundle()
     game = (ROOT / "poker" / "game.py").read_text(encoding="utf-8")

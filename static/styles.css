@@ -761,7 +761,7 @@ html, body {
   -webkit-backdrop-filter: blur(12px);
   border-radius: 12px 12px 0 0;
 }
-.action-row-main { display: grid; grid-template-columns: 1fr 2fr; gap: 4px; }
+.action-row-main { display: grid; grid-template-columns: 1fr 1.35fr 1.25fr; gap: 4px; }
 .action-row-raise { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; }
 .action-row-custom { display: grid; grid-template-columns: 1fr auto; gap: 4px; }
 .action-row-custom input {
@@ -815,6 +815,16 @@ html, body {
 .action-bar:not(.my-turn) .btn-call,
 .action-bar:not(.my-turn) .btn-raise,
 .action-bar:not(.my-turn) .btn-allin { opacity: 0.4; }
+.btn-auto-check-fold {
+  white-space: normal;
+  line-height: 1.05;
+  font-size: 10px;
+}
+.btn-auto-check-fold.is-pending {
+  border-color: rgba(200,164,21,0.8);
+  background: rgba(200,164,21,0.22);
+  color: var(--gold-light);
+}
 
 /* ═══ Chat ═══ */
 .chat-panel {
