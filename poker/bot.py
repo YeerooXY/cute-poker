@@ -31,7 +31,7 @@ from poker.bot_ai.models import AIGameContext
 from poker.bot_ai.difficulty_controller import (
     DifficultyLevel,
 )
-from poker.bot_ai.personality_engine import BALANCED_PROFILE
+from poker.bot_ai.personality_engine import BALANCED_PROFILE, get_personality
 
 
 BOT_NAMES = {
@@ -240,6 +240,21 @@ _DIFFICULTY_MAPPING: dict[str, DifficultyLevel] = {
     "expert": DifficultyLevel.EXPERT,
 }
 
+_ADVANCED_STYLE_PROFILE_MAPPING: dict[str, str] = {
+    "tight_aggressive": "TAG",
+    "loose_aggressive": "LAG",
+    "calling_station": "Calling_Station",
+    "maniac": "Maniac",
+}
+
+
+def _advanced_profile_for_style(style: str):
+    """Return the advanced AI personality profile for a legacy bot style."""
+    profile_name = _ADVANCED_STYLE_PROFILE_MAPPING.get(str(style or "").strip().lower())
+    if not profile_name:
+        return BALANCED_PROFILE
+    return get_personality(profile_name)
+
 
 def _get_position_advanced(player: "Player", room: "Room") -> str:
     """Map player's seat to the 8-position system used by the advanced AI.
@@ -373,8 +388,7 @@ def _advanced_ai_decide(
     # Resolve difficulty level
     difficulty = _DIFFICULTY_MAPPING.get(config.difficulty.lower(), DifficultyLevel.HARD)
     
-    # Use the balanced profile for all normal gameplay decisions
-    personality = BALANCED_PROFILE
+    personality = _advanced_profile_for_style(config.style)
     
     # Count active opponents
     num_active_opponents = len([

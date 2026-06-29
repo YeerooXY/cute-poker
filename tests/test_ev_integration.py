@@ -551,16 +551,10 @@ class TestDifficultyDifferences:
 
 
 class TestPersonalityEffects:
-    """After Patch 1, personality archetypes no longer affect normal gameplay decisions.
-    
-    All bots use BALANCED_PROFILE regardless of the personality parameter passed.
-    Personality differences are only available in test/debug mode (use_personality=True).
-    
-    These tests verify the new behavior: personality parameter is ignored.
-    """
+    """Personality archetypes can affect normal gameplay decisions."""
 
-    def test_personality_parameter_ignored_in_normal_mode(self):
-        """Different personality names should produce identical action distributions."""
+    def test_personality_parameter_produces_valid_normal_mode_actions(self):
+        """Different personality names should still produce legal game actions."""
         # Use a marginal hand multiway where personality differences WOULD have emerged
         ctx = _make_context(
             hole_cards=["9H", "8H"],
@@ -580,14 +574,13 @@ class TestPersonalityEffects:
         maniac_counts = _run_trials(ctx, DifficultyLevel.HARD, "Maniac", n_trials=24, seed=42)
         nit_counts = _run_trials(ctx, DifficultyLevel.HARD, "Nit", n_trials=24, seed=42)
 
-        # In normal gameplay, personality is ignored → identical distributions
-        assert maniac_counts == nit_counts, (
-            f"Expected identical action distributions when personality is ignored. "
-            f"Maniac={dict(maniac_counts)}, Nit={dict(nit_counts)}"
-        )
+        assert set(maniac_counts).issubset(VALID_GAME_ACTIONS)
+        assert set(nit_counts).issubset(VALID_GAME_ACTIONS)
+        assert sum(maniac_counts.values()) == 24
+        assert sum(nit_counts.values()) == 24
 
-    def test_calling_station_same_as_tag_in_normal_mode(self):
-        """Calling Station and TAG produce identical results in normal gameplay."""
+    def test_calling_station_and_tag_produce_valid_normal_mode_actions(self):
+        """Calling Station and TAG both stay inside the legal game-action set."""
         ctx = _make_context(
             hole_cards=["8H", "7D"],
             community=["AS", "KD", "3C"],
@@ -603,11 +596,10 @@ class TestPersonalityEffects:
         cs_counts = _run_trials(ctx, DifficultyLevel.HARD, "Calling_Station", n_trials=24, seed=42)
         tag_counts = _run_trials(ctx, DifficultyLevel.HARD, "TAG", n_trials=24, seed=42)
 
-        # In normal gameplay, personality is ignored → identical distributions
-        assert cs_counts == tag_counts, (
-            f"Expected identical distributions in normal mode. "
-            f"Calling_Station={dict(cs_counts)}, TAG={dict(tag_counts)}"
-        )
+        assert set(cs_counts).issubset(VALID_GAME_ACTIONS)
+        assert set(tag_counts).issubset(VALID_GAME_ACTIONS)
+        assert sum(cs_counts.values()) == 24
+        assert sum(tag_counts.values()) == 24
 
 
 # ─── Test: Full Pipeline with Range Tracker ────────────────────────────────────
