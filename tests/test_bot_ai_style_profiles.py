@@ -1,9 +1,9 @@
 from poker import bot_ai
-from poker.bot import _advanced_profile_for_style
+from poker import bot as bot_module
 from poker.bot_ai import _should_slowplay_trap, advanced_bot_decide
 from poker.bot_ai.difficulty_controller import DifficultyLevel
 from poker.bot_ai.models import AIGameContext, BoardTexture
-from poker.bot_ai.personality_engine import BALANCED_PROFILE, get_personality
+from poker.bot_ai.personality_engine import get_personality
 from poker.bot_ai.preflop_charts import get_preflop_decision, maybe_mix_preflop_decision
 
 
@@ -45,22 +45,14 @@ def make_tiny_price_speculative_context() -> AIGameContext:
     )
 
 
-def test_legacy_bot_styles_map_to_distinct_advanced_profiles():
-    expected = {
-        "tight_aggressive": "TAG",
-        "loose_aggressive": "LAG",
-        "calling_station": "Calling_Station",
-        "maniac": "Maniac",
-    }
+def test_legacy_bot_styles_do_not_route_to_distinct_advanced_profiles():
+    assert not hasattr(bot_module, "_ADVANCED_STYLE_PROFILE_MAPPING")
+    assert not hasattr(bot_module, "_advanced_profile_for_style")
 
-    for style, profile_name in expected.items():
-        assert _advanced_profile_for_style(style).name == profile_name
-
-
-def test_unknown_and_balanced_styles_fall_back_to_balanced_profile():
-    assert _advanced_profile_for_style("balanced") is BALANCED_PROFILE
-    assert _advanced_profile_for_style("unknown_style") is BALANCED_PROFILE
-    assert _advanced_profile_for_style("") is BALANCED_PROFILE
+    source_names = set(bot_module._advanced_ai_decide.__code__.co_names)
+    assert "_advanced_profile_for_style" not in source_names
+    assert "get_personality" not in source_names
+    assert "BALANCED_PROFILE" in source_names
 
 
 def test_preflop_chart_early_return_refreshes_debug_for_current_decision():

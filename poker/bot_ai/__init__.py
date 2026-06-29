@@ -30,6 +30,7 @@ from poker.bot_ai.models import (
     ScoringContext,
 )
 from poker.bot_ai.personality_engine import (
+    BALANCED_PROFILE,
     PokerPersonality,
     get_action_multipliers,
     get_personality,
@@ -166,7 +167,7 @@ def advanced_bot_decide(
 
     # ─── Step 3: Handle push-fold mode ─────────────────────────────────────
     if dynamic_adjustments.push_fold_mode:
-        return _push_fold_decision(game_context, personality)
+        return _push_fold_decision(game_context, BALANCED_PROFILE)
 
     legal_actions = _determine_legal_actions(game_context)
 
@@ -178,7 +179,7 @@ def advanced_bot_decide(
             preflop_action, preflop_payload = get_preflop_decision(
                 hole_cards=game_context.hole_cards,
                 position=game_context.position,
-                personality=personality,
+                personality=BALANCED_PROFILE,
                 facing_action=game_context.facing_action,
                 big_blind=game_context.big_blind,
             )
@@ -291,7 +292,7 @@ def advanced_bot_decide(
             pot=game_context.pot,
             is_value_bet=is_value_bet,
             is_polarized=is_polarized,
-            personality=personality,
+            personality=BALANCED_PROFILE,
         )
         max_raise_amount = game_context.committed + game_context.stack
         min_raise_amount = game_context.min_raise
@@ -311,7 +312,7 @@ def advanced_bot_decide(
             pot=raise_pot,
             is_value_bet=is_value_bet,
             is_polarized=is_polarized,
-            personality=personality,
+            personality=BALANCED_PROFILE,
         )
         raise_amount = compute_bet_size(raise_sizing_ctx, min_raise_amount, max_raise_amount)
         # Ensure raise_amount is at least as large as bet_amount
@@ -334,7 +335,7 @@ def advanced_bot_decide(
         bluff_score=bluff_score,
         exploit_adjustments=exploit_adjustments,
         dynamic_adjustments=dynamic_adjustments,
-        personality=personality,
+        personality=BALANCED_PROFILE,
         stack_to_pot=stack_to_pot,
         is_preflop_aggressor=game_context.is_preflop_aggressor,
         fold_probability=fold_probability,
@@ -373,7 +374,7 @@ def advanced_bot_decide(
     # EASY: 2× exploitability → more random/exploitable play
     # MEDIUM: 1.5× exploitability → moderately noisy
     # HARD/EXPERT: 1× exploitability → normal noise
-    noise_exploitability = personality.exploitability
+    noise_exploitability = BALANCED_PROFILE.exploitability
     if difficulty == DifficultyLevel.EASY:
         noise_exploitability *= 2.0
     elif difficulty == DifficultyLevel.MEDIUM:
@@ -514,7 +515,7 @@ def advanced_bot_decide(
                 pot=game_context.pot,
                 is_value_bet=is_value,
                 is_polarized=is_polarized,
-                personality=personality,
+                personality=BALANCED_PROFILE,
             )
             max_raise = game_context.committed + game_context.stack
             bet_amount = compute_bet_size_with_equity_cap(
