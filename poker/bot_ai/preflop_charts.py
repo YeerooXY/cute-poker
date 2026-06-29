@@ -11,6 +11,7 @@ Hand notation:
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass, field
 
 from poker.bot_ai.personality_engine import PokerPersonality
@@ -349,6 +350,79 @@ def get_preflop_decision(
     adjusted = adjust_ranges_for_personality(base_range, personality)
 
     return _decide_action(hand, adjusted, facing_action, big_blind)
+
+
+def maybe_mix_preflop_decision(
+    hole_cards: list[str],
+    position: str,
+    facing_action: str,
+    big_blind: int,
+    current_bet: int,
+    committed: int,
+    stack: int,
+    pot: int,
+    chart_action: str,
+    chart_payload: dict,
+    rng=None,
+) -> tuple[str, dict, str | None]:
+    """Apply narrow mixed-strategy preflop overrides to chart output.
+
+    The mix only widens tiny-price blind defenses and occasional premium flats.
+    It intentionally refuses large opens, 3-bets, 4-bets, and all-in pressure.
+    """
+    hand = _cards_to_hand_notation(hole_cards)
+    if not hand:
+        return chart_action, chart_payload, None
+    rng = rng or random.random
+
+    to_call = max(0, current_bet - committed)
+    big_blind = max(1, big_blind)
+    stack = max(0, stack)
+    pot = max(0, pot)
+    position = str(position or "")
+    facing_action = str(facing_action or "")
+
+    all_in_pressure = to_call >= stack and stack > 0
+    large_pressure = facing_action in {"3bet", "4bet"} or to_call > big_blind or all_in_pressure
+    blind_tiny_price = position in {"SB", "BB"} and to_call <= big_blind
+    excellent_pot_odds = to_call > 0 and pot > 0 and (to_call / max(1, pot + to_call)) <= 0.20
+    can_check_free = to_call == 0 and position == "BB"
+
+    if chart_action == "raise" and hand in PREMIUM_HANDS and facing_action in {"unopened", "raise"}:
+        if to_call > 0 and to_call <= big_blind * 3 and rng() < 0.12:
+            return "call", {}, "premium_flat_mix"
+
+    if chart_action != "fold" or large_pressure:
+        return chart_action, chart_payload, None
+
+    if is_speculative_hand(hand) and (can_check_free or blind_tiny_price or excellent_pot_odds):
+        continue_chance = 0.35 if (blind_tiny_price or can_check_free) else 0.18
+        if rng() < continue_chance:
+            return "call", {}, "speculative_defend"
+
+    return chart_action, chart_payload, None
+
+
+def is_speculative_hand(hand: str) -> bool:
+    """Return True for narrow suited/paired hands worth tiny-price defense."""
+    if len(hand) == 2 and hand[0] == hand[1]:
+        return hand[0] in "234567"
+
+    if len(hand) != 3 or hand[2] != "s":
+        return False
+
+    high = _RANK_ORDER.index(hand[0])
+    low = _RANK_ORDER.index(hand[1])
+    gap = abs(high - low)
+
+    if hand in {"A2s", "A3s", "A4s", "A5s"}:
+        return True
+
+    # Suited connectors and one/two-gappers, including low junk like 42s.
+    if gap <= 2:
+        return True
+
+    return False
 
 
 def _decide_action(

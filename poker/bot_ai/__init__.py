@@ -13,6 +13,8 @@ The main entry point is `advanced_bot_decide`, which orchestrates:
 
 from __future__ import annotations
 
+import random
+
 from poker.bot_ai.models import (
     AIGameContext,
     ActionContext,
@@ -41,7 +43,7 @@ from poker.bot_ai.board_analyzer import analyze_board, compute_range_advantage
 from poker.bot_ai.opponent_model import OpponentModel, PlayerStats
 from poker.bot_ai.dynamic_adjuster import DynamicAdjuster
 from poker.bot_ai.bluff_calculator import compute_bluff_score, compute_fold_equity
-from poker.bot_ai.preflop_charts import get_preflop_decision
+from poker.bot_ai.preflop_charts import get_preflop_decision, maybe_mix_preflop_decision
 from poker.bot_ai.bet_sizer import compute_bet_size, compute_bet_size_with_equity_cap, add_sizing_noise, SizingContext
 from poker.bot_ai.action_scorer import (
     compute_base_scores,
@@ -180,6 +182,18 @@ def advanced_bot_decide(
                 facing_action=game_context.facing_action,
                 big_blind=game_context.big_blind,
             )
+            preflop_action, preflop_payload, mix_reason = maybe_mix_preflop_decision(
+                hole_cards=game_context.hole_cards,
+                position=game_context.position,
+                facing_action=game_context.facing_action,
+                big_blind=game_context.big_blind,
+                current_bet=game_context.current_bet,
+                committed=game_context.committed,
+                stack=game_context.stack,
+                pot=game_context.pot,
+                chart_action=preflop_action,
+                chart_payload=preflop_payload,
+            )
             # Map preflop chart action to game action format
             result = _map_preflop_action(preflop_action, preflop_payload, game_context)
             if result is not None:
@@ -205,6 +219,7 @@ def advanced_bot_decide(
                     "facing_amount": max(0, game_context.current_bet - game_context.committed),
                     "chart_action": preflop_action,
                     "chart_payload": dict(preflop_payload) if isinstance(preflop_payload, dict) else {},
+                    "decision_reason": mix_reason or "preflop_chart",
                     "is_preflop_aggressor": game_context.is_preflop_aggressor,
                     "noise_exploitability": 0,
                 })
@@ -467,6 +482,19 @@ def advanced_bot_decide(
 
     # ─── NEW (Patch 1): Validate selection against forbidden gates ─────────
     chosen_action = validate_selection(chosen_action, scores, legal_actions)
+    decision_reason = "scored_action"
+
+    if _should_slowplay_trap(
+        chosen_action=chosen_action,
+        legal_actions=legal_actions,
+        phase=game_context.phase,
+        hand_class=_hand_class,
+        board_texture=board_texture,
+        equity=equity,
+        has_strong_draw=_has_strong_draw,
+    ):
+        chosen_action = "check"
+        decision_reason = "slowplay_trap_mix"
 
     # ─── NEW (Patch 1): Record decision for exploit metrics ────────────────
     record_decision(_exploit_metrics, chosen_action, gate_context)
@@ -529,12 +557,54 @@ def advanced_bot_decide(
         "facing_action": game_context.facing_action,
         "is_preflop_aggressor": game_context.is_preflop_aggressor,
         "noise_exploitability": round(noise_exploitability, 4),
+        "decision_reason": decision_reason,
     })
 
     return final_action, final_payload
 
 
 # ─── Private helpers ───────────────────────────────────────────────────────────
+
+
+def _should_slowplay_trap(
+    chosen_action: str,
+    legal_actions: list[str],
+    phase: str,
+    hand_class: str,
+    board_texture: BoardTexture,
+    equity: float,
+    has_strong_draw: bool,
+    rng=random.random,
+) -> bool:
+    """Occasionally check very strong hands when checking is free."""
+    if phase == "preflop" or chosen_action not in {"bet", "raise"}:
+        return False
+    if "check" not in legal_actions:
+        return False
+
+    very_strong = hand_class in {
+        "straight",
+        "flush",
+        "full_house",
+        "quads",
+        "straight_flush",
+    }
+    combo_draw = has_strong_draw and equity >= 0.55
+
+    if not very_strong and not combo_draw:
+        return False
+
+    if hand_class in {"full_house", "quads", "straight_flush"}:
+        chance = 0.22
+    elif very_strong:
+        chance = 0.16
+    else:
+        chance = 0.10
+
+    if getattr(board_texture, "is_wet", False):
+        chance *= 0.6
+
+    return rng() < chance
 
 
 def _compute_equity(game_context: AIGameContext) -> float:
