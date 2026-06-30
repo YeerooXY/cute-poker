@@ -1,6 +1,6 @@
 {
   "hand_number": 0,
-  "timestamp": "2026-06-26T10:40:48.534162+00:00",
+  "timestamp": "2026-06-29T22:26:56.161607+00:00",
   "room_id": "TEST_EQUAL",
   "players": [
     {
@@ -10,8 +10,8 @@
         "9S",
         "8S"
       ],
-      "stack_after": 499,
-      "total_invested": 499,
+      "stack_after": 56,
+      "total_invested": 56,
       "folded": false,
       "all_in": false
     },
@@ -22,44 +22,8 @@
         "7S",
         "6S"
       ],
-      "stack_after": 499,
-      "total_invested": 499,
-      "folded": false,
-      "all_in": false
-    },
-    {
-      "name": "Player2",
-      "seat": 2,
-      "hole_cards": [
-        "5S",
-        "4S"
-      ],
-      "stack_after": 499,
-      "total_invested": 499,
-      "folded": false,
-      "all_in": false
-    },
-    {
-      "name": "Player3",
-      "seat": 3,
-      "hole_cards": [
-        "3S",
-        "2S"
-      ],
-      "stack_after": 499,
-      "total_invested": 499,
-      "folded": false,
-      "all_in": false
-    },
-    {
-      "name": "Player4",
-      "seat": 4,
-      "hole_cards": [
-        "AH",
-        "KH"
-      ],
-      "stack_after": 499,
-      "total_invested": 499,
+      "stack_after": 56,
+      "total_invested": 56,
       "folded": false,
       "all_in": false
     }
@@ -77,35 +41,17 @@
       "TS"
     ]
   },
-  "pot": 2495,
+  "pot": 112,
   "winners": [
     {
       "name": "Player0",
-      "amount": 499,
+      "amount": 56,
       "reason": "Best hand at showdown",
       "hand_name": "Royal flush"
     },
     {
       "name": "Player1",
-      "amount": 499,
-      "reason": "Best hand at showdown",
-      "hand_name": "Royal flush"
-    },
-    {
-      "name": "Player2",
-      "amount": 499,
-      "reason": "Best hand at showdown",
-      "hand_name": "Royal flush"
-    },
-    {
-      "name": "Player3",
-      "amount": 499,
-      "reason": "Best hand at showdown",
-      "hand_name": "Royal flush"
-    },
-    {
-      "name": "Player4",
-      "amount": 499,
+      "amount": 56,
       "reason": "Best hand at showdown",
       "hand_name": "Royal flush"
     }

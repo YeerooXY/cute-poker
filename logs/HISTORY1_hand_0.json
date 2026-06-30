@@ -1,0 +1,54 @@
+{
+  "hand_number": 0,
+  "timestamp": "2026-06-29T22:26:56.347071+00:00",
+  "room_id": "HISTORY1",
+  "players": [
+    {
+      "name": "Alice",
+      "seat": 1,
+      "hole_cards": [
+        "AS",
+        "AH"
+      ],
+      "stack_after": 1100,
+      "total_invested": 100,
+      "folded": false,
+      "all_in": false
+    },
+    {
+      "name": "Bob",
+      "seat": 2,
+      "hole_cards": [
+        "KS",
+        "KH"
+      ],
+      "stack_after": 900,
+      "total_invested": 100,
+      "folded": false,
+      "all_in": false
+    }
+  ],
+  "community_cards": {
+    "flop": [
+      "2C",
+      "5D",
+      "9S"
+    ],
+    "turn": [
+      "JH"
+    ],
+    "river": [
+      "3C"
+    ]
+  },
+  "pot": 200,
+  "winners": [
+    {
+      "name": "Alice",
+      "amount": 200,
+      "reason": "Best hand at showdown",
+      "hand_name": "One pair"
+    }
+  ],
+  "actions": []
+}

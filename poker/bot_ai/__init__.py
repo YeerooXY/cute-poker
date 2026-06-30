@@ -80,6 +80,19 @@ def reset_exploit_metrics() -> None:
     _exploit_metrics = ExploitMetrics()
 
 
+def _raise_to_total(game_context: AIGameContext, base_amount: int, max_total: int) -> int:
+    """Convert a sizing heuristic into a legal raise-to total.
+
+    The sizing subsystem produces an intended raise size. The game layer expects
+    the total chips committed after the raise, so when there is already a bet
+    outstanding we add the current bet before clamping.
+    """
+    raise_to = max(0, base_amount)
+    if game_context.current_bet > 0:
+        raise_to += game_context.current_bet
+    return min(raise_to, max_total)
+
+
 def advanced_bot_decide(
     game_context: AIGameContext,
     personality: PokerPersonality,
@@ -297,6 +310,8 @@ def advanced_bot_decide(
         max_raise_amount = game_context.committed + game_context.stack
         min_raise_amount = game_context.min_raise
         bet_amount = compute_bet_size(sizing_ctx, min_raise_amount, max_raise_amount)
+        if game_context.current_bet > 0:
+            bet_amount = _raise_to_total(game_context, bet_amount, max_raise_amount)
     except Exception:
         bet_amount = game_context.min_raise
 
@@ -315,6 +330,8 @@ def advanced_bot_decide(
             personality=BALANCED_PROFILE,
         )
         raise_amount = compute_bet_size(raise_sizing_ctx, min_raise_amount, max_raise_amount)
+        if game_context.current_bet > 0:
+            raise_amount = _raise_to_total(game_context, raise_amount, max_raise_amount)
         # Ensure raise_amount is at least as large as bet_amount
         raise_amount = max(raise_amount, bet_amount)
     except Exception:
@@ -522,14 +539,28 @@ def advanced_bot_decide(
                 sizing_ctx, game_context.min_raise, max_raise, equity
             )
             bet_amount = add_sizing_noise(bet_amount)
+            if chosen_action == "raise" and game_context.current_bet > 0:
+                bet_amount = _raise_to_total(game_context, bet_amount, max_raise)
             # Re-clamp after noise
             bet_amount = max(game_context.min_raise, min(bet_amount, max_raise))
         except Exception:
-            # Fallback: use min_raise
+            # Fallback: use min_raise, or a legal raise-to total when facing a bet
             bet_amount = game_context.min_raise
+            if chosen_action == "raise" and game_context.current_bet > 0:
+                bet_amount = _raise_to_total(
+                    game_context,
+                    game_context.min_raise,
+                    game_context.committed + game_context.stack,
+                )
     elif chosen_action in ("bet", "raise"):
         # Bet sizing subsystem not active: use min_raise as default
         bet_amount = game_context.min_raise
+        if chosen_action == "raise" and game_context.current_bet > 0:
+            bet_amount = _raise_to_total(
+                game_context,
+                bet_amount,
+                game_context.committed + game_context.stack,
+            )
 
     # ─── Step 5: Map internal actions to game actions ──────────────────────
     final_action, final_payload = _map_action_to_game(chosen_action, bet_amount, game_context)

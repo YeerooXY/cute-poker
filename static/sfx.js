@@ -14,7 +14,6 @@
   const SOUND_BASE_URL = "/sound/";
   const TIMER_WARNING_THRESHOLD = 5;
   const SAMPLE_LIBRARY = {
-    deal: ["817580__silverdubloons__slidecard05.wav", "240776__f4ngy__card-flip.wav"],
     chip_quiet: ["623175__aphom000__button-click-selection.wav", "201804__fartheststar__poker_chips4.wav"],
     check: ["623175__aphom000__button-click-selection.wav"],
     call: ["poker_sfx_chip_call_250ms_crop.mp3", "poker_sfx_chip_call_350ms_compressed.mp3", "201805__fartheststar__poker_chips3.wav"],
@@ -90,7 +89,7 @@
     if (action === "all_in") return "all_in";
     if (action === "showdown") return "showdown";
     if (action === "pot_win") return "pot_win";
-    if (action === "deal" || action === "card") return "deal";
+    if (action === "deal" || action === "card") return null;
 
     if (entry.is_all_in) return "all_in";
     return null;
@@ -126,11 +125,6 @@
 
   function buildSynth() {
     return {
-      deal(ctx, volume) {
-        playPattern(ctx, volume, [
-          { start: 0.00, duration: 0.05, frequency: 960, gain: 0.045, type: "triangle" },
-        ]);
-      },
       chip_quiet(ctx, volume) {
         playPattern(ctx, volume, [
           { start: 0.00, duration: 0.05, frequency: 740, gain: 0.03, type: "triangle" },
@@ -350,14 +344,6 @@
         }
       }
       lastActionCount = actionLog.length;
-
-      if (previousState && sameHand) {
-        const prevCommunity = Array.isArray(previousState.community) ? previousState.community : [];
-        const currCommunity = Array.isArray(state.community) ? state.community : [];
-        if (currCommunity.length > prevCommunity.length) {
-          playSound("deal", { state, previousState, addedCards: currCommunity.length - prevCommunity.length }, emitSounds);
-        }
-      }
 
       const showdownNow = state.phase === "showdown" || Boolean(state.showdown_mode);
       const showdownBefore = previousState

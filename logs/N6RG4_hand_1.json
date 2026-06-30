@@ -1,45 +1,59 @@
 {
   "hand_number": 1,
-  "timestamp": "2026-06-26T10:40:48.810841+00:00",
-  "room_id": "AFU6K",
+  "timestamp": "2026-06-29T22:26:56.997226+00:00",
+  "room_id": "N6RG4",
   "players": [
     {
       "name": "Admin",
       "seat": 1,
       "hole_cards": [
-        "JS",
-        "AD"
+        "6D",
+        "KH"
       ],
-      "stack_after": 995,
+      "stack_after": 1000,
       "total_invested": 5,
-      "folded": true,
-      "all_in": false
+      "folded": false,
+      "all_in": true
     },
     {
       "name": "Player2",
       "seat": 2,
       "hole_cards": [
-        "9S",
-        "4D"
+        "KC",
+        "2C"
       ],
-      "stack_after": 1005,
+      "stack_after": 1000,
       "total_invested": 10,
       "folded": false,
-      "all_in": false
+      "all_in": true
     }
   ],
   "community_cards": {
-    "flop": [],
-    "turn": [],
-    "river": []
+    "flop": [
+      "4C",
+      "TD",
+      "7D"
+    ],
+    "turn": [
+      "7C"
+    ],
+    "river": [
+      "QH"
+    ]
   },
   "pot": 15,
   "winners": [
     {
+      "name": "Admin",
+      "amount": 5,
+      "reason": "Best hand at showdown",
+      "hand_name": "One pair"
+    },
+    {
       "name": "Player2",
-      "amount": 15,
-      "reason": "Everyone else folded",
-      "hand_name": ""
+      "amount": 10,
+      "reason": "Best hand at showdown",
+      "hand_name": "One pair"
     }
   ],
   "actions": [
@@ -55,19 +69,6 @@
       "action": "big_blind",
       "amount": 10,
       "phase": "preflop",
-      "is_all_in": false
-    },
-    {
-      "player": "Admin",
-      "is_bot": false,
-      "phase": "preflop",
-      "pot": 15,
-      "current_bet": 10,
-      "committed": 5,
-      "committed_before": 5,
-      "stack": 995,
-      "action": "fold",
-      "amount": 0,
       "is_all_in": false
     }
   ]

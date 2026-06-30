@@ -1,0 +1,72 @@
+{
+  "hand_number": 0,
+  "timestamp": "2026-06-29T22:27:00.457170+00:00",
+  "room_id": "SIDE_POT_TEST",
+  "players": [
+    {
+      "name": "ShortStackBest",
+      "seat": 1,
+      "hole_cards": [
+        "AS",
+        "AH"
+      ],
+      "stack_after": 150,
+      "total_invested": 50,
+      "folded": false,
+      "all_in": true
+    },
+    {
+      "name": "MiddleStackSecondBest",
+      "seat": 2,
+      "hole_cards": [
+        "KS",
+        "KH"
+      ],
+      "stack_after": 100,
+      "total_invested": 100,
+      "folded": false,
+      "all_in": true
+    },
+    {
+      "name": "BigStackWorstHand",
+      "seat": 3,
+      "hole_cards": [
+        "QS",
+        "QH"
+      ],
+      "stack_after": 100,
+      "total_invested": 100,
+      "folded": false,
+      "all_in": false
+    }
+  ],
+  "community_cards": {
+    "flop": [
+      "2C",
+      "5D",
+      "9S"
+    ],
+    "turn": [
+      "7H"
+    ],
+    "river": [
+      "3C"
+    ]
+  },
+  "pot": 250,
+  "winners": [
+    {
+      "name": "ShortStackBest",
+      "amount": 150,
+      "reason": "Best hand at showdown",
+      "hand_name": "One pair"
+    },
+    {
+      "name": "MiddleStackSecondBest",
+      "amount": 100,
+      "reason": "Best hand at showdown",
+      "hand_name": "One pair"
+    }
+  ],
+  "actions": []
+}

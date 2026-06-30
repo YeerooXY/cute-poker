@@ -1,6 +1,6 @@
 {
   "hand_number": 0,
-  "timestamp": "2026-06-26T10:40:48.658960+00:00",
+  "timestamp": "2026-06-29T22:26:56.205831+00:00",
   "room_id": "TEST_LAST",
   "players": [
     {
@@ -45,15 +45,6 @@
     {
       "name": "Player4",
       "seat": 4,
-      "hole_cards": [],
-      "stack_after": 500,
-      "total_invested": 0,
-      "folded": true,
-      "all_in": false
-    },
-    {
-      "name": "Player5",
-      "seat": 5,
       "hole_cards": [],
       "stack_after": 500,
       "total_invested": 0,

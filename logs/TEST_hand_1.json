@@ -1,16 +1,16 @@
 {
   "hand_number": 1,
-  "timestamp": "2026-06-26T10:40:48.804675+00:00",
+  "timestamp": "2026-06-29T22:26:56.561869+00:00",
   "room_id": "TEST",
   "players": [
     {
       "name": "A",
       "seat": 1,
       "hole_cards": [
-        "3D",
-        "3C"
+        "6S",
+        "QH"
       ],
-      "stack_after": 4000,
+      "stack_after": 0,
       "total_invested": 1000,
       "folded": false,
       "all_in": true
@@ -19,10 +19,10 @@
       "name": "B",
       "seat": 2,
       "hole_cards": [
-        "5C",
-        "JD"
+        "TS",
+        "KD"
       ],
-      "stack_after": 0,
+      "stack_after": 4000,
       "total_invested": 1000,
       "folded": false,
       "all_in": true
@@ -31,8 +31,8 @@
       "name": "C",
       "seat": 3,
       "hole_cards": [
-        "7C",
-        "6S"
+        "2H",
+        "9H"
       ],
       "stack_after": 0,
       "total_invested": 1000,
@@ -43,8 +43,8 @@
       "name": "D",
       "seat": 4,
       "hole_cards": [
-        "KS",
-        "5S"
+        "2D",
+        "9C"
       ],
       "stack_after": 0,
       "total_invested": 1000,
@@ -54,24 +54,24 @@
   ],
   "community_cards": {
     "flop": [
-      "3S",
-      "TC",
-      "AD"
+      "8H",
+      "KC",
+      "7C"
     ],
     "turn": [
-      "8C"
+      "8S"
     ],
     "river": [
-      "6D"
+      "7H"
     ]
   },
   "pot": 4000,
   "winners": [
     {
-      "name": "A",
+      "name": "B",
       "amount": 4000,
       "reason": "Best hand at showdown",
-      "hand_name": "Three of a kind"
+      "hand_name": "Two pair"
     }
   ],
   "actions": [

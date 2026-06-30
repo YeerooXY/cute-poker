@@ -207,6 +207,43 @@ class TestPipelineValidActions:
             # With a royal flush draw + Maniac personality, we should bet at least once
             pytest.fail("Expected at least one bet_raise in 40 trials with Maniac + strong hand")
 
+    def test_raise_sizing_uses_raise_to_total_when_facing_bet(self, monkeypatch):
+        """Facing a bet, the raise sizing should be a real raise-to amount, not the bare floor."""
+        import poker.bot_ai as bot_ai_module
+
+        ctx = _make_context(
+            hole_cards=["AS", "KS"],
+            community=["QS", "JS", "TS"],
+            pot=300,
+            current_bet=100,
+            committed=0,
+            stack=1000,
+            min_raise=40,
+            position="BTN",
+            facing_action="raise",
+        )
+        personality = get_personality("Maniac")
+
+        monkeypatch.setattr(
+            bot_ai_module,
+            "compute_bet_size_with_equity_cap",
+            lambda ctx, min_raise, max_raise, equity: 60,
+        )
+        monkeypatch.setattr(
+            bot_ai_module,
+            "add_sizing_noise",
+            lambda base_size, noise_pct=0.10: base_size,
+        )
+
+        for seed in range(10):
+            random.seed(seed)
+            action, payload = advanced_bot_decide(ctx, personality, DifficultyLevel.EXPERT)
+            if action == "bet_raise":
+                assert payload["amount"] == 160
+                break
+        else:
+            pytest.fail("Expected a bet_raise action with a royal-flush board")
+
 
 # ─── Test: Strong Hands Tend Toward Aggression ─────────────────────────────────
 
