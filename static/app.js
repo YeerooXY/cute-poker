@@ -41,6 +41,16 @@ let actionHotkeyListenerRegistered = false;
 
 let autoDealEnabled = true;
 
+window.CutePoker = window.CutePoker || {};
+const frontendRuntime = window.CutePoker.frontend || (window.CutePoker.frontend = {});
+frontendRuntime.modules = frontendRuntime.modules || {};
+frontendRuntime.helpers = frontendRuntime.helpers || {};
+frontendRuntime.registerModule = function registerFrontendModule(name, api) {
+  if (!name) return api;
+  this.modules[name] = api;
+  return api;
+};
+
 // ─── Helpers ───
 function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
@@ -181,6 +191,49 @@ function safeSetItem(key, val) { try { localStorage.setItem(key, val); } catch {
 function numberInputValue(input, fallback) {
   const value = Number.parseInt(input && input.value, 10);
   return Number.isFinite(value) ? value : fallback;
+}
+
+function syncFrontendRuntimeBindings() {
+  Object.assign(frontendRuntime, {
+    els,
+    getLastState: () => lastState,
+    renderState: state => renderState(state),
+    action: (name, extra = {}) => action(name, extra),
+    getRoomId: () => roomId,
+    getSelectedHistoryHandNumber: () => selectedHistoryHandNumber,
+    setSelectedHistoryHandNumber: value => {
+      selectedHistoryHandNumber = value == null ? null : String(value);
+    },
+    getSelectedHistoryReviewKey: () => selectedHistoryReviewKey,
+    setSelectedHistoryReviewKey: value => {
+      selectedHistoryReviewKey = value == null ? null : String(value);
+    },
+    getDefaultPanelsRoomId: () => defaultPanelsRoomId,
+    setDefaultPanelsRoomId: value => {
+      defaultPanelsRoomId = value == null ? null : String(value);
+    },
+    getPanelExpanded: () => panelExpanded,
+    setPanelExpanded: value => {
+      panelExpanded = Boolean(value);
+    },
+    applyPanelState: () => applyPanelState(),
+    getPanelStorageKey: () => PANEL_KEY,
+  });
+
+  Object.assign(frontendRuntime.helpers, {
+    esc,
+    makeCardHtml,
+    numberOrZero,
+    actionEntryText,
+    directPlayerDelta,
+    formatHandDelta,
+    handDeltaClass,
+    renderBestFiveBreakdownHtml,
+    completedHandHistoryFromState,
+    fullHandHistoryDetailsFromState,
+    historyHandKey,
+    hasCurrentHandComplete,
+  });
 }
 
 function getNewCardFlags(cards, previousCards) {
@@ -3842,6 +3895,8 @@ function initActionLogToggle() {
 // ═══════════════════════════════════════════════════════════════
 // Init
 // ═══════════════════════════════════════════════════════════════
+syncFrontendRuntimeBindings();
+
 loadSavedPlayerName();
 initActionLogToggle();
 initAutoDealToggle();
