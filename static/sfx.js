@@ -23,6 +23,7 @@
     showdown: ["208790__ueffects__cards-sounds.wav"],
     pot_win: ["201804__fartheststar__poker_chips4.wav", "201805__fartheststar__poker_chips3.wav"],
     timer_warning: ["151309__tcpp__beep1-resonant-error-beep.wav"],
+    ui_click: ["623175__aphom000__button-click-selection.wav"],
   };
 
   function safeGet(storage, key) {
@@ -178,6 +179,17 @@
         playPattern(ctx, volume, [
           { start: 0.00, duration: 0.04, frequency: 880, gain: 0.03, type: "sine" },
           { start: 0.12, duration: 0.04, frequency: 880, gain: 0.03, type: "sine" },
+        ]);
+      },
+      ui_click(ctx, volume) {
+        playPattern(ctx, volume, [
+          { start: 0.00, duration: 0.035, frequency: 720, gain: 0.018, type: "triangle" },
+        ]);
+      },
+      invalid_action(ctx, volume) {
+        playPattern(ctx, volume, [
+          { start: 0.00, duration: 0.055, frequency: 220, gain: 0.026, type: "sawtooth" },
+          { start: 0.075, duration: 0.06, frequency: 160, gain: 0.022, type: "sawtooth" },
         ]);
       },
     };
